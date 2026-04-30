@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.core.config import settings
-from backend.routes import admin_vendors, health
+from backend.routes import admin_vendors, committee_reviews, health
 
 
 def create_app() -> FastAPI:
@@ -18,6 +18,7 @@ def create_app() -> FastAPI:
 
     app.include_router(health.router)
     app.include_router(admin_vendors.router)
+    app.include_router(committee_reviews.router)
     return app
 
 

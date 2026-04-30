@@ -2,8 +2,10 @@
 
 NYCU 2026 Spring Cloud Native Development and Best Practice.
 
-This is a cloud-native base repo for team building a corporate meal ordering system. It intentionally contains only the shared development environment, layering, CI, RBAC skeleton, vendor review skeleton, and initial
-database schema.
+This is a cloud-native base repo for a team building a corporate meal ordering
+system. It intentionally contains only the shared development environment,
+layering, CI, RBAC skeleton, vendor admin skeleton, committee review skeleton,
+and initial database schema.
 
 ## Project Structure
 
@@ -90,6 +92,9 @@ uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 - Vendor review route skeleton: `backend/routes/admin_vendors.py`
 - Vendor review service skeleton: `backend/services/vendor_review_service.py`
 - Vendor repository skeleton: `backend/repositories/vendor_repository.py`
+- Committee review route skeleton: `backend/routes/committee_reviews.py`
+- Committee review service skeleton: `backend/services/committee_review_service.py`
+- Committee review repository skeleton: `backend/repositories/committee_review_repository.py`
 - Audit log repository skeleton: `backend/repositories/audit_log_repository.py`
 - Initial SQL schema: `backend/db/migrations/001_initial_schema.sql`
 
