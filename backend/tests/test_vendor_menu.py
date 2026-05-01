@@ -1,7 +1,9 @@
 """/vendor/me/menu — CRUD with daily_quota and cross-vendor scoping."""
+import io
 from pathlib import Path
 
 from fastapi.testclient import TestClient
+from PIL import Image
 
 from backend.core.vendor_identity import get_vendor_profile_repository
 from backend.main import app
@@ -121,3 +123,77 @@ def test_unapproved_vendor_blocked(tmp_path: Path) -> None:
     resp = client.get("/vendor/me/menu", headers={"x-user-role": "vendor_manager", "x-vendor-id": "3"})
     assert resp.status_code == 403
     assert resp.json()["code"] == "vendor_not_approved"
+
+
+def _png_bytes() -> bytes:
+    buf = io.BytesIO()
+    Image.new("RGB", (50, 50), color="blue").save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def test_put_photo_happy_path(tmp_path: Path) -> None:
+    client, item_repo, _ = _setup(tmp_path)
+    item = item_repo.create(vendor_id=1, name="A", price_cents=10)
+
+    resp = client.put(
+        f"/vendor/me/menu/{item.id}/photo",
+        headers=_h(),
+        files={"file": ("photo.png", _png_bytes(), "image/png")},
+    )
+    assert resp.status_code == 200
+    assert resp.json() == {"photo_path": f"vendors/1/menu/{item.id}.jpg"}
+    assert (tmp_path / f"vendors/1/menu/{item.id}.jpg").exists()
+    assert item_repo.get(vendor_id=1, item_id=item.id).photo_path == f"vendors/1/menu/{item.id}.jpg"
+
+
+def test_put_photo_rejects_non_image(tmp_path: Path) -> None:
+    client, item_repo, _ = _setup(tmp_path)
+    item = item_repo.create(vendor_id=1, name="A", price_cents=10)
+    resp = client.put(
+        f"/vendor/me/menu/{item.id}/photo",
+        headers=_h(),
+        files={"file": ("evil.txt", b"not an image", "image/jpeg")},
+    )
+    assert resp.status_code == 415
+    assert resp.json()["code"] == "invalid_image_type"
+
+
+def test_put_photo_rejects_oversize(tmp_path: Path) -> None:
+    # 用很小的 max_bytes 重新注入 storage
+    tiny_storage = PhotoStorage(root=tmp_path, max_bytes=10)
+    client, item_repo, _ = _setup(tmp_path)
+    app.dependency_overrides[get_photo_storage] = lambda: tiny_storage
+    item = item_repo.create(vendor_id=1, name="A", price_cents=10)
+    resp = client.put(
+        f"/vendor/me/menu/{item.id}/photo",
+        headers=_h(),
+        files={"file": ("photo.png", _png_bytes(), "image/png")},
+    )
+    assert resp.status_code == 413
+    assert resp.json()["code"] == "image_too_large"
+
+
+def test_delete_photo_clears_path_and_file(tmp_path: Path) -> None:
+    client, item_repo, _ = _setup(tmp_path)
+    item = item_repo.create(vendor_id=1, name="A", price_cents=10)
+    client.put(
+        f"/vendor/me/menu/{item.id}/photo",
+        headers=_h(),
+        files={"file": ("photo.png", _png_bytes(), "image/png")},
+    )
+
+    resp = client.delete(f"/vendor/me/menu/{item.id}/photo", headers=_h())
+    assert resp.status_code == 204
+    assert not (tmp_path / f"vendors/1/menu/{item.id}.jpg").exists()
+    assert item_repo.get(vendor_id=1, item_id=item.id).photo_path is None
+
+
+def test_put_photo_cross_vendor_404(tmp_path: Path) -> None:
+    client, item_repo, _ = _setup(tmp_path)
+    item = item_repo.create(vendor_id=1, name="A", price_cents=10)
+    resp = client.put(
+        f"/vendor/me/menu/{item.id}/photo",
+        headers=_h(2),
+        files={"file": ("photo.png", _png_bytes(), "image/png")},
+    )
+    assert resp.status_code == 404
