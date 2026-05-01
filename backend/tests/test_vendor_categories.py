@@ -62,7 +62,7 @@ def test_delete_non_empty_category_returns_409() -> None:
     client, cat_repo, item_repo = _setup()
     cat = cat_repo.create(vendor_id=1, name="Hot")
     # Manually inject an item to simulate one existing in the category
-    item_repo._rows[1] = {"vendor_id": 1, "category_id": cat.id}
+    item_repo.create(vendor_id=1, category_id=cat.id, name="Soup", price_cents=100)
 
     resp = client.delete(f"/vendor/me/categories/{cat.id}", headers=_h())
     assert resp.status_code == 409
