@@ -18,6 +18,8 @@ from backend.core.errors import CodedHTTPException
 _ALLOWED_FORMATS = {"JPEG", "PNG", "WEBP"}
 _DEFAULT_MAX_BYTES = 5 * 1024 * 1024  # 5 MB
 _DEFAULT_MAX_EDGE = 1600
+# 解壓縮炸彈防線：拒絕宣稱像素 > 25M 的圖（5MB PNG 可宣稱 50000x50000 = 25 億像素 → 記憶體 DoS）
+_MAX_PIXELS = 25_000_000
 
 
 class PhotoStorage:
@@ -45,10 +47,20 @@ class PhotoStorage:
                         code="invalid_image_type",
                         detail=f"unsupported image format: {img.format}",
                     )
+                # 在 load() 之前先檢查像素數，避免解壓縮炸彈耗盡記憶體
+                width, height = img.size
+                if width * height > _MAX_PIXELS:
+                    raise CodedHTTPException(
+                        status_code=413,
+                        code="image_too_large",
+                        detail=f"image dimensions exceed limit ({width}x{height})",
+                    )
                 img.load()
                 # 轉 RGB 才能存成 JPEG (PNG 可能是 RGBA / palette mode)
                 rgb = img.convert("RGB")
-        except UnidentifiedImageError as exc:
+        except (UnidentifiedImageError, Image.DecompressionBombError, OSError) as exc:
+            # PIL 可能拋多種型別：未識別格式、解壓縮炸彈、檔案截斷等。
+            # 一律當成「壞圖」回 415，不洩漏內部 stack trace。
             raise CodedHTTPException(
                 status_code=415, code="invalid_image_type", detail="not a recognised image"
             ) from exc
