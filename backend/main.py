@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.core.config import settings
+from backend.core.errors import install_error_handler
 from backend.routes import admin_vendors, committee_reviews, health
 
 
@@ -15,6 +16,8 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    install_error_handler(app)
 
     app.include_router(health.router)
     app.include_router(admin_vendors.router)
