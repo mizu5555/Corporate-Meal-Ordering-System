@@ -1,13 +1,22 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.core.config import settings
+from backend.db.migrate import run_migrations
 from backend.core.errors import install_error_handler
 from backend.routes import admin_vendors, committee_reviews, health, vendor_categories, vendor_menu, vendor_profile
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    run_migrations()
+    yield
+
+
 def create_app() -> FastAPI:
-    app = FastAPI(title=settings.app_name)
+    app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
     app.add_middleware(
         CORSMiddleware,

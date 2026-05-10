@@ -85,6 +85,15 @@ uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 - Backend direct dev port: http://localhost:8000
 - PostgreSQL: localhost:5432
 
+## Database Migrations
+
+SQL migrations live in `backend/db/migrations/` and are applied by the backend
+startup hook when `DATABASE_URL` is configured. Applied filenames are tracked in
+the `schema_migrations` table.
+
+For local Docker Compose development, PostgreSQL is started first and the
+backend applies pending migrations automatically.
+
 ## Backend Skeleton
 
 - `GET /health`

@@ -6,9 +6,12 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, status
 from fastapi.responses import Response
 
+from backend.core.config import settings
 from backend.core.vendor_identity import require_approved_vendor
 from backend.repositories.menu_category_repository import MenuCategoryRepository
 from backend.repositories.menu_item_repository import MenuItemRepository
+from backend.repositories.postgres_menu_category_repository import PostgresMenuCategoryRepository
+from backend.repositories.postgres_menu_item_repository import PostgresMenuItemRepository
 from backend.schemas.vendor_self import Category, CategoryCreate, CategoryUpdate
 from backend.services.vendor_category_service import VendorCategoryService
 
@@ -19,15 +22,21 @@ router = APIRouter(prefix="/vendor/me/categories", tags=["vendor-self"])
 # 測試以 app.dependency_overrides 注入新實例。
 _category_repo = MenuCategoryRepository()
 _item_repo_for_category = MenuItemRepository()
+_postgres_category_repo = PostgresMenuCategoryRepository()
+_postgres_item_repo = PostgresMenuItemRepository()
 
 
 def get_menu_category_repository() -> MenuCategoryRepository:
+    if settings.database_url:
+        return _postgres_category_repo
     return _category_repo
 
 
 def get_menu_item_repository_for_category() -> MenuItemRepository:
     """名字加 _for_category 是為了讓 routes/vendor_menu.py 也能擁有自己的 override key
     (兩條 route 共用同一份 repo，但測試可分別注入)。"""
+    if settings.database_url:
+        return _postgres_item_repo
     return _item_repo_for_category
 
 

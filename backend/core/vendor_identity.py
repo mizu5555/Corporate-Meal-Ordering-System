@@ -13,16 +13,21 @@ from typing import Annotated
 
 from fastapi import Depends, Header
 
+from backend.core.config import settings
 from backend.core.errors import CodedHTTPException
+from backend.repositories.postgres_vendor_profile_repository import PostgresVendorProfileRepository
 from backend.repositories.vendor_profile_repository import VendorProfileRepository
 
 # Module-singleton：production 模式下 process 內共用同一份 in-memory state。
 # 測試以 app.dependency_overrides[get_vendor_profile_repository] 注入新實例。
 _REPO_SINGLETON = VendorProfileRepository()
+_POSTGRES_REPO_SINGLETON = PostgresVendorProfileRepository()
 
 
 def get_vendor_profile_repository() -> VendorProfileRepository:
     """DI 切換點：測試覆寫此 callable 即可換成 fake/seeded repo。"""
+    if settings.database_url:
+        return _POSTGRES_REPO_SINGLETON
     return _REPO_SINGLETON
 
 
