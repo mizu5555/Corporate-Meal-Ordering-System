@@ -110,7 +110,7 @@ In the Jenkins UI:
 Then add a Custom Nginx location to the existing `nol.cs.nycu.edu.tw` proxy host in NPM:
 
 ```nginx
-location /preview/ {
+location /meal-preview/ {
     proxy_http_version 1.1;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
@@ -120,7 +120,7 @@ location /preview/ {
 }
 ```
 
-(`/meal-staging/` and `/meal/` lines stay as-is — `/preview/` is additive.)
+(`/meal-staging/` and `/meal/` lines stay as-is — `/meal-preview/` is additive and keeps the `meal-*` namespace consistent with the other two.)
 
 Preview slot cap is hard-coded to 3 in `Jenkinsfile.preview` (`PREVIEW_LIMIT`); adjust if NOL resources allow more.
 

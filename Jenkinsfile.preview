@@ -42,7 +42,7 @@ pipeline {
             fi
 
             PROJECT="${PROJECT_PREFIX}-${SLUG}"
-            ROOT_PATH="/preview/${SLUG}"
+            ROOT_PATH="/meal-preview/${SLUG}"
 
             docker network inspect preview-net >/dev/null 2>&1 \
               || docker network create preview-net
@@ -82,7 +82,7 @@ pipeline {
                 -f infra/deploy/docker-compose.preview.yml \
                 up -d --build
 
-            URL="${PUBLIC_BASE}/preview/${SLUG}/"
+            URL="${PUBLIC_BASE}/meal-preview/${SLUG}/"
 
             # Smoke check — retry health up to 60s.
             ok=0
