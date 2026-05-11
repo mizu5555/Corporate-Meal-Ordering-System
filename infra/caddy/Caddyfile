@@ -2,13 +2,10 @@
 	auto_https disable_redirects
 }
 
-http://localhost {
-	redir https://localhost{uri}
-}
-
-https://localhost {
-	tls internal
-
+# Shared routing table. Imported by both the internal :80 entry point (used
+# by the preview-router, which forwards with Host: mealorder-<env>-gateway)
+# and the local-dev https://localhost entry point.
+(routes) {
 	handle /health {
 		reverse_proxy backend:8000
 	}
@@ -29,6 +26,10 @@ https://localhost {
 		reverse_proxy backend:8000
 	}
 
+	handle /employee/* {
+		reverse_proxy backend:8000
+	}
+
 	handle_path /uploads/* {
 		root * /srv/uploads
 		file_server
@@ -38,4 +39,17 @@ https://localhost {
 	handle {
 		reverse_proxy frontend:80
 	}
+}
+
+# Plain HTTP on :80 — for the internal preview-router, which proxies with
+# Host: mealorder-<env>-gateway (non-localhost), so we match by port only.
+:80 {
+	import routes
+}
+
+# Local-dev HTTPS entry point. Browsers hitting https://localhost get the
+# same routing tree with a self-signed cert.
+https://localhost {
+	tls internal
+	import routes
 }
