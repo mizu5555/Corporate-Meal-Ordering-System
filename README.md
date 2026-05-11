@@ -49,11 +49,13 @@ cp .env.example .env
 
 2. Update `.env` local secrets such as `POSTGRES_PASSWORD`.
 
-3. Start the full local stack:
+3. Start the full local stack (with hot reload):
 
 ```bash
-docker compose up --build
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 ```
+
+**Deployment (TBD via Jenkins):** see `infra/deploy/SETUP-NOL.md` for the NOL host one-time setup and Jenkins pipeline configuration.
 
 Main HTTPS entrypoint:
 
