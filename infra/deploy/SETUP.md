@@ -95,6 +95,35 @@ In the Jenkins UI:
 2. **Pipeline → Pipeline script from SCM**, Git repo + branch `*/main`, Script Path = `Jenkinsfile.cleanup`.
 3. Save → click **Build Now** once (registers the cron declared inside the Jenkinsfile).
 
+## 6.5 Jenkins — PR preview pipeline (`mealorder-preview`)
+
+1. **New Item → Multibranch Pipeline**, name `mealorder-preview`.
+2. **Branch Sources → GitHub**, repo `mizu5555/Corporate-Meal-Ordering-System`, credentials = your PAT.
+3. **Behaviors** — adjust:
+   - **Remove** `Discover branches` (PR-only pipeline).
+   - **Add** `Discover pull requests from origin` (strategy: "Merging the pull request with the current target branch revision").
+   - Optionally `Discover pull requests from forks` if you want fork-PR previews (security caveat: forked PRs can execute your Jenkinsfile).
+4. **Build Configuration → by Jenkinsfile**, Script Path = `Jenkinsfile.preview`.
+5. **Scan triggers** — enable `Periodically if not otherwise run` = 1 minute (or rely on webhook).
+6. Save.
+
+Then add a Custom Nginx location to the existing `nol.cs.nycu.edu.tw` proxy host in NPM:
+
+```nginx
+location /preview/ {
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_pass http://127.0.0.1:18080;
+}
+```
+
+(`/meal-staging/` and `/meal/` lines stay as-is — `/preview/` is additive.)
+
+Preview slot cap is hard-coded to 3 in `Jenkinsfile.preview` (`PREVIEW_LIMIT`); adjust if NOL resources allow more.
+
 ## 7. Jenkins-service mount requirements
 
 This Jenkins service container only needs:
@@ -131,3 +160,6 @@ curl -sk https://nol.cs.nycu.edu.tw/meal/health
 - [ ] Subsequent merge to `main` updates `/meal-staging/`, prod stays on v0.1.0
 - [ ] `docker compose ls` shows `mealorder-staging`, `mealorder-prod`, `caddy-preview-router`
 - [ ] `https://nol.cs.nycu.edu.tw/` static homepage unaffected
+- [ ] Opening a PR triggers `mealorder-preview`; PR receives a comment with the preview URL
+- [ ] `https://nol.cs.nycu.edu.tw/preview/<slug>/health` returns 200 for the open PR
+- [ ] Closing the PR → within 1 hour, the preview stack is gone (`docker compose ls`)
