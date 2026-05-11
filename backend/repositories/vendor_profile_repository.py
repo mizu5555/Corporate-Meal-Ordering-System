@@ -47,6 +47,13 @@ class VendorProfileRepository:
     def get(self, vendor_id: int) -> VendorRecord | None:
         return self._vendors.get(vendor_id)
 
+    def list(self, *, status: str | None = None) -> list[VendorRecord]:
+        vendors = list(self._vendors.values())
+        if status is not None:
+            vendors = [vendor for vendor in vendors if vendor.status == status]
+        vendors.sort(key=lambda vendor: vendor.id)
+        return vendors
+
     def update(self, vendor_id: int, fields: dict[str, Any]) -> VendorRecord | None:
         existing = self._vendors.get(vendor_id)
         if existing is None:
