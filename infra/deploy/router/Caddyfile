@@ -1,0 +1,22 @@
+# Shared internal router. NPM forwards /meal-staging/* and /meal/* here,
+# which strips the prefix and proxies to the matching stack's gateway over
+# the preview-net docker bridge.
+:80 {
+    handle_path /meal-staging/* {
+        reverse_proxy http://mealorder-staging-gateway:80 {
+            health_uri /health
+            fail_duration 5s
+        }
+    }
+
+    handle_path /meal/* {
+        reverse_proxy http://mealorder-prod-gateway:80 {
+            health_uri /health
+            fail_duration 5s
+        }
+    }
+
+    handle {
+        respond "preview-router OK" 200
+    }
+}
