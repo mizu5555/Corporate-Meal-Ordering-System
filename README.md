@@ -5,7 +5,7 @@ NYCU 2026 Spring Cloud Native Development and Best Practice.
 This is a cloud-native base repo for a team building a corporate meal ordering
 system. It intentionally contains only the shared development environment,
 layering, CI, RBAC skeleton, vendor admin skeleton, committee review skeleton,
-and initial database schema.
+and initial database schema. 
 
 ## Project Structure
 
