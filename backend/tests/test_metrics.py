@@ -2,15 +2,15 @@ from fastapi.testclient import TestClient
 
 from backend.main import app
 
-client = TestClient(app)
-
 
 def test_metrics_endpoint_returns_200() -> None:
+    client = TestClient(app)
     response = client.get("/metrics")
     assert response.status_code == 200
 
 
 def test_metrics_endpoint_contains_http_counter() -> None:
+    client = TestClient(app)
     # Trigger one request so the counter exists
     client.get("/health")
     response = client.get("/metrics")

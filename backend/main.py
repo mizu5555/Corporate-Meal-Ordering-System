@@ -38,7 +38,7 @@ def create_app() -> FastAPI:
     app.include_router(vendor_menu.router)
     app.include_router(employee_ordering.router)
 
-    Instrumentator().instrument(app).expose(app)
+    Instrumentator(should_instrument_requests_inprogress=True).instrument(app).expose(app)
     return app
 
 

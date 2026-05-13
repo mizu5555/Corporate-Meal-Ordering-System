@@ -38,7 +38,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(rate(http_requests_total{job=~\"$job\", status_code=~\"5..\"}[5m])) by (job)",
+          "expr": "sum(rate(http_requests_total{job=~\"$job\", status=~\"5..\"}[5m])) by (job)",
           "legendFormat": "{{job}} 5xx",
           "refId": "A"
         }
@@ -90,7 +90,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(http_requests_in_progress{job=~\"$job\"}) by (job)",
+          "expr": "sum(http_requests_inprogress{job=~\"$job\"}) by (job)",
           "legendFormat": "{{job}}",
           "refId": "A"
         }
