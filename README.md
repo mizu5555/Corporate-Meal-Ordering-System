@@ -128,3 +128,4 @@ git checkout -b feature/<name>/<short-task>
 - Logs are written to stdout.
 - The FastAPI app is stateless.
 - PostgreSQL is treated as an external backing service.
+
