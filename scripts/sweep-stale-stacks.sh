@@ -5,15 +5,13 @@ set -euo pipefail
 
 PROJECT_PREFIX="${PROJECT_PREFIX:-mealorder}"
 
-PROJECTS=$(docker compose ls --filter name="${PROJECT_PREFIX}-" --format json \
-  | python3 -c "
-import sys, json
-p = sys.argv[1]
-for item in json.load(sys.stdin):
-    name = item['Name']
-    if name not in (p+'-main', p+'-staging', p+'-prod'):
-        print(name)
-" "$PROJECT_PREFIX")
+PROJECTS=$(docker compose ls --filter name=${PROJECT_PREFIX}- --format json \
+  | jq -r --arg p "$PROJECT_PREFIX" '
+      .[]
+      | select(.Name != ($p + "-main"))
+      | select(.Name != ($p + "-staging"))
+      | select(.Name != ($p + "-prod"))
+      | .Name')
 
 for proj in $PROJECTS; do
   BRANCH=$(docker ps -a --filter "label=mealorder.branch" \
