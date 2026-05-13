@@ -2,6 +2,7 @@ import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from backend.core.config import settings
 from backend.core.errors import install_error_handler
@@ -36,6 +37,8 @@ def create_app() -> FastAPI:
     app.include_router(vendor_categories.router)
     app.include_router(vendor_menu.router)
     app.include_router(employee_ordering.router)
+
+    Instrumentator(should_instrument_requests_inprogress=True).instrument(app).expose(app)
     return app
 
 

@@ -1,8 +1,10 @@
 # Override applied for prod stack: strip host ports, join gateway to preview-net
 # so the shared caddy-preview-router can reach it via docker DNS.
+# backend also joins grafana_default so Prometheus can scrape /metrics by container name.
 services:
   backend:
     ports: !reset []
+    networks: [default, grafana_default]
   frontend:
     ports: !reset []
   db:
@@ -13,4 +15,6 @@ services:
 
 networks:
   preview-net:
+    external: true
+  grafana_default:
     external: true

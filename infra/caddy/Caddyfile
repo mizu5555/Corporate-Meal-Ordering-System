@@ -36,6 +36,10 @@
 		header Cache-Control "public, max-age=3600"
 	}
 
+	# /metrics is intentionally not proxied here — Prometheus scrapes the backend
+	# directly via container DNS (grafana_default network). Exposing it through
+	# the gateway would leak internal metrics publicly.
+
 	handle {
 		reverse_proxy frontend:80
 	}
