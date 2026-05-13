@@ -1,4 +1,3 @@
-import sys
 import pytest
 from prometheus_client import REGISTRY
 
@@ -33,3 +32,20 @@ def _isolate_module_reloads(request):
                 pass
 
     yield
+
+    # Teardown cleanup: unregister any new collectors that may have been registered
+    # during the test (particularly for tests that reload modules)
+    to_unregister = []
+    for collector in list(REGISTRY._collector_to_names.keys()):
+        try:
+            names = REGISTRY._collector_to_names.get(collector, set())
+            if "http_requests_inprogress" in names:
+                to_unregister.append(collector)
+        except Exception:
+            pass
+
+    for collector in to_unregister:
+        try:
+            REGISTRY.unregister(collector)
+        except Exception:
+            pass
