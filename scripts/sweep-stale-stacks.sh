@@ -5,6 +5,13 @@ set -euo pipefail
 
 PROJECT_PREFIX="${PROJECT_PREFIX:-mealorder}"
 
+# Resolve owner/repo once so we can query the PR API by branch name.
+# `gh api ... ?head=owner:branch` finds PRs even after the branch has been
+# deleted (which happens automatically on `gh pr merge --delete-branch`).
+# `gh pr list --head <deleted-branch>` returns empty and breaks cleanup.
+REPO=$(gh repo view --json nameWithOwner --jq '.nameWithOwner' 2>/dev/null || echo "")
+OWNER="${REPO%%/*}"
+
 PROJECTS=$(docker compose ls --filter name=${PROJECT_PREFIX}- --format json \
   | jq -r --arg p "$PROJECT_PREFIX" '
       .[]
@@ -23,8 +30,14 @@ for proj in $PROJECTS; do
     continue
   fi
 
-  STATE=$(gh pr list --head "$BRANCH" --state all --json state \
-    --jq 'if map(select(.state == "OPEN")) | length > 0 then "OPEN" else (.[0].state // "UNKNOWN") end' 2>/dev/null || echo "UNKNOWN")
+  STATE="UNKNOWN"
+  if [ -n "$REPO" ] && [ -n "$OWNER" ]; then
+    STATE=$(gh api "repos/${REPO}/pulls?state=all&head=${OWNER}:${BRANCH}&per_page=100" \
+      --jq 'if length == 0 then "UNKNOWN"
+            elif any(.state == "open") then "OPEN"
+            else (.[0] | if .merged_at then "MERGED" else "CLOSED" end)
+            end' 2>/dev/null || echo "UNKNOWN")
+  fi
 
   case "$STATE" in
     CLOSED|MERGED)
