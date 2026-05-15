@@ -1,6 +1,7 @@
+from backend.core.errors import CodedHTTPException
 from backend.repositories.audit_log_repository import AuditLogRepository
-from backend.repositories.committee_review_repository import CommitteeReviewRepository
-from backend.schemas.committee import CommitteeReviewRequest, CommitteeReviewResponse
+from backend.repositories.committee_review_repository import CommitteeReviewRecord, CommitteeReviewRepository
+from backend.schemas.committee import CommitteeReviewItem, CommitteeReviewRequest, CommitteeReviewResponse
 
 
 class CommitteeReviewService:
@@ -14,19 +15,57 @@ class CommitteeReviewService:
         )
         self.audit_log_repository = audit_log_repository or AuditLogRepository()
 
+    def list_pending_reviews(self) -> list[CommitteeReviewItem]:
+        return [
+            self._to_item(record)
+            for record in self.committee_review_repository.list_pending()
+        ]
+
     def record_decision(
         self,
         review_id: int,
         payload: CommitteeReviewRequest,
     ) -> CommitteeReviewResponse:
-        self.committee_review_repository.mark_review_decided(
+        review = self.committee_review_repository.get(review_id)
+        if review is None:
+            raise CodedHTTPException(
+                status_code=404,
+                code="not_found",
+                detail="committee review not found",
+            )
+        if review.status != "pending":
+            raise CodedHTTPException(
+                status_code=409,
+                code="review_already_decided",
+                detail="committee review has already been decided",
+            )
+
+        updated = self.committee_review_repository.mark_review_decided(
             review_id,
             payload.decision,
+            payload.reason,
         )
-        self.audit_log_repository.record_committee_review(review_id, payload.decision)
+        self.audit_log_repository.record_committee_review(
+            review_id,
+            payload.decision,
+            payload.reason,
+        )
 
         return CommitteeReviewResponse(
             review_id=review_id,
             decision=payload.decision,
-            status="review_recorded",
+            status=updated.status if updated else payload.decision,
+            reason=payload.reason,
+        )
+
+    @staticmethod
+    def _to_item(record: CommitteeReviewRecord) -> CommitteeReviewItem:
+        return CommitteeReviewItem(
+            id=record.id,
+            target_type=record.target_type,
+            target_id=record.target_id,
+            title=record.title,
+            status=record.status,
+            submitted_by_user_id=record.submitted_by_user_id,
+            created_at=record.created_at,
         )
