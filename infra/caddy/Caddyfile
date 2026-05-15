@@ -30,6 +30,10 @@
 		reverse_proxy backend:8000
 	}
 
+	handle /committee/* {
+		reverse_proxy backend:8000
+	}
+
 	handle_path /uploads/* {
 		root * /srv/uploads
 		file_server
