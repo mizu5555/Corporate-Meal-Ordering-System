@@ -1,0 +1,29 @@
+# Override applied for per-PR preview stacks.
+# - Strips host ports so multiple stacks coexist with staging/prod on the same host.
+# - Gives the gateway a stable, slug-derived container_name so the shared
+#   caddy-preview-router can dispatch /preview/<slug>/* via docker DNS.
+# - Tags every container with the originating branch name so the hourly
+#   sweep can map a stack back to a PR via the GitHub API.
+services:
+  backend:
+    ports: !reset []
+    labels:
+      mealorder.branch: ${BRANCH_RAW:-}
+  frontend:
+    ports: !reset []
+    labels:
+      mealorder.branch: ${BRANCH_RAW:-}
+  db:
+    ports: !reset []
+    labels:
+      mealorder.branch: ${BRANCH_RAW:-}
+  gateway:
+    ports: !reset []
+    container_name: mealorder-${SLUG:-default}-gateway
+    networks: [default, preview-net]
+    labels:
+      mealorder.branch: ${BRANCH_RAW:-}
+
+networks:
+  preview-net:
+    external: true

@@ -1,12 +1,22 @@
 from contextlib import asynccontextmanager
+import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from backend.core.config import settings
-from backend.db.migrate import run_migrations
 from backend.core.errors import install_error_handler
-from backend.routes import admin_vendors, committee_reviews, health, vendor_categories, vendor_menu, vendor_profile
+from backend.db.migrate import run_migrations
+from backend.routes import (
+    admin_vendors,
+    committee_reviews,
+    employee_ordering,
+    health,
+    vendor_categories,
+    vendor_menu,
+    vendor_profile,
+)
 
 
 @asynccontextmanager
@@ -16,7 +26,11 @@ async def lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title=settings.app_name, lifespan=lifespan)
+    app = FastAPI(
+        title=settings.app_name,
+        root_path=os.getenv("ROOT_PATH", ""),
+        lifespan=lifespan,
+    )
 
     app.add_middleware(
         CORSMiddleware,
@@ -34,6 +48,9 @@ def create_app() -> FastAPI:
     app.include_router(vendor_profile.router)
     app.include_router(vendor_categories.router)
     app.include_router(vendor_menu.router)
+    app.include_router(employee_ordering.router)
+
+    Instrumentator(should_instrument_requests_inprogress=True).instrument(app).expose(app)
     return app
 
 

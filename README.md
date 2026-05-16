@@ -5,7 +5,7 @@ NYCU 2026 Spring Cloud Native Development and Best Practice.
 This is a cloud-native base repo for a team building a corporate meal ordering
 system. It intentionally contains only the shared development environment,
 layering, CI, RBAC skeleton, vendor admin skeleton, committee review skeleton,
-and initial database schema.
+and initial database schema. 
 
 ## Project Structure
 
@@ -49,11 +49,13 @@ cp .env.example .env
 
 2. Update `.env` local secrets such as `POSTGRES_PASSWORD`.
 
-3. Start the full local stack:
+3. Start the full local stack (with hot reload):
 
 ```bash
-docker compose up --build
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 ```
+
+**Deployment (TBD via Jenkins):** see `infra/deploy/SETUP-NOL.md` for the NOL host one-time setup and Jenkins pipeline configuration.
 
 Main HTTPS entrypoint:
 
@@ -135,3 +137,4 @@ git checkout -b feature/<name>/<short-task>
 - Logs are written to stdout.
 - The FastAPI app is stateless.
 - PostgreSQL is treated as an external backing service.
+

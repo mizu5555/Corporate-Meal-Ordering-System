@@ -1,0 +1,67 @@
+pipeline {
+  agent any
+
+  options {
+    disableConcurrentBuilds()
+    timeout(time: 20, unit: 'MINUTES')
+    timestamps()
+  }
+
+  environment {
+    COMPOSE_PROJECT_NAME     = 'mealorder-staging'
+    ROOT_PATH                = '/meal-staging'
+    GATEWAY_CONTAINER_NAME   = 'mealorder-staging-gateway'
+    PUBLIC_HEALTH_URL        = "${env.PUBLIC_HEALTH_URL ?: 'https://nol.cs.nycu.edu.tw/meal-staging/health'}"
+  }
+
+  stages {
+    stage('Checkout') {
+      when { branch 'main' }
+      steps { checkout scm }
+    }
+
+    stage('Reset and deploy staging') {
+      when { branch 'main' }
+      steps {
+        sh '''
+          set -euo pipefail
+          docker network inspect preview-net >/dev/null 2>&1 \
+            || docker network create preview-net
+          docker compose -p "$COMPOSE_PROJECT_NAME" \
+            -f docker-compose.yml \
+            -f infra/deploy/docker-compose.staging.yml \
+            down -v --remove-orphans || true
+          ROOT_PATH="$ROOT_PATH" \
+          GATEWAY_CONTAINER_NAME="$GATEWAY_CONTAINER_NAME" \
+            docker compose -p "$COMPOSE_PROJECT_NAME" \
+            -f docker-compose.yml \
+            -f infra/deploy/docker-compose.staging.yml \
+            up -d --build
+        '''
+      }
+    }
+
+    stage('Smoke check') {
+      when { branch 'main' }
+      steps {
+        sh '''
+          set -euo pipefail
+          for i in $(seq 1 30); do
+            if curl -fsS "$PUBLIC_HEALTH_URL" >/dev/null; then
+              echo "staging /health OK"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "staging /health failed after 60s" >&2
+          docker compose -p "$COMPOSE_PROJECT_NAME" logs --tail=200 >&2 || true
+          exit 1
+        '''
+      }
+    }
+  }
+
+  post {
+    always { cleanWs() }
+  }
+}
