@@ -3,10 +3,34 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, status
 
 from backend.core.rbac import require_roles
-from backend.schemas.committee import CommitteeReviewRequest, CommitteeReviewResponse
+from backend.repositories.committee_review_repository import CommitteeReviewRepository
+from backend.schemas.committee import CommitteeReviewItem, CommitteeReviewRequest, CommitteeReviewResponse
 from backend.services.committee_review_service import CommitteeReviewService
 
 router = APIRouter(prefix="/committee/reviews", tags=["committee-reviews"])
+
+_committee_review_repo = CommitteeReviewRepository()
+
+
+def get_committee_review_repository() -> CommitteeReviewRepository:
+    return _committee_review_repo
+
+
+def get_committee_review_service(
+    repository: Annotated[
+        CommitteeReviewRepository,
+        Depends(get_committee_review_repository),
+    ],
+) -> CommitteeReviewService:
+    return CommitteeReviewService(committee_review_repository=repository)
+
+
+@router.get("/pending", response_model=list[CommitteeReviewItem])
+def list_pending_committee_reviews(
+    _role: Annotated[str, Depends(require_roles("committee_reviewer"))],
+    service: Annotated[CommitteeReviewService, Depends(get_committee_review_service)],
+) -> list[CommitteeReviewItem]:
+    return service.list_pending_reviews()
 
 
 @router.post(
@@ -18,6 +42,6 @@ def decide_committee_review(
     review_id: int,
     payload: CommitteeReviewRequest,
     _role: Annotated[str, Depends(require_roles("committee_reviewer"))],
+    service: Annotated[CommitteeReviewService, Depends(get_committee_review_service)],
 ) -> CommitteeReviewResponse:
-    service = CommitteeReviewService()
     return service.record_decision(review_id, payload)
