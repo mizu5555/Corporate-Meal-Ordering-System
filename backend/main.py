@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 import os
 
 from fastapi import FastAPI
@@ -6,6 +7,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 
 from backend.core.config import settings
 from backend.core.errors import install_error_handler
+from backend.db.migrate import run_migrations
 from backend.routes import (
     admin_vendors,
     committee_reviews,
@@ -17,8 +19,18 @@ from backend.routes import (
 )
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    run_migrations()
+    yield
+
+
 def create_app() -> FastAPI:
-    app = FastAPI(title=settings.app_name, root_path=os.getenv("ROOT_PATH", ""))
+    app = FastAPI(
+        title=settings.app_name,
+        root_path=os.getenv("ROOT_PATH", ""),
+        lifespan=lifespan,
+    )
 
     app.add_middleware(
         CORSMiddleware,
