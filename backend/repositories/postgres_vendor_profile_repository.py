@@ -79,6 +79,24 @@ class PostgresVendorProfileRepository:
         if row is None:
             return None
         return VendorRecord(**dict(row))
+    
+    def list(self, *, status: str | None = None) -> list[VendorRecord]:
+        query = """
+            SELECT
+                id, name, status, address, business_hours,
+                contact_phone, contact_email
+            FROM vendors
+        """
+        params: list[str] = []
+        if status is not None:
+            query += " WHERE status = %s"
+            params.append(status)
+        query += " ORDER BY id"
+
+        with get_connection() as conn:
+            rows = conn.execute(query, params).fetchall()
+
+        return [VendorRecord(**dict(row)) for row in rows]
 
     def update(self, vendor_id: int, fields: dict[str, Any]) -> VendorRecord | None:
         allowed_columns = {
