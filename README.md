@@ -3,9 +3,9 @@
 NYCU 2026 Spring Cloud Native Development and Best Practice.
 
 This is a cloud-native base repo for a team building a corporate meal ordering
-system. It intentionally contains only the shared development environment,
+system. It intentionally contains the shared development environment, backend
 layering, CI, RBAC skeleton, vendor admin skeleton, committee review skeleton,
-and initial database schema. 
+initial database schema, and a frontend auth shell scaffold.
 
 ## Project Structure
 
@@ -80,6 +80,17 @@ pip install -r requirements.txt
 uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
+6. Optional frontend local development with Vite:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+The frontend source is a React + Vite app under `frontend/src/`. Production and
+Docker deployments still serve built static assets through `nginx`.
+
 ## Services
 
 - HTTPS gateway: https://localhost
@@ -137,4 +148,3 @@ git checkout -b feature/<name>/<short-task>
 - Logs are written to stdout.
 - The FastAPI app is stateless.
 - PostgreSQL is treated as an external backing service.
-

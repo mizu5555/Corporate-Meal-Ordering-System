@@ -1,4 +1,4 @@
-# Apply on top of docker-compose.yml for local dev with hot reload + bind mounts:
+# Apply on top of docker-compose.yml for local dev backend hot reload + bind mounts:
 #   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 services:
   backend:
@@ -6,9 +6,6 @@ services:
       - .:/app
       - uploads:/app/uploads
     command: uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
-  frontend:
-    volumes:
-      - ./frontend:/usr/share/nginx/html:ro
   db:
     volumes:
       - postgres_data:/var/lib/postgresql/data
