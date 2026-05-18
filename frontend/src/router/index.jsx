@@ -4,6 +4,8 @@ import AppShell from "../layout/AppShell";
 import { roleHomePath } from "../layout/navigation";
 import AdminHomePage from "../pages/admin/AdminHomePage";
 import EmployeeHomePage from "../pages/employee/EmployeeHomePage";
+import MenuListPage from "../pages/employee/MenuListPage";
+import VendorMenuPage from "../pages/employee/VendorMenuPage";
 import ForbiddenPage from "../pages/ForbiddenPage";
 import LoginPage from "../pages/LoginPage";
 import NotFoundPage from "../pages/NotFoundPage";
@@ -42,15 +44,8 @@ export function AppRouter() {
         <Route element={<AppShell />}>
           <Route element={<RoleRoute allowedRoles={["employee"]} />}>
             <Route element={<EmployeeHomePage />} path="/employee" />
-            <Route
-              element={
-                <PlaceholderPage
-                  description="Menu list, filter, and meal detail will be built in the next frontend branch."
-                  title="Employee Menu"
-                />
-              }
-              path="/employee/menu"
-            />
+            <Route element={<MenuListPage />} path="/employee/menu" />
+            <Route element={<VendorMenuPage />} path="/employee/menu/:vendorId" />
             <Route
               element={
                 <PlaceholderPage

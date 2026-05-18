@@ -6,5 +6,12 @@ export default defineConfig({
   server: {
     host: "0.0.0.0",
     port: 3000,
+    proxy: {
+      "/employee": "http://localhost:8000",
+      "/vendor":   "http://localhost:8000",
+      "/admin":    "http://localhost:8000",
+      "/health":   "http://localhost:8000",
+      "/uploads":  "http://localhost:8000",
+    },
   },
 });
