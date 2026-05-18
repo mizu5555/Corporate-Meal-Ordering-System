@@ -1,4 +1,5 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { useCart } from "../../cart/CartContext";
 import { formatPrice, photoUrl, quotaLabel } from "../../utils/format";
 
 export default function MealDetailModal({ item, onClose }) {
@@ -7,6 +8,12 @@ export default function MealDetailModal({ item, onClose }) {
   const soldOut = item.daily_quota === 0;
   const unavailable = !item.available || soldOut;
 
+  const [quantity, setQuantity] = useState(1);
+  const [added, setAdded] = useState(false);
+  const { addItem } = useCart();
+
+  const maxQty = item.daily_quota > 0 ? Math.min(item.daily_quota, 99) : 99;
+
   useEffect(() => {
     function onKey(e) {
       if (e.key === "Escape") onClose();
@@ -14,6 +21,15 @@ export default function MealDetailModal({ item, onClose }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
+
+  function handleAddToCart() {
+    addItem(item, item.vendor_id, quantity);
+    setAdded(true);
+    setTimeout(() => {
+      setAdded(false);
+      onClose();
+    }, 800);
+  }
 
   return (
     <div
@@ -69,10 +85,43 @@ export default function MealDetailModal({ item, onClose }) {
         </div>
 
         <div className="modal-footer">
+          {!unavailable && (
+            <div className="quantity-stepper">
+              <button
+                className="stepper-btn"
+                type="button"
+                aria-label="減少數量"
+                onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                disabled={quantity <= 1}
+              >
+                −
+              </button>
+              <span className="stepper-value">{quantity}</span>
+              <button
+                className="stepper-btn"
+                type="button"
+                aria-label="增加數量"
+                onClick={() => setQuantity((q) => Math.min(maxQty, q + 1))}
+                disabled={quantity >= maxQty}
+              >
+                ＋
+              </button>
+            </div>
+          )}
           <button className="ghost-button" onClick={onClose} type="button"
             style={{ color: "var(--text)", borderColor: "var(--line)", background: "transparent" }}>
             關閉
           </button>
+          {!unavailable && (
+            <button
+              className={`primary-button${added ? " primary-button-added" : ""}`}
+              type="button"
+              onClick={handleAddToCart}
+              disabled={added}
+            >
+              {added ? "已加入！" : "加入購物車"}
+            </button>
+          )}
         </div>
       </div>
     </div>

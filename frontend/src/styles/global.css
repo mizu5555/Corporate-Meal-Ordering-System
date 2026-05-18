@@ -668,7 +668,101 @@ p {
   display: flex;
   gap: 10px;
   justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
   padding: 20px 28px 28px;
+}
+
+/* Quantity stepper */
+.quantity-stepper {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-right: auto;
+}
+
+.stepper-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-size: 1.2rem;
+  color: var(--text);
+  transition: background 120ms ease;
+}
+
+.stepper-btn:hover:not(:disabled) {
+  background: var(--line);
+}
+
+.stepper-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.stepper-value {
+  min-width: 32px;
+  text-align: center;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* primary-button success state */
+.primary-button-added {
+  background: linear-gradient(135deg, var(--success) 0%, #3d9960 100%);
+  opacity: 0.9;
+}
+
+/* Cart button in topbar */
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cart-button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fef4e6;
+  cursor: pointer;
+  transition: background 140ms ease;
+}
+
+.cart-button:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.cart-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--brand);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
 
 /* Loading / empty / error states */
