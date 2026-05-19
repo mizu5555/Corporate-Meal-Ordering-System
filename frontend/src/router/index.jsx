@@ -10,6 +10,8 @@ import ForbiddenPage from "../pages/ForbiddenPage";
 import LoginPage from "../pages/LoginPage";
 import NotFoundPage from "../pages/NotFoundPage";
 import VendorHomePage from "../pages/vendor/VendorHomePage";
+import VendorMenuFormPage from "../pages/vendor/VendorMenuFormPage";
+import VendorMenuListPage from "../pages/vendor/VendorMenuListPage";
 import ProtectedRoute from "./ProtectedRoute";
 import RoleRoute from "./RoleRoute";
 
@@ -57,17 +59,11 @@ export function AppRouter() {
             />
           </Route>
 
-          <Route element={<RoleRoute allowedRoles={["vendor"]} />}>
+          <Route element={<RoleRoute allowedRoles={["vendor_manager"]} />}>
             <Route element={<VendorHomePage />} path="/vendor" />
-            <Route
-              element={
-                <PlaceholderPage
-                  description="Menu CRUD and supply setup will be implemented in vendor menu management."
-                  title="Vendor Menu"
-                />
-              }
-              path="/vendor/menu"
-            />
+            <Route element={<VendorMenuListPage />} path="/vendor/menu" />
+            <Route element={<VendorMenuFormPage />} path="/vendor/menu/new" />
+            <Route element={<VendorMenuFormPage />} path="/vendor/menu/:itemId/edit" />
             <Route
               element={
                 <PlaceholderPage

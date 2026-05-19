@@ -10,7 +10,7 @@ const roleOptions = [
     detail: "Browse menus, place orders, track delivery status.",
   },
   {
-    role: "vendor",
+    role: "vendor_manager",
     label: "Vendor",
     detail: "Maintain menus and manage operational orders.",
   },
