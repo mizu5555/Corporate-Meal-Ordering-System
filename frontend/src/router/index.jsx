@@ -12,6 +12,8 @@ import ForbiddenPage from "../pages/ForbiddenPage";
 import LoginPage from "../pages/LoginPage";
 import NotFoundPage from "../pages/NotFoundPage";
 import VendorHomePage from "../pages/vendor/VendorHomePage";
+import VendorOrdersPage from "../pages/vendor/VendorOrdersPage";
+import VendorRevenuePage from "../pages/vendor/VendorRevenuePage";
 import VendorMenuFormPage from "../pages/vendor/VendorMenuFormPage";
 import VendorMenuListPage from "../pages/vendor/VendorMenuListPage";
 import ProtectedRoute from "./ProtectedRoute";
@@ -60,21 +62,11 @@ export function AppRouter() {
             <Route element={<VendorMenuFormPage />} path="/vendor/menu/new" />
             <Route element={<VendorMenuFormPage />} path="/vendor/menu/:itemId/edit" />
             <Route
-              element={
-                <PlaceholderPage
-                  description="Incoming orders and status transitions will land in vendor order management."
-                  title="Vendor Orders"
-                />
-              }
+              element={<VendorOrdersPage />}
               path="/vendor/orders"
             />
             <Route
-              element={
-                <PlaceholderPage
-                  description="Revenue and invoice pages are planned as a separate branch."
-                  title="Vendor Revenue"
-                />
-              }
+              element={<VendorRevenuePage />}
               path="/vendor/revenue"
             />
           </Route>

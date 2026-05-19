@@ -28,6 +28,57 @@ export const MOCK_VENDORS = [
   },
 ];
 
+export const MOCK_VENDOR_SELECTIONS = [
+  {
+    id: 1,
+    employee_id: 1,
+    employee_name: "Ting Lin",
+    vendor_id: 1,
+    item_id: 101,
+    item_name: "雞腿飯",
+    quantity: 2,
+    unit_price_cents: 9000,
+    total_price_cents: 18000,
+    created_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 2,
+    employee_id: 2,
+    employee_name: "Alex Chen",
+    vendor_id: 1,
+    item_id: 102,
+    item_name: "排骨飯",
+    quantity: 1,
+    unit_price_cents: 8500,
+    total_price_cents: 8500,
+    created_at: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 3,
+    employee_id: 3,
+    employee_name: "Wei Zhang",
+    vendor_id: 1,
+    item_id: 101,
+    item_name: "雞腿飯",
+    quantity: 1,
+    unit_price_cents: 9000,
+    total_price_cents: 9000,
+    created_at: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 4,
+    employee_id: 4,
+    employee_name: "Mei Wang",
+    vendor_id: 1,
+    item_id: 103,
+    item_name: "素食套餐",
+    quantity: 1,
+    unit_price_cents: 7500,
+    total_price_cents: 7500,
+    created_at: new Date(Date.now() - 90 * 60 * 1000).toISOString(),
+  },
+];
+
 export const MOCK_MENU = {
   1: [
     {
