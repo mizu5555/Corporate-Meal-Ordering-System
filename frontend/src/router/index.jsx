@@ -3,8 +3,10 @@ import { useAuth } from "../auth/AuthContext";
 import AppShell from "../layout/AppShell";
 import { roleHomePath } from "../layout/navigation";
 import AdminHomePage from "../pages/admin/AdminHomePage";
+import CartPage from "../pages/employee/CartPage";
 import EmployeeHomePage from "../pages/employee/EmployeeHomePage";
 import MenuListPage from "../pages/employee/MenuListPage";
+import OrdersPage from "../pages/employee/OrdersPage";
 import VendorMenuPage from "../pages/employee/VendorMenuPage";
 import ForbiddenPage from "../pages/ForbiddenPage";
 import LoginPage from "../pages/LoginPage";
@@ -46,15 +48,8 @@ export function AppRouter() {
             <Route element={<EmployeeHomePage />} path="/employee" />
             <Route element={<MenuListPage />} path="/employee/menu" />
             <Route element={<VendorMenuPage />} path="/employee/menu/:vendorId" />
-            <Route
-              element={
-                <PlaceholderPage
-                  description="Active order tracking belongs to the employee order flow branch."
-                  title="Employee Orders"
-                />
-              }
-              path="/employee/orders"
-            />
+            <Route element={<CartPage />} path="/employee/cart" />
+            <Route element={<OrdersPage />} path="/employee/orders" />
           </Route>
 
           <Route element={<RoleRoute allowedRoles={["vendor"]} />}>

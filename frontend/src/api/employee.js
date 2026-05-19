@@ -20,6 +20,18 @@ export function getVendor(vendorId) {
   );
 }
 
+export function submitSelection(vendorId, { itemId, quantity }) {
+  return apiFetch(`/employee/vendors/${vendorId}/selections`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ item_id: itemId, quantity }),
+  });
+}
+
+export function getMySelections() {
+  return withMockFallback(() => apiFetch("/employee/me/selections"), []);
+}
+
 export function getVendorMenu(vendorId, { available } = {}) {
   const params = new URLSearchParams();
   if (available != null) params.set("available", String(available));
