@@ -74,6 +74,7 @@ pipeline {
 
             BRANCH_RAW="$BRANCH_RAW" \
             ROOT_PATH="$ROOT_PATH" \
+            BASE_PATH="${ROOT_PATH}/" \
             SLUG="$SLUG" \
             GATEWAY_CONTAINER_NAME="mealorder-${SLUG}-gateway" \
               docker compose \

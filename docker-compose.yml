@@ -21,6 +21,8 @@ services:
   frontend:
     build:
       context: ./frontend
+      args:
+        BASE_PATH: ${BASE_PATH:-/}
     ports:
       - "3000:80"
     depends_on:
