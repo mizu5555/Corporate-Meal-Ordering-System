@@ -1,6 +1,9 @@
 FROM node:20-alpine AS build
 WORKDIR /app
 
+ARG BASE_PATH=/
+ENV BASE_PATH=$BASE_PATH
+
 COPY package.json ./
 RUN npm install
 
