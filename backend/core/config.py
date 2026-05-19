@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     api_port: int = 8000
     cors_origins: list[str] = ["https://localhost", "http://localhost:3000"]
     database_url: str = ""
+    jwt_secret_key: str = "CHANGE_ME_IN_PRODUCTION_USE_OPENSSL_RAND_HEX_32"
+    jwt_algorithm: str = "HS256"
+    jwt_access_token_expire_minutes: int = 480
 
     model_config = SettingsConfigDict(
         env_file=".env",

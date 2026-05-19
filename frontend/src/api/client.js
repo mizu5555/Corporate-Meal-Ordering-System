@@ -10,6 +10,10 @@ export async function apiFetch(path, options = {}) {
   const session = readStoredSession();
   const headers = { ...options.headers };
 
+  if (session?.token && !session.token.startsWith("mock-token-")) {
+    headers["Authorization"] = `Bearer ${session.token}`;
+  }
+
   if (session?.user) {
     headers["x-user-role"] = session.user.role;
     if (session.user.numericId != null) {
