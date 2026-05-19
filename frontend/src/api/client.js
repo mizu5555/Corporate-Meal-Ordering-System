@@ -1,5 +1,11 @@
 import { readStoredSession } from "../auth/authStorage";
 
+function withBase(path) {
+  if (/^https?:\/\//.test(path)) return path;
+  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+  return base + (path.startsWith("/") ? path : `/${path}`);
+}
+
 export async function apiFetch(path, options = {}) {
   const session = readStoredSession();
   const headers = { ...options.headers };
@@ -14,7 +20,7 @@ export async function apiFetch(path, options = {}) {
     }
   }
 
-  const res = await fetch(path, { ...options, headers });
+  const res = await fetch(withBase(path), { ...options, headers });
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));

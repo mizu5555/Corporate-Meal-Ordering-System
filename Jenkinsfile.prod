@@ -38,12 +38,14 @@ pipeline {
           docker network inspect preview-net >/dev/null 2>&1 \
             || docker network create preview-net
           ROOT_PATH="$ROOT_PATH" \
+          BASE_PATH="${ROOT_PATH}/" \
           GATEWAY_CONTAINER_NAME="$GATEWAY_CONTAINER_NAME" \
             docker compose -p "$COMPOSE_PROJECT_NAME" \
             -f docker-compose.yml \
             -f infra/deploy/docker-compose.prod.yml \
             build
           ROOT_PATH="$ROOT_PATH" \
+          BASE_PATH="${ROOT_PATH}/" \
           GATEWAY_CONTAINER_NAME="$GATEWAY_CONTAINER_NAME" \
             docker compose -p "$COMPOSE_PROJECT_NAME" \
             -f docker-compose.yml \

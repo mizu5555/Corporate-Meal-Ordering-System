@@ -12,5 +12,6 @@ export function quotaLabel(dailyQuota) {
 
 export function photoUrl(photoPath) {
   if (!photoPath) return null;
-  return `/uploads/${photoPath}`;
+  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+  return `${base}/uploads/${photoPath}`;
 }

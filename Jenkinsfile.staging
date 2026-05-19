@@ -32,6 +32,7 @@ pipeline {
             -f infra/deploy/docker-compose.staging.yml \
             down -v --remove-orphans || true
           ROOT_PATH="$ROOT_PATH" \
+          BASE_PATH="${ROOT_PATH}/" \
           GATEWAY_CONTAINER_NAME="$GATEWAY_CONTAINER_NAME" \
             docker compose -p "$COMPOSE_PROJECT_NAME" \
             -f docker-compose.yml \
