@@ -1,6 +1,6 @@
 export const roleHomePath = {
   employee: "/employee",
-  vendor: "/vendor",
+  vendor_manager: "/vendor",
   admin: "/admin",
 };
 
@@ -11,7 +11,7 @@ export const navigationByRole = {
     { label: "Current Orders", to: "/employee/orders" },
     { label: "Notifications", to: "/notifications" },
   ],
-  vendor: [
+  vendor_manager: [
     { label: "Dashboard", to: "/vendor" },
     { label: "Menu Management", to: "/vendor/menu" },
     { label: "Orders", to: "/vendor/orders" },
