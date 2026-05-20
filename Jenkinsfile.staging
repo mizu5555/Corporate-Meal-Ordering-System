@@ -78,6 +78,31 @@ pipeline {
         '''
       }
     }
+
+    stage('k6 vendor smoke') {
+      when { branch 'main' }
+      steps {
+        // Post-deploy load smoke: drive the vendor golden path against the
+        // freshly deployed staging URL. k6 thresholds (defined in the script)
+        // fail the build if request rate / latency regresses, which surfaces
+        // perf regressions that TestClient cannot — same flow as load/vendor-flow.js
+        // running in PR CI, but against the real environment.
+        sh '''
+          set -euo pipefail
+          BASE_URL="${BASE_URL:-https://nol.cs.nycu.edu.tw/meal-staging}"
+          echo "running k6 vendor-flow against $BASE_URL"
+          # Dockerised k6 — no jenkins-service image change required.
+          # Short ramp + low VUS so a deploy gate stays under ~40s.
+          docker run --rm -i \
+            -e BASE_URL="$BASE_URL" \
+            -e VUS=3 \
+            -e DURATION=20s \
+            -e VENDOR_ID=1 \
+            grafana/k6:latest run --insecure-skip-tls-verify - \
+            < load/vendor-flow.js
+        '''
+      }
+    }
   }
 
   post {
