@@ -7,6 +7,10 @@ services:
   backend:
     ports: !reset []
     networks: [default, grafana_default]
+    environment:
+      APP_ENV: prod
+      SERVICE_NAME: mealorder-backend
+      LOKI_URL: http://loki:3100
   frontend:
     ports: !reset []
   db:
