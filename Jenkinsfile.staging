@@ -97,7 +97,7 @@ pipeline {
             -e BASE_URL="$BASE_URL" \
             -e VUS=3 \
             -e DURATION=20s \
-            -e VENDOR_ID=1 \
+            -e VENDOR_ID=99 \
             grafana/k6:latest run --insecure-skip-tls-verify - \
             < load/vendor-flow.js
         '''
