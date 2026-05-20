@@ -7,7 +7,7 @@ from backend.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-_DUMMY_HASH = "$2b$12$DUMMYHASHFORINVALIDUSERXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+_DUMMY_HASH = "$2b$12$lHiK1mHe6SpHhZxArGe4GekOeUH9iRv6lXc25aM5kCu0HaJhni2uq"
 
 
 def _fetch_user(email: str) -> dict | None:
