@@ -102,6 +102,23 @@ pipeline {
             < load/vendor-flow.js
         '''
       }
+      post {
+        always {
+          // Remove the bot vendor so /employee/vendors does not surface
+          // "K6 Smoke Vendor" after the build. menu_items / menu_categories /
+          // vendor_facilities are wiped by ON DELETE CASCADE — one row goes
+          // and the whole subtree follows. Next deploy reseeds the row via
+          // lifespan, so this is cleanup for the current container's lifetime
+          // only. Runs whether k6 passed or failed (always{}) so partial
+          // failures still get cleaned up.
+          sh '''
+            set -euo pipefail
+            docker exec mealorder-staging-db-1 psql -U meal_user -d meal_ordering \
+              -v ON_ERROR_STOP=1 -c "DELETE FROM vendors WHERE id = 99;"
+            echo "cleaned k6 smoke vendor (cascade drops menu items, categories, facilities)"
+          '''
+        }
+      }
     }
   }
 
