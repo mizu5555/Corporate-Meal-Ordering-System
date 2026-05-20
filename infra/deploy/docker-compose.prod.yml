@@ -6,7 +6,14 @@
 services:
   backend:
     ports: !reset []
-    networks: [default, grafana_default]
+    # See staging override for the rationale: pin Caddy gateway → backend
+    # resolution to a single network alias so Docker DNS does not round-robin
+    # across the two networks the gateway shares with backend.
+    networks:
+      default:
+        aliases:
+          - api
+      grafana_default: {}
     environment:
       APP_ENV: prod
       SERVICE_NAME: mealorder-backend
