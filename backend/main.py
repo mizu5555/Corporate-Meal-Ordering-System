@@ -8,7 +8,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 
 from backend.core.config import settings
 from backend.core.errors import install_error_handler
-from backend.core.vendor_identity import _REPO_SINGLETON as _VENDOR_REPO_SINGLETON
+from backend.core.vendor_identity import get_vendor_profile_repository
 from backend.db.migrate import run_migrations
 from backend.repositories.vendor_profile_repository import VendorRecord
 from backend.routes import (
@@ -35,6 +35,11 @@ _K6_SMOKE_VENDOR_NAME = "K6 Smoke Vendor"
 def _seed_k6_smoke_vendor() -> None:
     """Seed the dedicated bot vendor used by the Jenkins staging k6 smoke.
 
+    Routes through `get_vendor_profile_repository()` so the seed lands in the
+    active repo — in-memory when DATABASE_URL is unset (local / unit tests),
+    Postgres when it is set (staging / prod). Postgres seed uses INSERT ON
+    CONFLICT DO UPDATE so re-running on every startup is idempotent.
+
     Guarded by env var so prod (whose compose override does NOT set it) is
     untouched. The warning log is intentional: if this line ever shows up in
     prod logs, someone copy-pasted the staging compose by mistake.
@@ -45,7 +50,8 @@ def _seed_k6_smoke_vendor() -> None:
         "seeding K6 smoke vendor (id=%d) — must not run in prod",
         _K6_SMOKE_VENDOR_ID,
     )
-    _VENDOR_REPO_SINGLETON.seed(
+    repo = get_vendor_profile_repository()
+    repo.seed(
         VendorRecord(
             id=_K6_SMOKE_VENDOR_ID,
             name=_K6_SMOKE_VENDOR_NAME,
