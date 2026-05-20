@@ -8,6 +8,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 
 from backend.core.config import settings
 from backend.core.errors import install_error_handler
+from backend.core.observability import RequestIDMiddleware, configure_logging
 from backend.core.vendor_identity import get_vendor_profile_repository
 from backend.db.migrate import run_migrations
 from backend.repositories.vendor_profile_repository import VendorRecord
@@ -68,11 +69,17 @@ async def lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
+    configure_logging()
+
     app = FastAPI(
         title=settings.app_name,
         root_path=os.getenv("ROOT_PATH", ""),
         lifespan=lifespan,
     )
+
+    # RequestIDMiddleware before CORS so the response header survives CORS
+    # rewrites and is the outermost wrapper that touches every response.
+    app.add_middleware(RequestIDMiddleware)
 
     app.add_middleware(
         CORSMiddleware,

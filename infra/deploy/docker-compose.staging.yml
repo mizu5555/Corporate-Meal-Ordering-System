@@ -13,6 +13,16 @@ services:
     # — prod must go through the real apply + admin-approval pipeline.
     environment:
       SEED_K6_SMOKE_VENDOR: "1"
+      APP_ENV: staging
+      SERVICE_NAME: mealorder-backend
+      # Loki is on grafana_default network as service "loki" (container
+      # grafana-loki-1). Push handler is queue-backed, so unreachable Loki
+      # degrades gracefully to stdout.
+      LOKI_URL: http://loki:3100
+    cap_add:
+      # Needed for `py-spy record --pid 1` to attach inside the container.
+      # Scoped to staging so prod stays minimal-privilege.
+      - SYS_PTRACE
   frontend:
     ports: !reset []
   db:
