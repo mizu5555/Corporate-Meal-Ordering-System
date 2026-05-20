@@ -1,18 +1,26 @@
 {
   "annotations": { "list": [] },
-  "description": "HTTP metrics for mealorder backend (staging + prod)",
+  "description": "HTTP metrics for mealorder backend (staging + prod) + Caddy gateway. Per-route panels use the `handler` label exposed by prometheus-fastapi-instrumentator v7.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
   "links": [],
   "panels": [
     {
+      "type": "row",
+      "id": 100,
+      "title": "Backend — overview",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "panels": []
+    },
+    {
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": { "color": { "mode": "palette-classic" }, "unit": "reqps" },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
       "id": 1,
       "options": { "legend": { "calcs": [], "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "single" } },
       "targets": [
@@ -32,7 +40,7 @@
         "defaults": { "color": { "mode": "palette-classic" }, "unit": "reqps" },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
       "id": 2,
       "options": { "legend": { "calcs": [], "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "single" } },
       "targets": [
@@ -41,9 +49,15 @@
           "expr": "sum(rate(http_requests_total{job=~\"$job\", status=~\"5..\"}[5m])) by (job)",
           "legendFormat": "{{job}} 5xx",
           "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(http_requests_total{job=~\"$job\", status=~\"4..\"}[5m])) by (job)",
+          "legendFormat": "{{job}} 4xx",
+          "refId": "B"
         }
       ],
-      "title": "Error Rate (5xx)",
+      "title": "Error Rate (4xx / 5xx)",
       "type": "timeseries"
     },
     {
@@ -52,7 +66,7 @@
         "defaults": { "color": { "mode": "palette-classic" }, "unit": "s" },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 9 },
       "id": 3,
       "options": { "legend": { "calcs": [], "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "single" } },
       "targets": [
@@ -84,7 +98,7 @@
         "defaults": { "color": { "mode": "palette-classic" }, "unit": "short" },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 },
       "id": 4,
       "options": { "legend": { "calcs": [], "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "single" } },
       "targets": [
@@ -96,6 +110,137 @@
         }
       ],
       "title": "In-flight Requests",
+      "type": "timeseries"
+    },
+    {
+      "type": "row",
+      "id": 101,
+      "title": "Backend — per route (handler label)",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 17 },
+      "panels": []
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "reqps" },
+        "overrides": []
+      },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 18 },
+      "id": 10,
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "right" },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "topk(10, sum(rate(http_requests_total{job=~\"$job\", handler=~\"$route\"}[5m])) by (handler))",
+          "legendFormat": "{{handler}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Top routes — request rate (top 10)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "s" },
+        "overrides": []
+      },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 18 },
+      "id": 11,
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "right" },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "topk(10, histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=~\"$job\", handler=~\"$route\"}[5m])) by (le, handler)))",
+          "legendFormat": "{{handler}} p95",
+          "refId": "A"
+        }
+      ],
+      "title": "Per-route latency p95 (top 10)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "s" },
+        "overrides": []
+      },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 27 },
+      "id": 12,
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "right" },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{job=~\"$job\", handler=~\"$route\"}[5m])) by (le, handler))",
+          "legendFormat": "{{handler}} p99",
+          "refId": "A"
+        }
+      ],
+      "title": "Per-route latency p99 (selected routes)",
+      "type": "timeseries"
+    },
+    {
+      "type": "row",
+      "id": 102,
+      "title": "Gateway (Caddy)",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 36 },
+      "panels": []
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "reqps" },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 37 },
+      "id": 20,
+      "options": { "legend": { "calcs": [], "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "single" } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(caddy_http_requests_total{job=~\"$gateway_job\"}[5m])) by (job, code)",
+          "legendFormat": "{{job}} {{code}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Gateway request rate (by status code)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "s" },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 37 },
+      "id": 21,
+      "options": { "legend": { "calcs": [], "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "single" } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum(rate(caddy_http_request_duration_seconds_bucket{job=~\"$gateway_job\"}[5m])) by (le, job))",
+          "legendFormat": "{{job}} p95",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.99, sum(rate(caddy_http_request_duration_seconds_bucket{job=~\"$gateway_job\"}[5m])) by (le, job))",
+          "legendFormat": "{{job}} p99",
+          "refId": "B"
+        }
+      ],
+      "title": "Gateway latency p95 / p99",
       "type": "timeseries"
     }
   ],
@@ -112,7 +257,7 @@
         "includeAll": true,
         "multi": true,
         "name": "job",
-        "label": "Environment",
+        "label": "Backend env",
         "options": [],
         "query": {
           "query": "label_values(http_requests_total, job)",
@@ -120,6 +265,44 @@
         },
         "refresh": 1,
         "regex": "mealorder-.*",
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "definition": "label_values(http_requests_total{job=~\"$job\"}, handler)",
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "name": "route",
+        "label": "Route (handler)",
+        "options": [],
+        "query": {
+          "query": "label_values(http_requests_total{job=~\"$job\"}, handler)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 2,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "definition": "label_values(caddy_http_requests_total, job)",
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "name": "gateway_job",
+        "label": "Gateway env",
+        "options": [],
+        "query": {
+          "query": "label_values(caddy_http_requests_total, job)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 1,
+        "regex": "mealorder-.*-gateway",
         "sort": 0,
         "type": "query"
       }
@@ -130,5 +313,5 @@
   "timezone": "browser",
   "title": "Meal Ordering – HTTP Overview",
   "uid": "mealorder-http",
-  "version": 1
+  "version": 2
 }

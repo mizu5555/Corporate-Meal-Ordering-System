@@ -1,5 +1,11 @@
 {
 	auto_https disable_redirects
+	# Enable Prometheus metrics on Caddy's HTTP servers; the public listeners
+	# below explicitly 404 /metrics, so this is only reachable on the internal
+	# :2019 listener which is bound to the grafana_default network.
+	servers {
+		metrics
+	}
 }
 
 # Shared routing table. Imported by both the internal :80 entry point (used
@@ -40,9 +46,14 @@
 		header Cache-Control "public, max-age=3600"
 	}
 
-	# /metrics is intentionally not proxied here — Prometheus scrapes the backend
-	# directly via container DNS (grafana_default network). Exposing it through
-	# the gateway would leak internal metrics publicly.
+	# /metrics is explicitly blocked on the public listeners. Backend metrics
+	# are scraped directly by container DNS (grafana_default network); gateway
+	# metrics are exposed on the internal :2019 listener below. Without this
+	# explicit handler the path would fall through to the frontend, leaking
+	# the surface even if it 404s.
+	handle /metrics {
+		respond 404
+	}
 
 	handle {
 		reverse_proxy frontend:80
@@ -60,4 +71,11 @@
 https://localhost {
 	tls internal
 	import routes
+}
+
+# Internal Prometheus scrape target. Only reachable inside docker networks
+# the gateway joins (grafana_default in staging/prod via compose override).
+# Exposes Caddy's own /metrics (requests, durations, upstream health).
+:2019 {
+	metrics
 }

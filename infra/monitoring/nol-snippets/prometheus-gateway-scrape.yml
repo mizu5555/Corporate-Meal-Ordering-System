@@ -1,0 +1,26 @@
+# Snippet to append to /home/nol/nol-services/grafana/prometheus.yml on the NOL
+# deploy host. Adds scrape jobs for the Caddy gateway's :2019 metrics listener,
+# which is now joined to grafana_default by both staging and prod compose
+# overrides. Re-load Prometheus via `docker exec grafana-prometheus-1 kill -HUP 1`
+# after editing (no full restart needed thanks to --web.enable-lifecycle).
+#
+# Existing backend scrape jobs stay unchanged.
+
+scrape_configs:
+  - job_name: mealorder-staging-gateway
+    metrics_path: /metrics
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['mealorder-staging-gateway:2019']
+        labels:
+          env: staging
+          component: gateway
+
+  - job_name: mealorder-prod-gateway
+    metrics_path: /metrics
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['mealorder-prod-gateway:2019']
+        labels:
+          env: prod
+          component: gateway

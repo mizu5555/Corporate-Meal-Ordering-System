@@ -1,6 +1,8 @@
 # Override applied for staging stack: strip host ports, join gateway to preview-net
 # so the shared caddy-preview-router can reach it via docker DNS.
-# backend also joins grafana_default so Prometheus can scrape /metrics by container name.
+# backend joins grafana_default so Prometheus can scrape /metrics by container name.
+# gateway also joins grafana_default so Prometheus can scrape Caddy's :2019 listener
+# (gateway request rate, upstream latency) without exposing it publicly.
 services:
   backend:
     ports: !reset []
@@ -11,7 +13,7 @@ services:
     ports: !reset []
   gateway:
     ports: !reset []
-    networks: [default, preview-net]
+    networks: [default, preview-net, grafana_default]
 
 networks:
   preview-net:

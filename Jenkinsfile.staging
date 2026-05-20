@@ -20,6 +20,24 @@ pipeline {
       steps { checkout scm }
     }
 
+    stage('Verify commit') {
+      when { branch 'main' }
+      steps {
+        sh '''
+          set -eu
+          BUILT=$(git rev-parse HEAD)
+          REMOTE=$(git ls-remote origin refs/heads/main | awk '{print $1}')
+          echo "Built  SHA: $BUILT"
+          echo "origin/main: $REMOTE"
+          git log -1 --pretty=format:'subject: %s%nauthor : %an <%ae>%ndate   : %ad' --date=iso
+          echo
+          if [ "$BUILT" != "$REMOTE" ]; then
+            echo "WARNING: building stale commit (behind origin/main)"
+          fi
+        '''
+      }
+    }
+
     stage('Reset and deploy staging') {
       when { branch 'main' }
       steps {
