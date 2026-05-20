@@ -6,7 +6,18 @@
 services:
   backend:
     ports: !reset []
-    networks: [default, grafana_default]
+    # Per-network aliases pin the Caddy gateway's upstream resolution. `backend`
+    # remains reachable as `backend` on grafana_default (Prometheus scrape) and
+    # `api` on default (gateway reverse_proxy). The gateway sits on default +
+    # preview-net + grafana_default; without this pin Docker DNS returned the
+    # backend's IP on both shared networks, and Caddy round-robined into a path
+    # that intermittently returned stale 404s. Single alias on a single network
+    # eliminates that race.
+    networks:
+      default:
+        aliases:
+          - api
+      grafana_default: {}
     # SEED_K6_SMOKE_VENDOR enables a single bot vendor (id=99, approved) at
     # lifespan startup so the post-deploy k6 stage in Jenkinsfile.staging has
     # something to act on. Do NOT copy this env var into docker-compose.prod.yml

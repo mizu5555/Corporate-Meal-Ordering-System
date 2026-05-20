@@ -13,31 +13,31 @@
 # and the local-dev https://localhost entry point.
 (routes) {
 	handle /health {
-		reverse_proxy backend:8000
+		reverse_proxy api:8000
 	}
 
 	handle /docs* {
-		reverse_proxy backend:8000
+		reverse_proxy api:8000
 	}
 
 	handle /openapi.json {
-		reverse_proxy backend:8000
+		reverse_proxy api:8000
 	}
 
 	handle /admin/* {
-		reverse_proxy backend:8000
+		reverse_proxy api:8000
 	}
 
 	handle /vendor/* {
-		reverse_proxy backend:8000
+		reverse_proxy api:8000
 	}
 
 	handle /employee/* {
-		reverse_proxy backend:8000
+		reverse_proxy api:8000
 	}
 
 	handle /committee/* {
-		reverse_proxy backend:8000
+		reverse_proxy api:8000
 	}
 
 	handle_path /uploads/* {

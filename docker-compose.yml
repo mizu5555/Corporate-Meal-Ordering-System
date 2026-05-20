@@ -14,6 +14,14 @@ services:
     command: uvicorn backend.main:app --host 0.0.0.0 --port 8000
     ports:
       - "8000:8000"
+    networks:
+      default:
+        # Caddyfile references the backend as `api:8000`. Declaring the alias
+        # in the base compose keeps local-dev (no override) working; staging
+        # and prod overrides keep the alias on default while joining
+        # grafana_default for the Prometheus scrape path.
+        aliases:
+          - api
     depends_on:
       db:
         condition: service_healthy
