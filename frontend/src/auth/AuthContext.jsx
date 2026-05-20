@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { login as apiLogin } from "../api/auth";
+import { login as apiLogin, register as apiRegister } from "../api/auth";
 import {
   clearStoredSession,
   readStoredSession,
@@ -33,6 +33,22 @@ export function AuthProvider({ children }) {
           numericId: data.user_id,
           role: data.role,
           name: mockRef?.name ?? data.role,
+          title: mockRef?.title ?? data.role,
+          email,
+          vendorId: data.vendor_id ?? null,
+        };
+        setSession({ user, token: data.access_token });
+        return user;
+      },
+
+      async register(email, password, displayName, role) {
+        const data = await apiRegister({ email, password, display_name: displayName, role });
+        const mockRef = findMockUserByRole(data.role);
+        const user = {
+          id: String(data.user_id),
+          numericId: data.user_id,
+          role: data.role,
+          name: displayName,
           title: mockRef?.title ?? data.role,
           email,
           vendorId: data.vendor_id ?? null,

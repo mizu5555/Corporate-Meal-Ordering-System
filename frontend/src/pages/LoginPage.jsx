@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { roleHomePath } from "../layout/navigation";
 
@@ -109,6 +109,13 @@ export default function LoginPage() {
             {loading ? "Signing in…" : "Sign In"}
           </button>
         </form>
+
+        <p style={{ marginTop: 20, fontSize: 13, color: "var(--muted)", textAlign: "center" }}>
+          Don't have an account?{" "}
+          <Link to="/register" style={{ color: "var(--accent)", fontWeight: 600 }}>
+            Create one
+          </Link>
+        </p>
 
         {import.meta.env.DEV && (
           <details style={{ marginTop: 24 }}>

@@ -10,6 +10,7 @@ import OrdersPage from "../pages/employee/OrdersPage";
 import VendorMenuPage from "../pages/employee/VendorMenuPage";
 import ForbiddenPage from "../pages/ForbiddenPage";
 import LoginPage from "../pages/LoginPage";
+import RegisterPage from "../pages/RegisterPage";
 import NotFoundPage from "../pages/NotFoundPage";
 import VendorHomePage from "../pages/vendor/VendorHomePage";
 import VendorOrdersPage from "../pages/vendor/VendorOrdersPage";
@@ -44,6 +45,7 @@ export function AppRouter() {
     <Routes>
       <Route element={<HomeRedirect />} path="/" />
       <Route element={<LoginPage />} path="/login" />
+      <Route element={<RegisterPage />} path="/register" />
       <Route element={<ForbiddenPage />} path="/forbidden" />
 
       <Route element={<ProtectedRoute />}>

@@ -1,9 +1,18 @@
+from typing import Literal
+
 from pydantic import BaseModel
 
 
 class LoginRequest(BaseModel):
     email: str
     password: str
+
+
+class RegisterRequest(BaseModel):
+    email: str
+    password: str
+    display_name: str
+    role: Literal["employee", "vendor_manager"]
 
 
 class TokenResponse(BaseModel):

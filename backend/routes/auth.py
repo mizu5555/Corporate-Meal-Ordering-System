@@ -1,9 +1,9 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, status
 
 from backend.core.errors import CodedHTTPException
-from backend.core.security import create_access_token, verify_password
+from backend.core.security import create_access_token, hash_password, verify_password
 from backend.db.connection import get_connection
-from backend.schemas.auth import LoginRequest, TokenResponse
+from backend.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -56,4 +56,45 @@ def login(payload: LoginRequest) -> TokenResponse:
         user_id=user["id"],
         role=user["role"],
         vendor_id=user["vendor_id"],
+    )
+
+
+@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+def register(payload: RegisterRequest) -> TokenResponse:
+    if len(payload.password) < 8:
+        raise CodedHTTPException(
+            status_code=422,
+            code="password_too_short",
+            detail="Password must be at least 8 characters",
+        )
+
+    with get_connection() as conn:
+        existing = conn.execute(
+            "SELECT id FROM users WHERE email = %s", (payload.email,)
+        ).fetchone()
+        if existing:
+            raise CodedHTTPException(
+                status_code=409,
+                code="email_taken",
+                detail="An account with this email already exists",
+            )
+
+        row = conn.execute(
+            """
+            INSERT INTO users (email, display_name, role_id, password_hash)
+            SELECT %s, %s, r.id, %s
+            FROM roles r
+            WHERE r.name = %s
+            RETURNING id
+            """,
+            (payload.email, payload.display_name, hash_password(payload.password), payload.role),
+        ).fetchone()
+
+    user = _fetch_user(payload.email)
+    jwt_data: dict = {"sub": str(user["id"]), "role": user["role"]}
+    return TokenResponse(
+        access_token=create_access_token(jwt_data),
+        user_id=user["id"],
+        role=user["role"],
+        vendor_id=None,
     )
