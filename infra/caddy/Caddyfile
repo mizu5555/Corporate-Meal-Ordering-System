@@ -11,6 +11,10 @@
 	request_header -x-user-id
 	request_header -x-vendor-id
 
+	handle /auth/* {
+		reverse_proxy backend:8000
+	}
+
 	handle /health {
 		reverse_proxy backend:8000
 	}

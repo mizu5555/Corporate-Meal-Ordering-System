@@ -5,6 +5,8 @@ services:
   backend:
     ports: !reset []
     networks: [default, grafana_default]
+    environment:
+      APP_ENV: production
   frontend:
     ports: !reset []
   db:
