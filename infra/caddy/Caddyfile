@@ -6,6 +6,11 @@
 # by the preview-router, which forwards with Host: mealorder-<env>-gateway)
 # and the local-dev https://localhost entry point.
 (routes) {
+	# Strip internal identity headers so clients cannot spoof roles.
+	request_header -x-user-role
+	request_header -x-user-id
+	request_header -x-vendor-id
+
 	handle /health {
 		reverse_proxy backend:8000
 	}
