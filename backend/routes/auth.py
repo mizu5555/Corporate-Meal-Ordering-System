@@ -17,6 +17,7 @@ def _fetch_user(email: str) -> dict | None:
             SELECT
                 u.id,
                 u.email,
+                u.display_name,
                 u.password_hash,
                 u.is_active,
                 r.name  AS role,
@@ -63,6 +64,7 @@ def login(payload: LoginRequest) -> TokenResponse:
         access_token=create_access_token(jwt_data),
         user_id=user["id"],
         role=user["role"],
+        display_name=user["display_name"],
         vendor_id=user["vendor_id"],
     )
 
@@ -104,5 +106,6 @@ def register(payload: RegisterRequest) -> TokenResponse:
         access_token=create_access_token(jwt_data),
         user_id=user["id"],
         role=user["role"],
+        display_name=user["display_name"],
         vendor_id=None,
     )

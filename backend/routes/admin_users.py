@@ -70,6 +70,20 @@ def disable_user(
     return {"user_id": user_id, "is_active": False}
 
 
+@router.patch("/{user_id}/enable", status_code=status.HTTP_200_OK)
+def enable_user(
+    user_id: int,
+    _role: Annotated[str, Depends(require_roles("admin"))],
+) -> dict:
+    with get_connection() as conn:
+        row = conn.execute("SELECT id FROM users WHERE id = %s", (user_id,)).fetchone()
+        if not row:
+            raise CodedHTTPException(status_code=404, code="user_not_found", detail="User not found")
+        conn.execute("UPDATE users SET is_active = TRUE, updated_at = NOW() WHERE id = %s", (user_id,))
+        conn.commit()
+    return {"user_id": user_id, "is_active": True}
+
+
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_user(
     user_id: int,

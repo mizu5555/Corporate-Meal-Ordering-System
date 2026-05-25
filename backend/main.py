@@ -16,6 +16,7 @@ from backend.routes import (
     committee_reviews,
     employee_ordering,
     health,
+    vendor_application,
     vendor_categories,
     vendor_menu,
     vendor_profile,
@@ -56,6 +57,7 @@ def create_app() -> FastAPI:
     app.include_router(admin_users.router)
     app.include_router(admin_vendors.router)
     app.include_router(committee_reviews.router)
+    app.include_router(vendor_application.router)
     app.include_router(vendor_profile.router)
     app.include_router(vendor_categories.router)
     app.include_router(vendor_menu.router)

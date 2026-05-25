@@ -16,6 +16,7 @@ def _user(role: str = "employee", vendor_id: int | None = None, is_active: bool 
     return {
         "id": 1,
         "email": "user@example.com",
+        "display_name": "Test User",
         "password_hash": hash_password(_PASSWORD),
         "is_active": is_active,
         "role": role,
