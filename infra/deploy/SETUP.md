@@ -26,16 +26,37 @@ docker network inspect preview-net >/dev/null 2>&1 \
 
 ## 2. Shared internal router
 
-Clone the repo somewhere ONLY for running the router script (the router itself only mounts the Caddyfile; once the container is up the clone isn't needed):
+The router image is **self-contained**: `run-router.sh` builds an image with the
+Caddyfile baked in (`infra/deploy/router/Dockerfile`) — there is **no bind
+mount**, so the container has no host-path dependency and survives host reboots,
+docker daemon restarts, and `/tmp` / Jenkins-workspace cleanup.
+
+> ⚠️ Do **NOT** clone into `/tmp` or any path that gets wiped. An earlier setup
+> bind-mounted the Caddyfile from `/tmp/cmos`; when `/tmp` was cleared, Docker
+> recreated the missing mount source as an empty *directory*, the mount onto
+> `/etc/caddy/Caddyfile` failed, and the container died with **exit 127** —
+> 502ing every `/meal*` path. The baked-in image removes that failure mode.
+
+Bootstrap once from any checkout (the build copies the Caddyfile into the image,
+so the checkout is genuinely not needed afterwards):
 
 ```bash
-git clone https://github.com/mizu5555/Corporate-Meal-Ordering-System.git /tmp/cmos
-bash /tmp/cmos/infra/deploy/router/run-router.sh
+git clone https://github.com/mizu5555/Corporate-Meal-Ordering-System.git ~/cmos
+bash ~/cmos/infra/deploy/router/run-router.sh
 curl -s http://127.0.0.1:18080/ ; echo
 # expect: preview-router OK
 ```
 
-If the Caddyfile changes upstream, re-run the script (it recreates the container).
+`run-router.sh` is idempotent: it rebuilds the image and only recreates the
+container when the Caddyfile changed or the container is missing/stopped.
+`Jenkinsfile.cleanup` runs it **hourly**, so a dead router self-heals within an
+hour without manual intervention. If the Caddyfile changes upstream and you want
+it live immediately, just re-run the script.
+
+**Troubleshooting `502 Bad Gateway` on `/meal*`:** the router is the single
+host-facing entry on `127.0.0.1:18080`; if it is down, every stack 502s even
+though the gateways are healthy. Check `docker ps -a | grep router` and re-run
+`run-router.sh`.
 
 ## 3. NPM — add /meal-staging/ and /meal/ proxy locations
 

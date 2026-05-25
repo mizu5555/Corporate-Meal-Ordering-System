@@ -12,6 +12,20 @@ pipeline {
   stages {
     stage('Checkout') { steps { checkout scm } }
 
+    stage('Ensure router') {
+      // Self-heal the shared deploy router. The container is self-contained
+      // (Caddyfile baked into the image — no bind mount), so this is a no-op
+      // when it is already running on the current Caddyfile, and recreates it
+      // if it died (e.g. host reboot) or the Caddyfile changed. Without this,
+      // a dead router silently 502s every /meal* path until someone notices.
+      steps {
+        sh '''
+          set -euo pipefail
+          bash infra/deploy/router/run-router.sh
+        '''
+      }
+    }
+
     stage('Hourly sweep') {
       steps {
         withCredentials([usernamePassword(credentialsId: 'github-token-eason', usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN')]) {
