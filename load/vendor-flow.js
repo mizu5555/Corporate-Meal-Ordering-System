@@ -16,28 +16,45 @@
 //   DELETE /vendor/me/menu/{id}
 //   DELETE /vendor/me/categories/{id}
 //
-// RBAC header pattern mirrors backend/core/vendor_identity.py:
-//   x-user-role: vendor_manager
-//   x-vendor-id: <seeded vendor id>
+// Auth: real JWT, not the x-user-role/x-vendor-id header fallback. The deployed
+// gateway (infra/caddy/Caddyfile) strips those identity headers so clients
+// cannot spoof roles — header-based auth only works when hitting the backend
+// directly (:8000) and 403s through any public URL. setup() logs in once via
+// POST /auth/login; every VU sends `Authorization: Bearer <token>`. vendor_id
+// rides inside the token, so no VENDOR_ID env is needed.
+//
+// Default credentials are the seeded vendor_manager from
+// backend/db/migrations/003_auth.sql (Sunny Kitchen), present on every deploy.
+// Override with VENDOR_EMAIL / VENDOR_PASSWORD. This is a real demo vendor, so
+// teardown() must NOT delete it — it only sweeps the k6-* rows this run created.
 //
 // `check()` thresholds are deliberately tight on the golden path. Tune to
 // the staging environment when feeding real traffic into the Grafana
 // dashboards from PR #28.
 
 import http from 'k6/http';
-import { check, sleep, group } from 'k6';
+import { check, sleep, group, fail } from 'k6';
 import { Trend, Counter } from 'k6/metrics';
 
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:8000';
-const VENDOR_ID = __ENV.VENDOR_ID || '1';
+const VENDOR_EMAIL = __ENV.VENDOR_EMAIL || 'vendor@corpmeal.local';
+const VENDOR_PASSWORD = __ENV.VENDOR_PASSWORD || 'password123';
 const VUS = parseInt(__ENV.VUS || '5');
 const DURATION = __ENV.DURATION || '30s';
 
-const headers = {
-  'Content-Type': 'application/json',
-  'x-user-role': 'vendor_manager',
-  'x-vendor-id': VENDOR_ID,
-};
+// Prefixes for the rows this script creates. teardown() keys off these so the
+// shared demo vendor's own catalogue is never touched.
+const CAT_PREFIX = 'k6-cat-';
+const ITEM_PREFIX = 'k6-item-';
+
+// Per-request headers carrying the Bearer token minted in setup(). The token
+// already encodes role + vendor_id, so no x-user-role/x-vendor-id is sent.
+function authHeaders(token) {
+  return {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${token}`,
+  };
+}
 
 const flowDuration = new Trend('vendor_flow_duration_ms');
 const quotaSetOk = new Counter('vendor_quota_set_total');
@@ -65,7 +82,27 @@ export const options = {
   },
 };
 
-export default function () {
+// Log in once before the load ramp. The returned object is handed to every VU
+// (default function) and to teardown(). A failed login aborts the whole run —
+// there is no point load-testing the golden path without a valid token.
+export function setup() {
+  const res = http.post(
+    `${BASE_URL}/auth/login`,
+    JSON.stringify({ email: VENDOR_EMAIL, password: VENDOR_PASSWORD }),
+    { headers: { 'Content-Type': 'application/json' }, tags: { name: 'POST /auth/login' } },
+  );
+  if (res.status !== 200) {
+    fail(`login failed: status=${res.status} body=${res.body}`);
+  }
+  const token = res.json('access_token');
+  if (!token) {
+    fail(`login response missing access_token: ${res.body}`);
+  }
+  return { token };
+}
+
+export default function (data) {
+  const headers = authHeaders(data.token);
   const t0 = Date.now();
 
   group('profile', () => {
@@ -152,4 +189,31 @@ export default function () {
 
   flowDuration.add(Date.now() - t0);
   sleep(1);
+}
+
+// Backstop cleanup. Each iteration already deletes the rows it created, but an
+// aborted iteration (failed check, crashed VU) can leave k6-* rows behind. This
+// sweeps any survivors so the shared demo vendor is left exactly as it started.
+// menu_items.category_id is ON DELETE SET NULL, so items must go before
+// categories. The vendor row itself is never deleted.
+export function teardown(data) {
+  const headers = authHeaders(data.token);
+
+  const items = http.get(`${BASE_URL}/vendor/me/menu`, { headers });
+  if (items.status === 200) {
+    for (const item of items.json()) {
+      if (typeof item.name === 'string' && item.name.startsWith(ITEM_PREFIX)) {
+        http.del(`${BASE_URL}/vendor/me/menu/${item.id}`, null, { headers });
+      }
+    }
+  }
+
+  const cats = http.get(`${BASE_URL}/vendor/me/categories`, { headers });
+  if (cats.status === 200) {
+    for (const cat of cats.json()) {
+      if (typeof cat.name === 'string' && cat.name.startsWith(CAT_PREFIX)) {
+        http.del(`${BASE_URL}/vendor/me/categories/${cat.id}`, null, { headers });
+      }
+    }
+  }
 }
