@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../../auth/AuthContext";
-import { deleteUser, disableUser, getUsers } from "../../api/admin";
+import { deleteUser, disableUser, enableUser, getUsers } from "../../api/admin";
 
 const ROLES = ["", "admin", "employee", "vendor_manager", "committee_reviewer"];
 const ROLE_LABELS = {
@@ -66,7 +66,8 @@ export default function AdminPermissionsPage() {
     debounceRef.current = setTimeout(() => setSearch(val), 400);
   }
 
-  async function handleDisable(userId) {
+  async function handleDisable(userId, email) {
+    if (!window.confirm(`確定要停用用戶 ${email}？`)) return;
     setActionError(null);
     try {
       await disableUser(userId);
@@ -75,6 +76,18 @@ export default function AdminPermissionsPage() {
       );
     } catch (err) {
       setActionError(err.message ?? "停用失敗");
+    }
+  }
+
+  async function handleEnable(userId) {
+    setActionError(null);
+    try {
+      await enableUser(userId);
+      setUsers((prev) =>
+        prev.map((u) => (u.id === userId ? { ...u, is_active: true } : u))
+      );
+    } catch (err) {
+      setActionError(err.message ?? "啟用失敗");
     }
   }
 
@@ -196,10 +209,18 @@ export default function AdminPermissionsPage() {
               <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
                 {!isSelf(u.id) && u.is_active && (
                   <button
-                    onClick={() => handleDisable(u.id)}
+                    onClick={() => handleDisable(u.id, u.email)}
                     style={btnStyle("secondary")}
                   >
                     停用
+                  </button>
+                )}
+                {!isSelf(u.id) && !u.is_active && (
+                  <button
+                    onClick={() => handleEnable(u.id)}
+                    style={btnStyle("enable")}
+                  >
+                    啟用
                   </button>
                 )}
                 {isSelf(u.id) && (
@@ -235,6 +256,9 @@ function btnStyle(variant) {
   };
   if (variant === "danger") {
     return { ...base, background: "rgba(200,92,44,0.12)", color: "var(--brand)" };
+  }
+  if (variant === "enable") {
+    return { ...base, background: "rgba(47,125,74,0.12)", color: "var(--success)" };
   }
   return { ...base, background: "var(--line)", color: "var(--text)" };
 }
