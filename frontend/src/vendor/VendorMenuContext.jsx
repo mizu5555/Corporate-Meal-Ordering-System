@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { getMyMenu } from "../api/vendor";
+import { createMenuItem, deleteMenuItem, getMyMenu, updateMenuItem } from "../api/vendor";
 
 const VendorMenuContext = createContext(null);
 
@@ -19,26 +19,20 @@ export function VendorMenuProvider({ children }) {
     return () => { cancelled = true; };
   }, []);
 
-  function addItem(data) {
-    const newItem = {
-      ...data,
-      id: Date.now(),
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
+  async function addItem(data) {
+    const newItem = await createMenuItem(data);
     setItems((prev) => [...prev, newItem]);
     return newItem;
   }
 
-  function updateItem(id, data) {
-    setItems((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, ...data, updated_at: new Date().toISOString() } : item,
-      ),
-    );
+  async function updateItem(id, data) {
+    const updated = await updateMenuItem(id, data);
+    setItems((prev) => prev.map((item) => (item.id === id ? updated : item)));
+    return updated;
   }
 
-  function removeItem(id) {
+  async function removeItem(id) {
+    await deleteMenuItem(id);
     setItems((prev) => prev.filter((item) => item.id !== id));
   }
 

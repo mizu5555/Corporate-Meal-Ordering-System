@@ -19,3 +19,23 @@ export function getMyMenu() {
 export function getMyOrders() {
   return apiFetch("/vendor/me/orders");
 }
+
+export function createMenuItem(data) {
+  return apiFetch("/vendor/me/menu", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+}
+
+export function updateMenuItem(itemId, data) {
+  return apiFetch(`/vendor/me/menu/${itemId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+}
+
+export function deleteMenuItem(itemId) {
+  return apiFetch(`/vendor/me/menu/${itemId}`, { method: "DELETE" });
+}
