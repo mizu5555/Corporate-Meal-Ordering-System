@@ -20,6 +20,8 @@ from backend.schemas.employee import (
     EmployeeVendor,
     MealSelection,
     MealSelectionCreate,
+    RandomMealDraw,
+    RandomMealDrawRequest,
 )
 from backend.services.employee_ordering_service import EmployeeOrderingService
 
@@ -69,6 +71,15 @@ def list_menu(
     available: Annotated[bool | None, Query()] = True,
 ) -> list[EmployeeMenuItem]:
     return service.list_menu(vendor_id, category_id=category_id, available=available)
+
+
+@router.post("/random-meals/draw", response_model=RandomMealDraw)
+def draw_random_meal(
+    payload: RandomMealDrawRequest,
+    _employee_role: Annotated[None, Depends(require_employee_role)],
+    service: Annotated[EmployeeOrderingService, Depends(get_employee_ordering_service)],
+) -> RandomMealDraw:
+    return service.draw_random_meal(payload)
 
 
 @router.post("/vendors/{vendor_id}/selections", response_model=MealSelection, status_code=status.HTTP_201_CREATED)

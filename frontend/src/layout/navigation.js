@@ -8,6 +8,7 @@ export const navigationByRole = {
   employee: [
     { label: "Dashboard", to: "/employee" },
     { label: "Browse Meals", to: "/employee/menu" },
+    { label: "Random Meal", to: "/employee/random-meal" },
     { label: "Current Orders", to: "/employee/orders" },
     { label: "Notifications", to: "/notifications" },
   ],

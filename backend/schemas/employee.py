@@ -1,7 +1,7 @@
 """Employee-facing vendor, menu, order, and meal selection schemas."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -34,6 +34,7 @@ class EmployeeMenuItem(BaseModel):
 class MealSelectionCreate(BaseModel):
     item_id: int
     quantity: int = Field(ge=1)
+    meal_date: date | None = None
 
 
 class MealSelection(BaseModel):
@@ -41,6 +42,7 @@ class MealSelection(BaseModel):
     order_id: int | None = None
     employee_id: int
     vendor_id: int
+    meal_date: date | None = None
     item_id: int
     item_name: str
     quantity: int
@@ -59,6 +61,7 @@ class EmployeeOrderItemCreate(BaseModel):
 
 class EmployeeOrderCreate(BaseModel):
     items: list[EmployeeOrderItemCreate] = Field(min_length=1)
+    meal_date: date | None = None
 
 
 class EmployeeOrderItem(BaseModel):
@@ -75,9 +78,22 @@ class EmployeeOrder(BaseModel):
     id: int
     employee_id: int
     vendor_id: int
+    meal_date: date | None = None
     status: OrderStatus
     items: list[EmployeeOrderItem]
     total_price_cents: int
     created_at: datetime
     updated_at: datetime
     cancelled_at: datetime | None = None
+
+
+class RandomMealDrawRequest(BaseModel):
+    meal_date: date
+    vendor_ids: list[int] | None = None
+
+
+class RandomMealDraw(BaseModel):
+    meal_date: date
+    vendor: EmployeeVendor
+    item: EmployeeMenuItem
+    remaining_quantity: int | None = None
