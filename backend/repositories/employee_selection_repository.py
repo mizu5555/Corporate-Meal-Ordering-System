@@ -165,6 +165,14 @@ class EmployeeSelectionRepository:
             selections.extend(self._order_to_selection_schemas(order.id))
         return selections
 
+    def list_by_vendor(self, *, vendor_id: int) -> list[MealSelection]:
+        selections: list[MealSelection] = []
+        for order in sorted(self._orders.values(), key=lambda r: r.id):
+            if order.vendor_id != vendor_id:
+                continue
+            selections.extend(self._order_to_selection_schemas(order.id))
+        return selections
+
     def _order_to_schema(self, order: _OrderRecord) -> EmployeeOrder:
         items = [r for r in self._items.values() if r.order_id == order.id]
         items.sort(key=lambda r: r.id)

@@ -5,10 +5,12 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, status
 
+from backend.core.config import settings
 from backend.core.employee_identity import require_employee, require_employee_role
 from backend.core.vendor_identity import get_vendor_profile_repository
 from backend.repositories.employee_selection_repository import EmployeeSelectionRepository
 from backend.repositories.menu_item_repository import MenuItemRepository
+from backend.repositories.postgres_employee_selection_repository import PostgresEmployeeSelectionRepository
 from backend.repositories.vendor_profile_repository import VendorProfileRepository
 from backend.routes.vendor_menu import get_menu_item_repository
 from backend.schemas.employee import (
@@ -24,9 +26,12 @@ from backend.services.employee_ordering_service import EmployeeOrderingService
 router = APIRouter(prefix="/employee", tags=["employee"])
 
 _selection_repo = EmployeeSelectionRepository()
+_postgres_selection_repo = PostgresEmployeeSelectionRepository()
 
 
-def get_employee_selection_repository() -> EmployeeSelectionRepository:
+def get_employee_selection_repository() -> EmployeeSelectionRepository | PostgresEmployeeSelectionRepository:
+    if settings.database_url:
+        return _postgres_selection_repo
     return _selection_repo
 
 

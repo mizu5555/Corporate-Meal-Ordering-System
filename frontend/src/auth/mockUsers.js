@@ -9,6 +9,8 @@ export const mockUsers = [
   },
   {
     id: "vendor-demo",
+    numericId: 1,
+    vendorId: 1,
     role: "vendor_manager",
     name: "Sunny Kitchen",
     title: "Vendor",

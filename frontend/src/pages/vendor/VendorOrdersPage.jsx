@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { MOCK_VENDOR_SELECTIONS } from "../../api/mockData";
+import { getMyOrders } from "../../api/vendor";
 import { formatPrice } from "../../utils/format";
 
 function formatTime(isoString) {
@@ -7,23 +7,23 @@ function formatTime(isoString) {
   return d.toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
-function useMockSelections() {
+function useVendorOrders() {
   const [selections, setSelections] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setSelections(MOCK_VENDOR_SELECTIONS);
-      setLoading(false);
-    }, 300);
-    return () => clearTimeout(timer);
+    getMyOrders()
+      .then(setSelections)
+      .catch((err) => setError(err.message ?? "無法載入訂單"))
+      .finally(() => setLoading(false));
   }, []);
 
-  return { selections, loading };
+  return { selections, loading, error };
 }
 
 export default function VendorOrdersPage() {
-  const { selections, loading } = useMockSelections();
+  const { selections, loading, error } = useVendorOrders();
 
   const totalRevenue = selections.reduce((sum, s) => sum + s.total_price_cents, 0);
   const totalItems = selections.reduce((sum, s) => sum + s.quantity, 0);
@@ -37,11 +37,13 @@ export default function VendorOrdersPage() {
 
       {loading && <p className="loading-state">載入訂單中...</p>}
 
-      {!loading && selections.length === 0 && (
+      {error && <p className="error-state">{error}</p>}
+
+      {!loading && !error && selections.length === 0 && (
         <p className="empty-state">今日尚未收到任何訂單。</p>
       )}
 
-      {!loading && selections.length > 0 && (
+      {!loading && !error && selections.length > 0 && (
         <>
           <div style={{ display: "flex", gap: 16, marginBottom: 24 }}>
             <div className="panel" style={{ flex: 1, padding: "16px 20px" }}>
