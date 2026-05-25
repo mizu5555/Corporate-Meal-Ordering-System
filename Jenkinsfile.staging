@@ -93,31 +93,21 @@ pipeline {
           echo "running k6 vendor-flow against $BASE_URL"
           # Dockerised k6 — no jenkins-service image change required.
           # Short ramp + low VUS so a deploy gate stays under ~40s.
+          # No VENDOR_ID: the script logs in via /auth/login and reads vendor_id
+          # from the JWT (the deployed gateway strips x-user-role/x-vendor-id, so
+          # header-based auth would 403). Credentials default to the seeded
+          # vendor_manager in 003_auth.sql; override with VENDOR_EMAIL/PASSWORD.
           docker run --rm -i \
             -e BASE_URL="$BASE_URL" \
             -e VUS=3 \
             -e DURATION=20s \
-            -e VENDOR_ID=99 \
             grafana/k6:latest run --insecure-skip-tls-verify - \
             < load/vendor-flow.js
         '''
-      }
-      post {
-        always {
-          // Remove the bot vendor so /employee/vendors does not surface
-          // "K6 Smoke Vendor" after the build. menu_items / menu_categories /
-          // vendor_facilities are wiped by ON DELETE CASCADE — one row goes
-          // and the whole subtree follows. Next deploy reseeds the row via
-          // lifespan, so this is cleanup for the current container's lifetime
-          // only. Runs whether k6 passed or failed (always{}) so partial
-          // failures still get cleaned up.
-          sh '''
-            set -euo pipefail
-            docker exec mealorder-staging-db-1 psql -U meal_user -d meal_ordering \
-              -v ON_ERROR_STOP=1 -c "DELETE FROM vendors WHERE id = 99;"
-            echo "cleaned k6 smoke vendor (cascade drops menu items, categories, facilities)"
-          '''
-        }
+        // No DB cleanup stage: the 'Reset and deploy staging' stage runs
+        // `docker compose down -v`, dropping the Postgres volume on every
+        // deploy, and the k6 script self-cleans its k6-* rows per iteration
+        // plus a teardown() sweep. The shared demo vendor row is never deleted.
       }
     }
   }
