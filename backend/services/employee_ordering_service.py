@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import random
-from datetime import date
+from datetime import date, timedelta
 
 from backend.core.errors import CodedHTTPException
 from backend.repositories.employee_selection_repository import EmployeeSelectionRepository, OrderItemSnapshot
@@ -20,6 +20,8 @@ from backend.schemas.employee import (
     RandomMealDrawRequest,
 )
 from backend.schemas.vendor_self import MenuItem as VendorMenuItem
+
+MEAL_DATE_WINDOW_DAYS = 7
 
 
 class EmployeeOrderingService:
@@ -89,6 +91,7 @@ class EmployeeOrderingService:
     ) -> EmployeeOrder:
         self._get_approved_vendor(vendor_id)
         meal_date = payload.meal_date or date.today()
+        self._ensure_meal_date_in_window(meal_date)
         snapshots = self._build_order_items(vendor_id, payload, meal_date=meal_date)
         return self.selection_repository.create_order(
             employee_id=employee_id,
@@ -98,6 +101,7 @@ class EmployeeOrderingService:
         )
 
     def draw_random_meal(self, payload: RandomMealDrawRequest) -> RandomMealDraw:
+        self._ensure_meal_date_in_window(payload.meal_date)
         approved_vendors = {vendor.id: vendor for vendor in self.vendor_repository.list(status="approved")}
         if payload.vendor_ids is None:
             vendor_ids = list(approved_vendors)
@@ -238,3 +242,14 @@ class EmployeeOrderingService:
         if item.daily_quota is None:
             return None
         return max(item.daily_quota - used_quantity, 0)
+
+    @staticmethod
+    def _ensure_meal_date_in_window(meal_date: date) -> None:
+        today = date.today()
+        max_date = today + timedelta(days=MEAL_DATE_WINDOW_DAYS - 1)
+        if meal_date < today or meal_date > max_date:
+            raise CodedHTTPException(
+                status_code=400,
+                code="validation_error",
+                detail="meal date must be within today and the next 6 days",
+            )

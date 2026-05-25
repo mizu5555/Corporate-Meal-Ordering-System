@@ -4,22 +4,31 @@ import { drawRandomMeal, submitSelection } from "../../api/employee";
 import { useVendors } from "../../hooks/useVendors";
 import { formatPrice, quotaLabel } from "../../utils/format";
 
-function todayIso() {
-  return new Date().toISOString().slice(0, 10);
+function toLocalIso(date) {
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return localDate.toISOString().slice(0, 10);
+}
+
+function addDaysIso(days) {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return toLocalIso(date);
 }
 
 function drawErrorMessage(err) {
   if (err.code === "no_random_meal_available") {
     return "No available meals remain for the selected date and restaurants.";
   }
-  if (err.code === "validation_error") return "Choose at least one restaurant.";
+  if (err.code === "validation_error") return err.message ?? "Choose a valid date and restaurant range.";
   return "Could not draw a meal. Please try again.";
 }
 
 export default function RandomMealPage() {
   const navigate = useNavigate();
   const { vendors, loading, error } = useVendors();
-  const [mealDate, setMealDate] = useState(todayIso());
+  const minMealDate = addDaysIso(0);
+  const maxMealDate = addDaysIso(6);
+  const [mealDate, setMealDate] = useState(minMealDate);
   const [allVendors, setAllVendors] = useState(true);
   const [selectedVendorIds, setSelectedVendorIds] = useState([]);
   const [draw, setDraw] = useState(null);
@@ -29,7 +38,8 @@ export default function RandomMealPage() {
   const [submitted, setSubmitted] = useState(false);
 
   const selectedCount = allVendors ? vendors.length : selectedVendorIds.length;
-  const canDraw = mealDate && selectedCount > 0 && !drawing && !loading;
+  const mealDateInRange = mealDate >= minMealDate && mealDate <= maxMealDate;
+  const canDraw = mealDateInRange && selectedCount > 0 && !drawing && !loading;
   const remainingLabel = useMemo(() => {
     if (!draw) return null;
     if (draw.remaining_quantity == null) return "Unlimited";
@@ -97,6 +107,8 @@ export default function RandomMealPage() {
           <input
             className="date-input"
             id="random-meal-date"
+            max={maxMealDate}
+            min={minMealDate}
             type="date"
             value={mealDate}
             onChange={(event) => {
