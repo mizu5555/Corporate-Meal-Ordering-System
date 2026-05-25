@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from itertools import count
 
 from backend.schemas.employee import EmployeeOrder, EmployeeOrderItem, MealSelection, OrderStatus
@@ -21,6 +21,7 @@ class _OrderRecord:
     id: int
     employee_id: int
     vendor_id: int
+    meal_date: date | None
     status: OrderStatus
     created_at: datetime
     updated_at: datetime
@@ -55,6 +56,7 @@ def _selection_to_schema(order: _OrderRecord, item: _OrderItemRecord) -> MealSel
         order_id=order.id,
         employee_id=order.employee_id,
         vendor_id=order.vendor_id,
+        meal_date=order.meal_date,
         item_id=item.item_id,
         item_name=item.item_name,
         quantity=item.quantity,
@@ -77,12 +79,14 @@ class EmployeeSelectionRepository:
         employee_id: int,
         vendor_id: int,
         items: list[OrderItemSnapshot],
+        meal_date: date | None = None,
     ) -> EmployeeOrder:
         now = datetime.now(timezone.utc)
         order = _OrderRecord(
             id=next(self._order_id_seq),
             employee_id=employee_id,
             vendor_id=vendor_id,
+            meal_date=meal_date,
             status="pending",
             created_at=now,
             updated_at=now,
@@ -126,6 +130,7 @@ class EmployeeSelectionRepository:
             id=order.id,
             employee_id=order.employee_id,
             vendor_id=order.vendor_id,
+            meal_date=order.meal_date,
             status="cancelled",
             created_at=order.created_at,
             updated_at=now,
@@ -142,10 +147,12 @@ class EmployeeSelectionRepository:
         item_name: str,
         quantity: int,
         unit_price_cents: int,
+        meal_date: date | None = None,
     ) -> MealSelection:
         order = self.create_order(
             employee_id=employee_id,
             vendor_id=vendor_id,
+            meal_date=meal_date,
             items=[
                 OrderItemSnapshot(
                     item_id=item_id,
@@ -173,6 +180,21 @@ class EmployeeSelectionRepository:
             selections.extend(self._order_to_selection_schemas(order.id))
         return selections
 
+    def item_quantities_for_date(
+        self, *, meal_date: date, vendor_ids: list[int] | None = None
+    ) -> dict[int, int]:
+        vendor_filter = set(vendor_ids) if vendor_ids is not None else None
+        quantities: dict[int, int] = {}
+        for order in self._orders.values():
+            if order.meal_date != meal_date or order.status == "cancelled":
+                continue
+            if vendor_filter is not None and order.vendor_id not in vendor_filter:
+                continue
+            for item in self._items.values():
+                if item.order_id == order.id:
+                    quantities[item.item_id] = quantities.get(item.item_id, 0) + item.quantity
+        return quantities
+
     def _order_to_schema(self, order: _OrderRecord) -> EmployeeOrder:
         items = [r for r in self._items.values() if r.order_id == order.id]
         items.sort(key=lambda r: r.id)
@@ -181,6 +203,7 @@ class EmployeeSelectionRepository:
             id=order.id,
             employee_id=order.employee_id,
             vendor_id=order.vendor_id,
+            meal_date=order.meal_date,
             status=order.status,
             items=schema_items,
             total_price_cents=sum(item.total_price_cents for item in schema_items),

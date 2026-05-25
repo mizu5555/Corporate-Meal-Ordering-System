@@ -1,6 +1,9 @@
 """Employee-facing read and meal selection workflow."""
 from __future__ import annotations
 
+import random
+from datetime import date, timedelta
+
 from backend.core.errors import CodedHTTPException
 from backend.repositories.employee_selection_repository import EmployeeSelectionRepository, OrderItemSnapshot
 from backend.repositories.menu_item_repository import MenuItemRepository
@@ -13,8 +16,12 @@ from backend.schemas.employee import (
     EmployeeVendor,
     MealSelection,
     MealSelectionCreate,
+    RandomMealDraw,
+    RandomMealDrawRequest,
 )
 from backend.schemas.vendor_self import MenuItem as VendorMenuItem
+
+MEAL_DATE_WINDOW_DAYS = 7
 
 
 class EmployeeOrderingService:
@@ -52,6 +59,7 @@ class EmployeeOrderingService:
             employee_id,
             vendor_id,
             EmployeeOrderCreate(
+                meal_date=payload.meal_date,
                 items=[
                     EmployeeOrderItemCreate(
                         item_id=payload.item_id,
@@ -66,6 +74,7 @@ class EmployeeOrderingService:
             order_id=order.id,
             employee_id=order.employee_id,
             vendor_id=order.vendor_id,
+            meal_date=order.meal_date,
             item_id=item.item_id,
             item_name=item.item_name,
             quantity=item.quantity,
@@ -81,11 +90,60 @@ class EmployeeOrderingService:
         self, employee_id: int, vendor_id: int, payload: EmployeeOrderCreate
     ) -> EmployeeOrder:
         self._get_approved_vendor(vendor_id)
-        snapshots = self._build_order_items(vendor_id, payload)
+        meal_date = payload.meal_date or date.today()
+        self._ensure_meal_date_in_window(meal_date)
+        snapshots = self._build_order_items(vendor_id, payload, meal_date=meal_date)
         return self.selection_repository.create_order(
             employee_id=employee_id,
             vendor_id=vendor_id,
             items=snapshots,
+            meal_date=meal_date,
+        )
+
+    def draw_random_meal(self, payload: RandomMealDrawRequest) -> RandomMealDraw:
+        self._ensure_meal_date_in_window(payload.meal_date)
+        approved_vendors = {vendor.id: vendor for vendor in self.vendor_repository.list(status="approved")}
+        if payload.vendor_ids is None:
+            vendor_ids = list(approved_vendors)
+        else:
+            vendor_ids = list(dict.fromkeys(payload.vendor_ids))
+
+        if not vendor_ids:
+            raise CodedHTTPException(
+                status_code=400,
+                code="validation_error",
+                detail="at least one vendor must be selected",
+            )
+
+        missing_vendor_ids = [vendor_id for vendor_id in vendor_ids if vendor_id not in approved_vendors]
+        if missing_vendor_ids:
+            raise CodedHTTPException(status_code=404, code="not_found", detail="vendor not found")
+
+        used_by_item = self.selection_repository.item_quantities_for_date(
+            meal_date=payload.meal_date,
+            vendor_ids=vendor_ids,
+        )
+        candidates: list[tuple[VendorRecord, VendorMenuItem, int | None]] = []
+        for vendor_id in vendor_ids:
+            vendor = approved_vendors[vendor_id]
+            for item in self.menu_item_repository.list(vendor_id=vendor_id, available=True):
+                remaining = self._remaining_quantity(item, used_by_item.get(item.id, 0))
+                if remaining is None or remaining > 0:
+                    candidates.append((vendor, item, remaining))
+
+        if not candidates:
+            raise CodedHTTPException(
+                status_code=409,
+                code="no_random_meal_available",
+                detail="no available meals remain for the selected date and vendors",
+            )
+
+        vendor, item, remaining = random.choice(candidates)
+        return RandomMealDraw(
+            meal_date=payload.meal_date,
+            vendor=self._vendor_to_schema(vendor),
+            item=self._menu_item_to_schema(item),
+            remaining_quantity=remaining,
         )
 
     def list_my_orders(self, employee_id: int) -> list[EmployeeOrder]:
@@ -142,7 +200,7 @@ class EmployeeOrderingService:
         )
 
     def _build_order_items(
-        self, vendor_id: int, payload: EmployeeOrderCreate
+        self, vendor_id: int, payload: EmployeeOrderCreate, *, meal_date: date
     ) -> list[OrderItemSnapshot]:
         requested_by_item: dict[int, int] = {}
         for requested in payload.items:
@@ -150,6 +208,10 @@ class EmployeeOrderingService:
                 requested_by_item.get(requested.item_id, 0) + requested.quantity
             )
 
+        used_by_item = self.selection_repository.item_quantities_for_date(
+            meal_date=meal_date,
+            vendor_ids=[vendor_id],
+        )
         snapshots: list[OrderItemSnapshot] = []
         for requested in payload.items:
             item = self.menu_item_repository.get(vendor_id=vendor_id, item_id=requested.item_id)
@@ -157,11 +219,12 @@ class EmployeeOrderingService:
                 raise CodedHTTPException(status_code=404, code="not_found", detail="menu item not found")
             if not item.available:
                 raise CodedHTTPException(status_code=409, code="item_unavailable", detail="menu item unavailable")
-            if item.daily_quota is not None and requested_by_item[item.id] > item.daily_quota:
+            used_quantity = used_by_item.get(item.id, 0)
+            if item.daily_quota is not None and used_quantity + requested_by_item[item.id] > item.daily_quota:
                 raise CodedHTTPException(
                     status_code=409,
                     code="quantity_exceeds_daily_quota",
-                    detail="quantity exceeds daily quota",
+                    detail="quantity exceeds remaining daily quota",
                 )
 
             snapshots.append(
@@ -173,3 +236,20 @@ class EmployeeOrderingService:
                 )
             )
         return snapshots
+
+    @staticmethod
+    def _remaining_quantity(item: VendorMenuItem, used_quantity: int) -> int | None:
+        if item.daily_quota is None:
+            return None
+        return max(item.daily_quota - used_quantity, 0)
+
+    @staticmethod
+    def _ensure_meal_date_in_window(meal_date: date) -> None:
+        today = date.today()
+        max_date = today + timedelta(days=MEAL_DATE_WINDOW_DAYS - 1)
+        if meal_date < today or meal_date > max_date:
+            raise CodedHTTPException(
+                status_code=400,
+                code="validation_error",
+                detail="meal date must be within today and the next 6 days",
+            )
