@@ -8,6 +8,7 @@ export default defineConfig({
     host: "0.0.0.0",
     port: 3000,
     proxy: {
+      "/auth":     "http://localhost:8000",
       "/employee": "http://localhost:8000",
       "/vendor":   "http://localhost:8000",
       "/admin":    "http://localhost:8000",

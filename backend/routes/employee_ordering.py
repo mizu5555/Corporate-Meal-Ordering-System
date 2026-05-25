@@ -13,7 +13,14 @@ from backend.repositories.menu_item_repository import MenuItemRepository
 from backend.repositories.postgres_employee_selection_repository import PostgresEmployeeSelectionRepository
 from backend.repositories.vendor_profile_repository import VendorProfileRepository
 from backend.routes.vendor_menu import get_menu_item_repository
-from backend.schemas.employee import EmployeeMenuItem, EmployeeVendor, MealSelection, MealSelectionCreate
+from backend.schemas.employee import (
+    EmployeeMenuItem,
+    EmployeeOrder,
+    EmployeeOrderCreate,
+    EmployeeVendor,
+    MealSelection,
+    MealSelectionCreate,
+)
 from backend.services.employee_ordering_service import EmployeeOrderingService
 
 router = APIRouter(prefix="/employee", tags=["employee"])
@@ -74,9 +81,45 @@ def select_meal(
     return service.select_meal(employee_id, vendor_id, payload)
 
 
+@router.post("/vendors/{vendor_id}/orders", response_model=EmployeeOrder, status_code=status.HTTP_201_CREATED)
+def create_order(
+    vendor_id: int,
+    payload: EmployeeOrderCreate,
+    employee_id: Annotated[int, Depends(require_employee)],
+    service: Annotated[EmployeeOrderingService, Depends(get_employee_ordering_service)],
+) -> EmployeeOrder:
+    return service.create_order(employee_id, vendor_id, payload)
+
+
 @router.get("/me/selections", response_model=list[MealSelection])
 def list_my_selections(
     employee_id: Annotated[int, Depends(require_employee)],
     service: Annotated[EmployeeOrderingService, Depends(get_employee_ordering_service)],
 ) -> list[MealSelection]:
     return service.list_my_selections(employee_id)
+
+
+@router.get("/me/orders", response_model=list[EmployeeOrder])
+def list_my_orders(
+    employee_id: Annotated[int, Depends(require_employee)],
+    service: Annotated[EmployeeOrderingService, Depends(get_employee_ordering_service)],
+) -> list[EmployeeOrder]:
+    return service.list_my_orders(employee_id)
+
+
+@router.get("/me/orders/{order_id}", response_model=EmployeeOrder)
+def get_my_order(
+    order_id: int,
+    employee_id: Annotated[int, Depends(require_employee)],
+    service: Annotated[EmployeeOrderingService, Depends(get_employee_ordering_service)],
+) -> EmployeeOrder:
+    return service.get_my_order(employee_id, order_id)
+
+
+@router.post("/me/orders/{order_id}/cancel", response_model=EmployeeOrder)
+def cancel_my_order(
+    order_id: int,
+    employee_id: Annotated[int, Depends(require_employee)],
+    service: Annotated[EmployeeOrderingService, Depends(get_employee_ordering_service)],
+) -> EmployeeOrder:
+    return service.cancel_my_order(employee_id, order_id)

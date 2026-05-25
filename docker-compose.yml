@@ -9,11 +9,20 @@ services:
         required: false
     environment:
       ROOT_PATH: ${ROOT_PATH:-}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-meal_user}:${POSTGRES_PASSWORD:-change-me-in-local-env}@db:5432/${POSTGRES_DB:-meal_ordering}
     volumes:
       - uploads:/app/uploads
     command: uvicorn backend.main:app --host 0.0.0.0 --port 8000
     ports:
       - "8000:8000"
+    networks:
+      default:
+        # Caddyfile references the backend as `api:8000`. Declaring the alias
+        # in the base compose keeps local-dev (no override) working; staging
+        # and prod overrides keep the alias on default while joining
+        # grafana_default for the Prometheus scrape path.
+        aliases:
+          - api
     depends_on:
       db:
         condition: service_healthy

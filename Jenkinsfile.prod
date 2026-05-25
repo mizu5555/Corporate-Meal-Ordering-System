@@ -31,6 +31,26 @@ pipeline {
       steps { checkout scm }
     }
 
+    stage('Verify commit') {
+      steps {
+        sh '''
+          set -eu
+          BUILT=$(git rev-parse HEAD)
+          TAG_SHA=$(git ls-remote origin "refs/tags/${TAG_NAME}^{}" | awk '{print $1}')
+          if [ -z "$TAG_SHA" ]; then
+            TAG_SHA=$(git ls-remote origin "refs/tags/${TAG_NAME}" | awk '{print $1}')
+          fi
+          echo "Built  SHA: $BUILT"
+          echo "Tag ${TAG_NAME} -> $TAG_SHA"
+          git log -1 --pretty=format:'subject: %s%nauthor : %an <%ae>%ndate   : %ad' --date=iso
+          echo
+          if [ "$BUILT" != "$TAG_SHA" ]; then
+            echo "WARNING: built SHA does not match tag ${TAG_NAME} on origin"
+          fi
+        '''
+      }
+    }
+
     stage('Build and deploy prod') {
       steps {
         sh '''

@@ -104,6 +104,7 @@ def test_select_meal_records_quantity_and_total_price() -> None:
 
     assert resp.status_code == 201
     body = resp.json()
+    assert body["order_id"] is not None
     assert body["employee_id"] == 100
     assert body["vendor_id"] == 1
     assert body["item_id"] == item.id
@@ -114,6 +115,85 @@ def test_select_meal_records_quantity_and_total_price() -> None:
 
     selections = client.get("/employee/me/selections", headers=_h(100)).json()
     assert [selection["id"] for selection in selections] == [body["id"]]
+
+
+def test_create_order_records_multiple_items_and_total_price() -> None:
+    client, item_repo, _ = _setup()
+    rice = item_repo.create(vendor_id=1, name="Rice Bowl", price_cents=120, daily_quota=5)
+    tea = item_repo.create(vendor_id=1, name="Tea", price_cents=40, daily_quota=10)
+
+    resp = client.post(
+        "/employee/vendors/1/orders",
+        headers=_h(100),
+        json={
+            "items": [
+                {"item_id": rice.id, "quantity": 2},
+                {"item_id": tea.id, "quantity": 1},
+            ]
+        },
+    )
+
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["employee_id"] == 100
+    assert body["vendor_id"] == 1
+    assert body["status"] == "pending"
+    assert body["total_price_cents"] == 280
+    assert [(item["item_name"], item["quantity"]) for item in body["items"]] == [
+        ("Rice Bowl", 2),
+        ("Tea", 1),
+    ]
+
+
+def test_my_orders_are_scoped_by_employee() -> None:
+    client, item_repo, _ = _setup()
+    item = item_repo.create(vendor_id=1, name="Rice Bowl", price_cents=120)
+    client.post(
+        "/employee/vendors/1/orders",
+        headers=_h(100),
+        json={"items": [{"item_id": item.id, "quantity": 1}]},
+    )
+
+    resp = client.get("/employee/me/orders", headers=_h(200))
+
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+def test_cancel_pending_order_marks_order_cancelled() -> None:
+    client, item_repo, _ = _setup()
+    item = item_repo.create(vendor_id=1, name="Rice Bowl", price_cents=120)
+    order = client.post(
+        "/employee/vendors/1/orders",
+        headers=_h(100),
+        json={"items": [{"item_id": item.id, "quantity": 1}]},
+    ).json()
+
+    resp = client.post(f"/employee/me/orders/{order['id']}/cancel", headers=_h(100))
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "cancelled"
+    assert body["cancelled_at"] is not None
+
+
+def test_create_order_sums_duplicate_item_quantities_for_quota() -> None:
+    client, item_repo, _ = _setup()
+    item = item_repo.create(vendor_id=1, name="Rice Bowl", price_cents=120, daily_quota=2)
+
+    resp = client.post(
+        "/employee/vendors/1/orders",
+        headers=_h(100),
+        json={
+            "items": [
+                {"item_id": item.id, "quantity": 1},
+                {"item_id": item.id, "quantity": 2},
+            ]
+        },
+    )
+
+    assert resp.status_code == 409
+    assert resp.json()["code"] == "quantity_exceeds_daily_quota"
 
 
 def test_my_selections_are_scoped_by_employee() -> None:

@@ -1,0 +1,20 @@
+apiVersion: 1
+
+# Drop the previously provisioned "Loki" (uid=loki) before re-inserting under
+# the meal-prefixed name. Grafana provisioning treats a name change as a new
+# datasource and leaves the old one orphaned otherwise. UI-created entries
+# (lowercase "loki", editable=true) are untouched — different name.
+deleteDatasources:
+  - name: Loki
+    orgId: 1
+
+datasources:
+  - name: meal-Loki
+    type: loki
+    uid: meal-loki
+    url: http://loki:3100
+    access: proxy
+    isDefault: false
+    editable: false
+    jsonData:
+      maxLines: 1000

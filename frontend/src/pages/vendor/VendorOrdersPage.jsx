@@ -94,7 +94,7 @@ export default function VendorOrdersPage() {
                 }}
               >
                 <p style={{ margin: 0, fontSize: 13, color: "var(--muted)" }}>
-                  {`員工 #${s.employee_id}`}
+                  {s.employee_name ?? `員工 #${s.employee_id}`}
                 </p>
                 <p style={{ margin: 0, fontWeight: 500 }}>{s.item_name}</p>
                 <p style={{ margin: 0, textAlign: "right" }}>× {s.quantity}</p>

@@ -1,6 +1,7 @@
 export const mockUsers = [
   {
     id: "employee-demo",
+    numericId: 1,
     role: "employee",
     name: "Ting Lin",
     title: "Employee",

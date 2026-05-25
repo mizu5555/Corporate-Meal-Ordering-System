@@ -1,0 +1,124 @@
+# Grafana unified-alerting provisioning. Picked up automatically from
+# /etc/grafana/provisioning/alerting/ at startup. Contact points and notification
+# policy are managed in the Grafana UI (or in a separate provisioning file); these
+# rules only define WHEN to fire, not WHERE.
+#
+# All thresholds are deliberately conservative for a homework-scale stack — tune
+# after observing real traffic.
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: mealorder-http
+    folder: Meal Ordering
+    interval: 1m
+    rules:
+      - uid: mealorder-backend-5xx-rate
+        title: Backend 5xx rate sustained
+        condition: C
+        for: 5m
+        noDataState: OK
+        execErrState: Error
+        annotations:
+          summary: '{{ $labels.job }} backend is returning 5xx > 0.1/s for 5m'
+          runbook: Check backend logs and recent deploys; rollback via Jenkins if regression.
+        labels:
+          severity: warning
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              expr: 'sum by (job) (rate(http_requests_total{job=~"mealorder-.*", status="5xx"}[5m]))'
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            relativeTimeRange: { from: 0, to: 0 }
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator: { params: [0.1], type: gt }
+                  operator: { type: and }
+                  query: { params: [C] }
+                  reducer: { type: last }
+                  type: query
+              expression: A
+              refId: C
+              intervalMs: 1000
+              maxDataPoints: 43200
+
+      - uid: mealorder-backend-p95-high
+        title: Backend p95 latency high
+        condition: C
+        for: 10m
+        noDataState: OK
+        execErrState: Error
+        annotations:
+          summary: '{{ $labels.job }} backend p95 > 1s for 10m'
+          runbook: Inspect "Per-route latency p95" panel to localise the slow handler.
+        labels:
+          severity: warning
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              expr: 'histogram_quantile(0.95, sum by (le, job) (rate(http_request_duration_seconds_bucket{job=~"mealorder-.*"}[5m])))'
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            relativeTimeRange: { from: 0, to: 0 }
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator: { params: [1], type: gt }
+                  operator: { type: and }
+                  query: { params: [C] }
+                  reducer: { type: last }
+                  type: query
+              expression: A
+              refId: C
+              intervalMs: 1000
+              maxDataPoints: 43200
+
+      - uid: mealorder-backend-down
+        title: Backend scrape target down
+        condition: C
+        for: 2m
+        noDataState: Alerting
+        execErrState: Alerting
+        annotations:
+          summary: 'Prometheus cannot scrape {{ $labels.job }} backend'
+          runbook: Check container is up (`docker ps | grep mealorder`); inspect grafana_default network.
+        labels:
+          severity: critical
+        data:
+          - refId: A
+            relativeTimeRange: { from: 120, to: 0 }
+            datasourceUid: prometheus
+            model:
+              expr: 'up{job=~"mealorder-.*"}'
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            relativeTimeRange: { from: 0, to: 0 }
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator: { params: [1], type: lt }
+                  operator: { type: and }
+                  query: { params: [C] }
+                  reducer: { type: last }
+                  type: query
+              expression: A
+              refId: C
+              intervalMs: 1000
+              maxDataPoints: 43200

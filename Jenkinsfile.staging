@@ -20,6 +20,24 @@ pipeline {
       steps { checkout scm }
     }
 
+    stage('Verify commit') {
+      when { branch 'main' }
+      steps {
+        sh '''
+          set -eu
+          BUILT=$(git rev-parse HEAD)
+          REMOTE=$(git ls-remote origin refs/heads/main | awk '{print $1}')
+          echo "Built  SHA: $BUILT"
+          echo "origin/main: $REMOTE"
+          git log -1 --pretty=format:'subject: %s%nauthor : %an <%ae>%ndate   : %ad' --date=iso
+          echo
+          if [ "$BUILT" != "$REMOTE" ]; then
+            echo "WARNING: building stale commit (behind origin/main)"
+          fi
+        '''
+      }
+    }
+
     stage('Reset and deploy staging') {
       when { branch 'main' }
       steps {
@@ -58,6 +76,48 @@ pipeline {
           docker compose -p "$COMPOSE_PROJECT_NAME" logs --tail=200 >&2 || true
           exit 1
         '''
+      }
+    }
+
+    stage('k6 vendor smoke') {
+      when { branch 'main' }
+      steps {
+        // Post-deploy load smoke: drive the vendor golden path against the
+        // freshly deployed staging URL. k6 thresholds (defined in the script)
+        // fail the build if request rate / latency regresses, which surfaces
+        // perf regressions that TestClient cannot — same flow as load/vendor-flow.js
+        // running in PR CI, but against the real environment.
+        sh '''
+          set -euo pipefail
+          BASE_URL="${BASE_URL:-https://nol.cs.nycu.edu.tw/meal-staging}"
+          echo "running k6 vendor-flow against $BASE_URL"
+          # Dockerised k6 — no jenkins-service image change required.
+          # Short ramp + low VUS so a deploy gate stays under ~40s.
+          docker run --rm -i \
+            -e BASE_URL="$BASE_URL" \
+            -e VUS=3 \
+            -e DURATION=20s \
+            -e VENDOR_ID=99 \
+            grafana/k6:latest run --insecure-skip-tls-verify - \
+            < load/vendor-flow.js
+        '''
+      }
+      post {
+        always {
+          // Remove the bot vendor so /employee/vendors does not surface
+          // "K6 Smoke Vendor" after the build. menu_items / menu_categories /
+          // vendor_facilities are wiped by ON DELETE CASCADE — one row goes
+          // and the whole subtree follows. Next deploy reseeds the row via
+          // lifespan, so this is cleanup for the current container's lifetime
+          // only. Runs whether k6 passed or failed (always{}) so partial
+          // failures still get cleaned up.
+          sh '''
+            set -euo pipefail
+            docker exec mealorder-staging-db-1 psql -U meal_user -d meal_ordering \
+              -v ON_ERROR_STOP=1 -c "DELETE FROM vendors WHERE id = 99;"
+            echo "cleaned k6 smoke vendor (cascade drops menu items, categories, facilities)"
+          '''
+        }
       }
     }
   }

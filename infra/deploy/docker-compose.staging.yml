@@ -1,17 +1,46 @@
 # Override applied for staging stack: strip host ports, join gateway to preview-net
 # so the shared caddy-preview-router can reach it via docker DNS.
-# backend also joins grafana_default so Prometheus can scrape /metrics by container name.
+# backend joins grafana_default so Prometheus can scrape /metrics by container name.
+# gateway also joins grafana_default so Prometheus can scrape Caddy's :2019 listener
+# (gateway request rate, upstream latency) without exposing it publicly.
 services:
   backend:
     ports: !reset []
-    networks: [default, grafana_default]
+    # Per-network aliases pin the Caddy gateway's upstream resolution. `backend`
+    # remains reachable as `backend` on grafana_default (Prometheus scrape) and
+    # `api` on default (gateway reverse_proxy). The gateway sits on default +
+    # preview-net + grafana_default; without this pin Docker DNS returned the
+    # backend's IP on both shared networks, and Caddy round-robined into a path
+    # that intermittently returned stale 404s. Single alias on a single network
+    # eliminates that race.
+    networks:
+      default:
+        aliases:
+          - api
+      grafana_default: {}
+    # SEED_K6_SMOKE_VENDOR enables a single bot vendor (id=99, approved) at
+    # lifespan startup so the post-deploy k6 stage in Jenkinsfile.staging has
+    # something to act on. Do NOT copy this env var into docker-compose.prod.yml
+    # — prod must go through the real apply + admin-approval pipeline.
+    environment:
+      SEED_K6_SMOKE_VENDOR: "1"
+      APP_ENV: staging
+      SERVICE_NAME: mealorder-backend
+      # Loki is on grafana_default network as service "loki" (container
+      # grafana-loki-1). Push handler is queue-backed, so unreachable Loki
+      # degrades gracefully to stdout.
+      LOKI_URL: http://loki:3100
+    cap_add:
+      # Needed for `py-spy record --pid 1` to attach inside the container.
+      # Scoped to staging so prod stays minimal-privilege.
+      - SYS_PTRACE
   frontend:
     ports: !reset []
   db:
     ports: !reset []
   gateway:
     ports: !reset []
-    networks: [default, preview-net]
+    networks: [default, preview-net, grafana_default]
 
 networks:
   preview-net:
