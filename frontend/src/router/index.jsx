@@ -3,6 +3,7 @@ import { useAuth } from "../auth/AuthContext";
 import AppShell from "../layout/AppShell";
 import { roleHomePath } from "../layout/navigation";
 import AdminHomePage from "../pages/admin/AdminHomePage";
+import AdminPermissionsPage from "../pages/admin/AdminPermissionsPage";
 import CartPage from "../pages/employee/CartPage";
 import EmployeeHomePage from "../pages/employee/EmployeeHomePage";
 import MenuListPage from "../pages/employee/MenuListPage";
@@ -81,15 +82,7 @@ export function AppRouter() {
               }
               path="/admin/vendors"
             />
-            <Route
-              element={
-                <PlaceholderPage
-                  description="Role assignment and permission matrices will be added later."
-                  title="Admin Permissions"
-                />
-              }
-              path="/admin/permissions"
-            />
+            <Route element={<AdminPermissionsPage />} path="/admin/permissions" />
             <Route
               element={
                 <PlaceholderPage

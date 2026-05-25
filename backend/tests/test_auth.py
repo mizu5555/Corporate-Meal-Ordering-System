@@ -12,11 +12,12 @@ client = TestClient(app)
 _PASSWORD = "password123"
 
 
-def _user(role: str = "employee", vendor_id: int | None = None) -> dict:
+def _user(role: str = "employee", vendor_id: int | None = None, is_active: bool = True) -> dict:
     return {
         "id": 1,
         "email": "user@example.com",
         "password_hash": hash_password(_PASSWORD),
+        "is_active": is_active,
         "role": role,
         "vendor_id": vendor_id,
     }

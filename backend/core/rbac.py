@@ -17,6 +17,19 @@ def get_current_user_role(
     return x_user_role or "anonymous"
 
 
+def get_current_user_id(request: Request) -> int | None:
+    """Return numeric user id from JWT sub claim, or None if unauthenticated."""
+    auth = request.headers.get("authorization", "")
+    if auth.startswith("Bearer "):
+        payload = decode_access_token(auth[7:])
+        if payload and payload.get("sub"):
+            try:
+                return int(payload["sub"])
+            except (ValueError, TypeError):
+                return None
+    return None
+
+
 def require_roles(*allowed_roles: str):
     def dependency(role: Annotated[str, Depends(get_current_user_role)]) -> str:
         if role not in allowed_roles:

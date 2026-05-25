@@ -18,6 +18,7 @@ def _fetch_user(email: str) -> dict | None:
                 u.id,
                 u.email,
                 u.password_hash,
+                u.is_active,
                 r.name  AS role,
                 v.id    AS vendor_id
             FROM users u
@@ -45,6 +46,13 @@ def login(payload: LoginRequest) -> TokenResponse:
             status_code=401,
             code="invalid_credentials",
             detail="Invalid email or password",
+        )
+
+    if not user["is_active"]:
+        raise CodedHTTPException(
+            status_code=403,
+            code="account_disabled",
+            detail="This account has been disabled",
         )
 
     jwt_data: dict = {"sub": str(user["id"]), "role": user["role"]}
