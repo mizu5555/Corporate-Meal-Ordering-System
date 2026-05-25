@@ -1,19 +1,30 @@
 # Override applied for prod stack: strip host ports, join gateway to preview-net
 # so the shared caddy-preview-router can reach it via docker DNS.
-# backend also joins grafana_default so Prometheus can scrape /metrics by container name.
+# backend joins grafana_default so Prometheus can scrape /metrics by container name.
+# gateway also joins grafana_default so Prometheus can scrape Caddy's :2019 listener
+# (gateway request rate, upstream latency) without exposing it publicly.
 services:
   backend:
     ports: !reset []
-    networks: [default, grafana_default]
+    # See staging override for the rationale: pin Caddy gateway → backend
+    # resolution to a single network alias so Docker DNS does not round-robin
+    # across the two networks the gateway shares with backend.
+    networks:
+      default:
+        aliases:
+          - api
+      grafana_default: {}
     environment:
-      APP_ENV: production
+      APP_ENV: prod
+      SERVICE_NAME: mealorder-backend
+      LOKI_URL: http://loki:3100
   frontend:
     ports: !reset []
   db:
     ports: !reset []
   gateway:
     ports: !reset []
-    networks: [default, preview-net]
+    networks: [default, preview-net, grafana_default]
 
 networks:
   preview-net:

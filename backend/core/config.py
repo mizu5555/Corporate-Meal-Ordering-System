@@ -35,7 +35,7 @@ def configure_logging() -> None:
 settings = Settings()
 configure_logging()
 
-if settings.app_env == "production" and settings.jwt_secret_key == _INSECURE_DEFAULT_SECRET:
+if settings.app_env in ("production", "prod") and settings.jwt_secret_key == _INSECURE_DEFAULT_SECRET:
     raise RuntimeError(
         "JWT_SECRET_KEY must be set to a strong secret in production. "
         "Generate one with: openssl rand -hex 32"
