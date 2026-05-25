@@ -3,16 +3,10 @@ import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { roleHomePath } from "../layout/navigation";
 
-const DEV_ACCOUNTS = [
-  { role: "employee",       label: "Employee", email: "employee@corpmeal.local", password: "password123" },
-  { role: "vendor_manager", label: "Vendor",   email: "vendor@corpmeal.local",   password: "password123" },
-  { role: "admin",          label: "Admin",    email: "admin@corpmeal.local",    password: "password123" },
-];
-
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isAuthenticated, user, login, loginAsRole } = useAuth();
+  const { isAuthenticated, user, login } = useAuth();
 
   const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
@@ -41,11 +35,6 @@ export default function LoginPage() {
     } finally {
       setLoading(false);
     }
-  }
-
-  function handleDevLogin(account) {
-    const ok = loginAsRole(account.role);
-    if (ok) navigate(nextPath || roleHomePath[account.role], { replace: true });
   }
 
   return (
@@ -116,27 +105,6 @@ export default function LoginPage() {
             Create one
           </Link>
         </p>
-
-        {import.meta.env.DEV && (
-          <details style={{ marginTop: 24 }}>
-            <summary style={{ cursor: "pointer", color: "var(--muted)", fontSize: 13 }}>
-              Dev Quick Login
-            </summary>
-            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-              {DEV_ACCOUNTS.map((acc) => (
-                <button
-                  key={acc.role}
-                  className="ghost-button"
-                  type="button"
-                  style={{ fontSize: 13 }}
-                  onClick={() => handleDevLogin(acc)}
-                >
-                  {acc.label}
-                </button>
-              ))}
-            </div>
-          </details>
-        )}
       </section>
     </div>
   );
