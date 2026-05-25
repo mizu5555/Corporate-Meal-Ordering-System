@@ -20,4 +20,5 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
     user_id: int
     role: str
+    display_name: str
     vendor_id: int | None = None
