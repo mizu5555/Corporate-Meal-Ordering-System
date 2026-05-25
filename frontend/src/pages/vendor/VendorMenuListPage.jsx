@@ -6,9 +6,13 @@ export default function VendorMenuListPage() {
   const navigate = useNavigate();
   const { items, loading, error, removeItem } = useVendorMenu();
 
-  function handleDelete(item) {
+  async function handleDelete(item) {
     if (!window.confirm(`確定要刪除「${item.name}」嗎？`)) return;
-    removeItem(item.id);
+    try {
+      await removeItem(item.id);
+    } catch (err) {
+      alert(err.message ?? "刪除失敗，請稍後再試。");
+    }
   }
 
   return (

@@ -47,20 +47,24 @@ export default function VendorMenuFormPage() {
     setForm((prev) => ({ ...prev, [name]: type === "checkbox" ? checked : value }));
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
     setError(null);
 
     if (!form.name.trim()) { setError("請填寫餐點名稱。"); return; }
     if (!form.price_cents || isNaN(parseFloat(form.price_cents))) { setError("請填寫有效價格。"); return; }
 
-    const data = formToData(form);
-    if (isEdit) {
-      updateItem(Number(itemId), data);
-    } else {
-      addItem(data);
+    try {
+      const data = formToData(form);
+      if (isEdit) {
+        await updateItem(Number(itemId), data);
+      } else {
+        await addItem(data);
+      }
+      navigate("/vendor/menu");
+    } catch (err) {
+      setError(err.message ?? "儲存失敗，請稍後再試。");
     }
-    navigate("/vendor/menu");
   }
 
   return (
