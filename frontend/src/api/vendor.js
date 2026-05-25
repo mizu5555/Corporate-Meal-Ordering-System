@@ -39,3 +39,15 @@ export function updateMenuItem(itemId, data) {
 export function deleteMenuItem(itemId) {
   return apiFetch(`/vendor/me/menu/${itemId}`, { method: "DELETE" });
 }
+
+export function submitVendorApplication(data) {
+  return apiFetch("/vendor/applications", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+}
+
+export function getMyVendorApplication() {
+  return apiFetch("/vendor/applications/me");
+}

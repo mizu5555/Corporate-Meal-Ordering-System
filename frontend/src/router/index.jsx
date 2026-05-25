@@ -4,6 +4,8 @@ import AppShell from "../layout/AppShell";
 import { roleHomePath } from "../layout/navigation";
 import AdminHomePage from "../pages/admin/AdminHomePage";
 import AdminPermissionsPage from "../pages/admin/AdminPermissionsPage";
+import AdminVendorReviewDetailPage from "../pages/admin/AdminVendorReviewDetailPage";
+import AdminVendorReviewListPage from "../pages/admin/AdminVendorReviewListPage";
 import CartPage from "../pages/employee/CartPage";
 import EmployeeHomePage from "../pages/employee/EmployeeHomePage";
 import MenuListPage from "../pages/employee/MenuListPage";
@@ -14,11 +16,12 @@ import ForbiddenPage from "../pages/ForbiddenPage";
 import LoginPage from "../pages/LoginPage";
 import RegisterPage from "../pages/RegisterPage";
 import NotFoundPage from "../pages/NotFoundPage";
+import VendorApplyPage from "../pages/vendor/VendorApplyPage";
 import VendorHomePage from "../pages/vendor/VendorHomePage";
-import VendorOrdersPage from "../pages/vendor/VendorOrdersPage";
-import VendorRevenuePage from "../pages/vendor/VendorRevenuePage";
 import VendorMenuFormPage from "../pages/vendor/VendorMenuFormPage";
 import VendorMenuListPage from "../pages/vendor/VendorMenuListPage";
+import VendorOrdersPage from "../pages/vendor/VendorOrdersPage";
+import VendorRevenuePage from "../pages/vendor/VendorRevenuePage";
 import ProtectedRoute from "./ProtectedRoute";
 import RoleRoute from "./RoleRoute";
 import { VendorMenuProvider } from "../vendor/VendorMenuContext";
@@ -43,6 +46,14 @@ function PlaceholderPage({ title, description }) {
   );
 }
 
+function VendorApprovedRoute() {
+  const { user } = useAuth();
+  if (user?.vendorId == null) {
+    return <Navigate replace to="/vendor/apply" />;
+  }
+  return <Outlet />;
+}
+
 export function AppRouter() {
   return (
     <Routes>
@@ -63,27 +74,25 @@ export function AppRouter() {
           </Route>
 
           <Route element={<RoleRoute allowedRoles={["vendor_manager"]} />}>
-            <Route element={<VendorMenuProvider><Outlet /></VendorMenuProvider>} path="/vendor">
-              <Route index element={<VendorHomePage />} />
-              <Route element={<VendorMenuListPage />} path="menu" />
-              <Route element={<VendorMenuFormPage />} path="menu/new" />
-              <Route element={<VendorMenuFormPage />} path="menu/:itemId/edit" />
-              <Route element={<VendorOrdersPage />} path="orders" />
-              <Route element={<VendorRevenuePage />} path="revenue" />
+            <Route path="/vendor">
+              <Route element={<VendorApplyPage />} path="apply" />
+              <Route element={<VendorApprovedRoute />}>
+                <Route element={<VendorMenuProvider><Outlet /></VendorMenuProvider>}>
+                  <Route index element={<VendorHomePage />} />
+                  <Route element={<VendorMenuListPage />} path="menu" />
+                  <Route element={<VendorMenuFormPage />} path="menu/new" />
+                  <Route element={<VendorMenuFormPage />} path="menu/:itemId/edit" />
+                  <Route element={<VendorOrdersPage />} path="orders" />
+                  <Route element={<VendorRevenuePage />} path="revenue" />
+                </Route>
+              </Route>
             </Route>
           </Route>
 
           <Route element={<RoleRoute allowedRoles={["admin"]} />}>
             <Route element={<AdminHomePage />} path="/admin" />
-            <Route
-              element={
-                <PlaceholderPage
-                  description="Vendor review list and detail pages are the next admin-focused task."
-                  title="Admin Vendor Review"
-                />
-              }
-              path="/admin/vendors"
-            />
+            <Route element={<AdminVendorReviewListPage />} path="/admin/vendors" />
+            <Route element={<AdminVendorReviewDetailPage />} path="/admin/vendors/:applicationId" />
             <Route element={<AdminPermissionsPage />} path="/admin/permissions" />
             <Route
               element={

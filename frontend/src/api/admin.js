@@ -12,6 +12,27 @@ export function disableUser(userId) {
   return apiFetch(`/admin/users/${userId}/disable`, { method: "PATCH" });
 }
 
+export function enableUser(userId) {
+  return apiFetch(`/admin/users/${userId}/enable`, { method: "PATCH" });
+}
+
 export function deleteUser(userId) {
   return apiFetch(`/admin/users/${userId}`, { method: "DELETE" });
+}
+
+export function getVendorApplications(status = null) {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : "";
+  return apiFetch(`/admin/vendors/applications${qs}`);
+}
+
+export function getVendorApplication(applicationId) {
+  return apiFetch(`/admin/vendors/applications/${applicationId}`);
+}
+
+export function reviewVendorApplication(applicationId, { decision, reason }) {
+  return apiFetch(`/admin/vendors/applications/${applicationId}/review`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ decision, reason: reason || null }),
+  });
 }

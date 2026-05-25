@@ -19,6 +19,36 @@ _REPO_SINGLETON = VendorProfileRepository()
 _POSTGRES_REPO_SINGLETON = PostgresVendorProfileRepository()
 
 
+def require_vendor_manager(
+    request: Request,
+    x_user_role: Annotated[str | None, Header()] = None,
+    x_user_id: Annotated[str | None, Header()] = None,
+) -> int:
+    """Check vendor_manager role and return the user's numeric id.
+
+    Does NOT require an approved vendor — used for the application submission endpoint.
+    """
+    auth = request.headers.get("authorization", "")
+    if auth.startswith("Bearer "):
+        payload = decode_access_token(auth[7:])
+        if payload:
+            if payload.get("role") != "vendor_manager":
+                raise CodedHTTPException(status_code=403, code="forbidden", detail="vendor_manager role required")
+            try:
+                return int(payload["sub"])
+            except (KeyError, ValueError, TypeError) as exc:
+                raise CodedHTTPException(status_code=401, code="invalid_token", detail="invalid token") from exc
+
+    if x_user_role != "vendor_manager":
+        raise CodedHTTPException(status_code=403, code="forbidden", detail="vendor_manager role required")
+    if x_user_id is None:
+        raise CodedHTTPException(status_code=400, code="validation_error", detail="x-user-id header missing")
+    try:
+        return int(x_user_id)
+    except ValueError as exc:
+        raise CodedHTTPException(status_code=400, code="validation_error", detail="x-user-id must be integer") from exc
+
+
 def get_vendor_profile_repository() -> VendorProfileRepository:
     if settings.database_url:
         return _POSTGRES_REPO_SINGLETON
