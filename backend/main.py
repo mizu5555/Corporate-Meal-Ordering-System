@@ -10,6 +10,7 @@ from backend.core.errors import install_error_handler
 from backend.core.observability import RequestIDMiddleware, configure_logging
 from backend.db.migrate import run_migrations
 from backend.routes import (
+    admin_users,
     admin_vendors,
     auth,
     committee_reviews,
@@ -52,6 +53,7 @@ def create_app() -> FastAPI:
 
     app.include_router(health.router)
     app.include_router(auth.router)
+    app.include_router(admin_users.router)
     app.include_router(admin_vendors.router)
     app.include_router(committee_reviews.router)
     app.include_router(vendor_profile.router)
