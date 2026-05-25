@@ -1,31 +1,23 @@
 import { useState } from "react";
-import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { roleHomePath } from "../layout/navigation";
 
-const roleOptions = [
-  {
-    role: "employee",
-    label: "Employee",
-    detail: "Browse menus, place orders, track delivery status.",
-  },
-  {
-    role: "vendor_manager",
-    label: "Vendor",
-    detail: "Maintain menus and manage operational orders.",
-  },
-  {
-    role: "admin",
-    label: "Admin",
-    detail: "Review vendors and control permissions.",
-  },
+const DEV_ACCOUNTS = [
+  { role: "employee",       label: "Employee", email: "employee@corpmeal.local", password: "password123" },
+  { role: "vendor_manager", label: "Vendor",   email: "vendor@corpmeal.local",   password: "password123" },
+  { role: "admin",          label: "Admin",    email: "admin@corpmeal.local",    password: "password123" },
 ];
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isAuthenticated, user, loginAsRole } = useAuth();
-  const [selectedRole, setSelectedRole] = useState("employee");
+  const { isAuthenticated, user, login, loginAsRole } = useAuth();
+
+  const [email, setEmail]       = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError]       = useState(null);
+  const [loading, setLoading]   = useState(false);
 
   if (isAuthenticated && user) {
     return <Navigate replace to={roleHomePath[user.role] ?? "/"} />;
@@ -33,14 +25,37 @@ export default function LoginPage() {
 
   const nextPath = location.state?.from?.pathname;
 
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+    try {
+      const u = await login(email, password);
+      navigate(nextPath || roleHomePath[u.role], { replace: true });
+    } catch (err) {
+      setError(
+        err.code === "invalid_credentials"
+          ? "Invalid email or password."
+          : "Login failed. Please try again.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleDevLogin(account) {
+    const ok = loginAsRole(account.role);
+    if (ok) navigate(nextPath || roleHomePath[account.role], { replace: true });
+  }
+
   return (
     <div className="login-shell">
       <section className="hero-panel">
         <p className="eyebrow">Corporate Meal Ordering System</p>
         <h1>Frontline lunch operations, split by role and kept under control.</h1>
         <p className="hero-copy">
-          This auth shell provides the first frontend milestone: sign in,
-          role-based routing, protected pages, and a maintainable app layout.
+          Sign in with your corporate account to browse menus, place orders,
+          and manage your workspace.
         </p>
         <div className="hero-grid">
           <article className="metric-card">
@@ -60,44 +75,68 @@ export default function LoginPage() {
 
       <section className="login-panel">
         <div>
-          <p className="eyebrow">Demo Sign In</p>
-          <h2>Select a role to enter the frontend shell</h2>
-          <p className="panel-copy">
-            Backend auth is not wired yet. This branch intentionally uses mock
-            roles so routing and layout can be verified first.
-          </p>
+          <p className="eyebrow">Sign In</p>
+          <h2>Enter your credentials</h2>
         </div>
 
-        <div className="role-picker" role="radiogroup" aria-label="Select role">
-          {roleOptions.map((option) => (
-            <button
-              key={option.role}
-              aria-checked={selectedRole === option.role}
-              className={`role-card${selectedRole === option.role ? " role-card-selected" : ""}`}
-              type="button"
-              onClick={() => setSelectedRole(option.role)}
-              role="radio"
-            >
-              <strong>{option.label}</strong>
-              <span>{option.detail}</span>
-            </button>
-          ))}
-        </div>
+        <form onSubmit={handleSubmit} style={{ display: "grid", gap: 16 }}>
+          <label style={{ display: "grid", gap: 6 }}>
+            <span style={{ fontWeight: 600, fontSize: 14 }}>Email</span>
+            <input
+              className="form-input"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              placeholder="you@corpmeal.local"
+              autoComplete="email"
+            />
+          </label>
+          <label style={{ display: "grid", gap: 6 }}>
+            <span style={{ fontWeight: 600, fontSize: 14 }}>Password</span>
+            <input
+              className="form-input"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              placeholder="••••••••"
+              autoComplete="current-password"
+            />
+          </label>
+          {error && <p className="error-state" style={{ margin: 0 }}>{error}</p>}
+          <button className="primary-button" type="submit" disabled={loading}>
+            {loading ? "Signing in…" : "Sign In"}
+          </button>
+        </form>
 
-        <button
-          className="primary-button"
-          type="button"
-          onClick={() => {
-            const ok = loginAsRole(selectedRole);
-            if (!ok) {
-              return;
-            }
+        <p style={{ marginTop: 20, fontSize: 13, color: "var(--muted)", textAlign: "center" }}>
+          Don't have an account?{" "}
+          <Link to="/register" style={{ color: "var(--accent)", fontWeight: 600 }}>
+            Create one
+          </Link>
+        </p>
 
-            navigate(nextPath || roleHomePath[selectedRole], { replace: true });
-          }}
-        >
-          Continue as {selectedRole}
-        </button>
+        {import.meta.env.DEV && (
+          <details style={{ marginTop: 24 }}>
+            <summary style={{ cursor: "pointer", color: "var(--muted)", fontSize: 13 }}>
+              Dev Quick Login
+            </summary>
+            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+              {DEV_ACCOUNTS.map((acc) => (
+                <button
+                  key={acc.role}
+                  className="ghost-button"
+                  type="button"
+                  style={{ fontSize: 13 }}
+                  onClick={() => handleDevLogin(acc)}
+                >
+                  {acc.label}
+                </button>
+              ))}
+            </div>
+          </details>
+        )}
       </section>
     </div>
   );

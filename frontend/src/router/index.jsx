@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import AppShell from "../layout/AppShell";
 import { roleHomePath } from "../layout/navigation";
@@ -10,6 +10,7 @@ import OrdersPage from "../pages/employee/OrdersPage";
 import VendorMenuPage from "../pages/employee/VendorMenuPage";
 import ForbiddenPage from "../pages/ForbiddenPage";
 import LoginPage from "../pages/LoginPage";
+import RegisterPage from "../pages/RegisterPage";
 import NotFoundPage from "../pages/NotFoundPage";
 import VendorHomePage from "../pages/vendor/VendorHomePage";
 import VendorOrdersPage from "../pages/vendor/VendorOrdersPage";
@@ -18,6 +19,7 @@ import VendorMenuFormPage from "../pages/vendor/VendorMenuFormPage";
 import VendorMenuListPage from "../pages/vendor/VendorMenuListPage";
 import ProtectedRoute from "./ProtectedRoute";
 import RoleRoute from "./RoleRoute";
+import { VendorMenuProvider } from "../vendor/VendorMenuContext";
 
 function HomeRedirect() {
   const { user, isAuthenticated } = useAuth();
@@ -44,6 +46,7 @@ export function AppRouter() {
     <Routes>
       <Route element={<HomeRedirect />} path="/" />
       <Route element={<LoginPage />} path="/login" />
+      <Route element={<RegisterPage />} path="/register" />
       <Route element={<ForbiddenPage />} path="/forbidden" />
 
       <Route element={<ProtectedRoute />}>
@@ -57,18 +60,14 @@ export function AppRouter() {
           </Route>
 
           <Route element={<RoleRoute allowedRoles={["vendor_manager"]} />}>
-            <Route element={<VendorHomePage />} path="/vendor" />
-            <Route element={<VendorMenuListPage />} path="/vendor/menu" />
-            <Route element={<VendorMenuFormPage />} path="/vendor/menu/new" />
-            <Route element={<VendorMenuFormPage />} path="/vendor/menu/:itemId/edit" />
-            <Route
-              element={<VendorOrdersPage />}
-              path="/vendor/orders"
-            />
-            <Route
-              element={<VendorRevenuePage />}
-              path="/vendor/revenue"
-            />
+            <Route element={<VendorMenuProvider><Outlet /></VendorMenuProvider>} path="/vendor">
+              <Route index element={<VendorHomePage />} />
+              <Route element={<VendorMenuListPage />} path="menu" />
+              <Route element={<VendorMenuFormPage />} path="menu/new" />
+              <Route element={<VendorMenuFormPage />} path="menu/:itemId/edit" />
+              <Route element={<VendorOrdersPage />} path="orders" />
+              <Route element={<VendorRevenuePage />} path="revenue" />
+            </Route>
           </Route>
 
           <Route element={<RoleRoute allowedRoles={["admin"]} />}>

@@ -14,6 +14,7 @@ from backend.db.migrate import run_migrations
 from backend.repositories.vendor_profile_repository import VendorRecord
 from backend.routes import (
     admin_vendors,
+    auth,
     committee_reviews,
     employee_ordering,
     health,
@@ -92,6 +93,7 @@ def create_app() -> FastAPI:
     install_error_handler(app)
 
     app.include_router(health.router)
+    app.include_router(auth.router)
     app.include_router(admin_vendors.router)
     app.include_router(committee_reviews.router)
     app.include_router(vendor_profile.router)
