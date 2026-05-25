@@ -9,7 +9,10 @@ from backend.core.vendor_identity import (
     get_vendor_profile_repository,
     require_approved_vendor,
 )
+from backend.repositories.employee_selection_repository import EmployeeSelectionRepository
 from backend.repositories.vendor_profile_repository import VendorProfileRepository
+from backend.routes.employee_ordering import get_employee_selection_repository
+from backend.schemas.employee import MealSelection
 from backend.schemas.vendor_self import VendorProfile, VendorProfileUpdate
 from backend.services.vendor_profile_service import VendorProfileService
 
@@ -40,3 +43,11 @@ def patch_profile(
 ) -> VendorProfile:
     """局部更新商家資料；served_facilities 等唯讀欄位若出現在 body 會被忽略。"""
     return service.update(vendor_id, payload)
+
+
+@router.get("/orders", response_model=list[MealSelection])
+def list_vendor_orders(
+    vendor_id: Annotated[int, Depends(require_approved_vendor)],
+    selection_repo: Annotated[EmployeeSelectionRepository, Depends(get_employee_selection_repository)],
+) -> list[MealSelection]:
+    return selection_repo.list_by_vendor(vendor_id=vendor_id)

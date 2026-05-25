@@ -15,3 +15,7 @@ export function getMyMenu() {
     })),
   );
 }
+
+export function getMyOrders() {
+  return apiFetch("/vendor/me/orders");
+}

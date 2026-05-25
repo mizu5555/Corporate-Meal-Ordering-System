@@ -66,3 +66,8 @@ class EmployeeSelectionRepository:
         rows = [r for r in self._rows.values() if r.employee_id == employee_id]
         rows.sort(key=lambda r: r.id)
         return [_to_schema(r) for r in rows]
+
+    def list_by_vendor(self, *, vendor_id: int) -> list[MealSelection]:
+        rows = [r for r in self._rows.values() if r.vendor_id == vendor_id]
+        rows.sort(key=lambda r: r.id)
+        return [_to_schema(r) for r in rows]
