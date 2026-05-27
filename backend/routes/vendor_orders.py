@@ -3,12 +3,14 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends
 
 from backend.core.vendor_identity import require_approved_vendor
 from backend.repositories.employee_selection_repository import EmployeeSelectionRepository
 from backend.routes.employee_ordering import get_employee_selection_repository
+from backend.routes.notifications import get_notification_service
 from backend.schemas.employee import EmployeeOrder, VendorOrderStatusUpdate
+from backend.services.notification_service import NotificationService
 from backend.services.vendor_order_service import VendorOrderService
 
 router = APIRouter(prefix="/vendor/me/orders", tags=["vendor-self"])
@@ -41,7 +43,11 @@ def get_vendor_order(
 def update_vendor_order_status(
     order_id: int,
     payload: VendorOrderStatusUpdate,
+    background_tasks: BackgroundTasks,
     vendor_id: Annotated[int, Depends(require_approved_vendor)],
     service: Annotated[VendorOrderService, Depends(get_vendor_order_service)],
+    notification_service: Annotated[NotificationService, Depends(get_notification_service)],
 ) -> EmployeeOrder:
-    return service.update_status(vendor_id, order_id, payload.status)
+    order = service.update_status(vendor_id, order_id, payload.status)
+    background_tasks.add_task(notification_service.create_order_status_updated, order)
+    return order

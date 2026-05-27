@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
 
 from backend.core.config import settings
 from backend.core.employee_identity import require_employee, require_employee_role
@@ -13,6 +13,7 @@ from backend.repositories.menu_item_repository import MenuItemRepository
 from backend.repositories.postgres_employee_selection_repository import PostgresEmployeeSelectionRepository
 from backend.repositories.vendor_profile_repository import VendorProfileRepository
 from backend.routes.vendor_menu import get_menu_item_repository
+from backend.routes.notifications import get_notification_service
 from backend.schemas.employee import (
     EmployeeMenuItem,
     EmployeeOrder,
@@ -24,6 +25,7 @@ from backend.schemas.employee import (
     RandomMealDrawRequest,
 )
 from backend.services.employee_ordering_service import EmployeeOrderingService
+from backend.services.notification_service import NotificationService
 
 router = APIRouter(prefix="/employee", tags=["employee"])
 
@@ -86,20 +88,28 @@ def draw_random_meal(
 def select_meal(
     vendor_id: int,
     payload: MealSelectionCreate,
+    background_tasks: BackgroundTasks,
     employee_id: Annotated[int, Depends(require_employee)],
     service: Annotated[EmployeeOrderingService, Depends(get_employee_ordering_service)],
+    notification_service: Annotated[NotificationService, Depends(get_notification_service)],
 ) -> MealSelection:
-    return service.select_meal(employee_id, vendor_id, payload)
+    selection = service.select_meal(employee_id, vendor_id, payload)
+    background_tasks.add_task(notification_service.create_order_placed_for_selection, selection)
+    return selection
 
 
 @router.post("/vendors/{vendor_id}/orders", response_model=EmployeeOrder, status_code=status.HTTP_201_CREATED)
 def create_order(
     vendor_id: int,
     payload: EmployeeOrderCreate,
+    background_tasks: BackgroundTasks,
     employee_id: Annotated[int, Depends(require_employee)],
     service: Annotated[EmployeeOrderingService, Depends(get_employee_ordering_service)],
+    notification_service: Annotated[NotificationService, Depends(get_notification_service)],
 ) -> EmployeeOrder:
-    return service.create_order(employee_id, vendor_id, payload)
+    order = service.create_order(employee_id, vendor_id, payload)
+    background_tasks.add_task(notification_service.create_order_placed, order)
+    return order
 
 
 @router.get("/me/selections", response_model=list[MealSelection])
