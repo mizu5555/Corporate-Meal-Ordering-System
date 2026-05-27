@@ -5,8 +5,19 @@ import { useCart } from "../../cart/CartContext";
 import { formatPrice } from "../../utils/format";
 
 function errorMessage(item, err) {
-  if (err.code === "item_unavailable") return `${item.item.name} 已停止供應`;
-  if (err.code === "quantity_exceeds_daily_quota") return `${item.item.name} 數量超過今日配額`;
+  if (err.code === "ITEM_UNAVAILABLE" || err.code === "item_unavailable") {
+    return `${item.item.name} 已停止供應`;
+  }
+  if (
+    err.code === "QUOTA_EXHAUSTED" ||
+    err.code === "quantity_exceeds_daily_quota" ||
+    err.code === "quota_exhausted"
+  ) {
+    return `${item.item.name} 今日配額已售完，請調整數量或選其他餐點`;
+  }
+  if (err.code === "CONCURRENT_CONFLICT") {
+    return `${item.item.name} 下單時有人同時更新庫存，請再試一次`;
+  }
   return `${item.item.name} 送出失敗，請稍後再試`;
 }
 

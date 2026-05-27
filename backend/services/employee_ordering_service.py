@@ -5,6 +5,7 @@ import random
 from datetime import date, timedelta
 
 from backend.core.errors import CodedHTTPException
+from backend.core.order_failure_codes import ITEM_UNAVAILABLE, QUOTA_EXHAUSTED
 from backend.repositories.employee_selection_repository import EmployeeSelectionRepository, OrderItemSnapshot
 from backend.repositories.menu_item_repository import MenuItemRepository
 from backend.repositories.vendor_profile_repository import VendorProfileRepository, VendorRecord
@@ -217,13 +218,19 @@ class EmployeeOrderingService:
             item = self.menu_item_repository.get(vendor_id=vendor_id, item_id=requested.item_id)
             if item is None:
                 raise CodedHTTPException(status_code=404, code="not_found", detail="menu item not found")
-            if not item.available:
-                raise CodedHTTPException(status_code=409, code="item_unavailable", detail="menu item unavailable")
             used_quantity = used_by_item.get(item.id, 0)
+            if not item.available:
+                if item.daily_quota is not None and used_quantity >= item.daily_quota:
+                    raise CodedHTTPException(
+                        status_code=409,
+                        code=QUOTA_EXHAUSTED,
+                        detail="quantity exceeds remaining daily quota",
+                    )
+                raise CodedHTTPException(status_code=409, code=ITEM_UNAVAILABLE, detail="menu item unavailable")
             if item.daily_quota is not None and used_quantity + requested_by_item[item.id] > item.daily_quota:
                 raise CodedHTTPException(
                     status_code=409,
-                    code="quantity_exceeds_daily_quota",
+                    code=QUOTA_EXHAUSTED,
                     detail="quantity exceeds remaining daily quota",
                 )
 

@@ -1,0 +1,5 @@
+"""Machine-readable failure codes for employee order placement."""
+
+ITEM_UNAVAILABLE = "ITEM_UNAVAILABLE"
+QUOTA_EXHAUSTED = "QUOTA_EXHAUSTED"
+CONCURRENT_CONFLICT = "CONCURRENT_CONFLICT"
