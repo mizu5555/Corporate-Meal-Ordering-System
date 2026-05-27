@@ -16,6 +16,7 @@ from backend.routes import (
     committee_reviews,
     employee_ordering,
     health,
+    notifications,
     vendor_application,
     vendor_categories,
     vendor_menu,
@@ -64,6 +65,7 @@ def create_app() -> FastAPI:
     app.include_router(vendor_menu.router)
     app.include_router(vendor_orders.router)
     app.include_router(employee_ordering.router)
+    app.include_router(notifications.router)
 
     Instrumentator(should_instrument_requests_inprogress=True).instrument(app).expose(app)
     return app
