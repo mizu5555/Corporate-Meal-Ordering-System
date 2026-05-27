@@ -52,6 +52,20 @@ export function deleteMenuItem(itemId) {
   return apiFetch(`/vendor/me/menu/${itemId}`, { method: "DELETE" });
 }
 
+export function uploadMenuItemPhoto(itemId, file) {
+  const form = new FormData();
+  form.append("file", file);
+  // Do NOT set Content-Type — browser sets multipart/form-data with boundary automatically.
+  return apiFetch(`/vendor/me/menu/${itemId}/photo`, {
+    method: "PUT",
+    body: form,
+  });
+}
+
+export function deleteMenuItemPhoto(itemId) {
+  return apiFetch(`/vendor/me/menu/${itemId}/photo`, { method: "DELETE" });
+}
+
 export function submitVendorApplication(data) {
   return apiFetch("/vendor/applications", {
     method: "POST",

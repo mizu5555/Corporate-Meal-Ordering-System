@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { photoUrl } from "../../utils/format";
 import { useVendorMenu } from "../../vendor/VendorMenuContext";
 
 const EMPTY_FORM = {
@@ -23,11 +24,15 @@ function formToData(form) {
 export default function VendorMenuFormPage() {
   const { itemId } = useParams();
   const navigate = useNavigate();
-  const { getItem, addItem, updateItem } = useVendorMenu();
+  const { getItem, addItem, updateItem, uploadPhoto, removePhoto } = useVendorMenu();
   const isEdit = Boolean(itemId);
 
   const [form, setForm] = useState(EMPTY_FORM);
   const [error, setError] = useState(null);
+
+  // Photo state — edit mode only
+  const photoInputRef = useRef(null);
+  const [photoState, setPhotoState] = useState("idle"); // "idle" | "uploading" | "deleting"
 
   useEffect(() => {
     if (!isEdit) return;
@@ -67,6 +72,41 @@ export default function VendorMenuFormPage() {
     }
   }
 
+  async function handlePhotoUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    setPhotoState("uploading");
+    setError(null);
+    try {
+      await uploadPhoto(Number(itemId), file);
+    } catch (err) {
+      setError(err.message ?? "照片上傳失敗，請稍後再試。");
+    } finally {
+      setPhotoState("idle");
+      e.target.value = "";
+    }
+  }
+
+  async function handlePhotoDelete() {
+    const item = getItem(Number(itemId));
+    if (!item?.photo_path) return;
+    if (!window.confirm("確定要刪除這張照片嗎？")) return;
+    setPhotoState("deleting");
+    setError(null);
+    try {
+      await removePhoto(Number(itemId));
+    } catch (err) {
+      setError(err.message ?? "照片刪除失敗，請稍後再試。");
+    } finally {
+      setPhotoState("idle");
+    }
+  }
+
+  // Live item — reflects photo_path changes without re-mounting
+  const currentItem = isEdit ? getItem(Number(itemId)) : null;
+  const currentPhotoUrl = photoUrl(currentItem?.photo_path);
+  const photoBusy = photoState !== "idle";
+
   return (
     <div>
       <div className="page-header">
@@ -79,6 +119,113 @@ export default function VendorMenuFormPage() {
       <form className="panel" onSubmit={handleSubmit} style={{ maxWidth: 560 }}>
         <div style={{ display: "grid", gap: 20 }}>
 
+          {/* ── Photo section (edit mode only) ── */}
+          {isEdit && (
+            <div style={{ display: "grid", gap: 10 }}>
+              <span style={{ fontWeight: 600 }}>餐點照片</span>
+
+              {/* Preview */}
+              <div
+                style={{
+                  width: "100%",
+                  height: 200,
+                  borderRadius: "var(--radius-lg)",
+                  overflow: "hidden",
+                  border: "1px solid var(--line)",
+                  background: "linear-gradient(135deg, #f0e8d8 0%, #e8dcc8 100%)",
+                  display: "grid",
+                  placeItems: "center",
+                  position: "relative",
+                }}
+              >
+                {currentPhotoUrl ? (
+                  <img
+                    src={currentPhotoUrl}
+                    alt={currentItem?.name}
+                    style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                  />
+                ) : (
+                  <span style={{ fontSize: 52, opacity: 0.5 }}>🍽️</span>
+                )}
+
+                {/* Busy overlay */}
+                {photoBusy && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      background: "rgba(0,0,0,0.46)",
+                      display: "grid",
+                      placeItems: "center",
+                      color: "#fff",
+                      fontWeight: 700,
+                      fontSize: 15,
+                    }}
+                  >
+                    {photoState === "uploading" ? "上傳中…" : "刪除中…"}
+                  </div>
+                )}
+              </div>
+
+              {/* Photo action buttons */}
+              <div style={{ display: "flex", gap: 10 }}>
+                <button
+                  type="button"
+                  disabled={photoBusy}
+                  onClick={() => photoInputRef.current?.click()}
+                  style={{
+                    padding: "8px 18px",
+                    borderRadius: "var(--radius-md)",
+                    border: "1px solid var(--line)",
+                    background: "var(--surface-strong)",
+                    cursor: photoBusy ? "not-allowed" : "pointer",
+                    fontWeight: 600,
+                    fontSize: 13,
+                    opacity: photoBusy ? 0.6 : 1,
+                    transition: "opacity 140ms ease",
+                  }}
+                >
+                  {currentPhotoUrl ? "更換照片" : "上傳照片"}
+                </button>
+
+                {currentPhotoUrl && (
+                  <button
+                    type="button"
+                    disabled={photoBusy}
+                    onClick={handlePhotoDelete}
+                    style={{
+                      padding: "8px 18px",
+                      borderRadius: "var(--radius-md)",
+                      border: "1px solid rgba(200,92,44,0.3)",
+                      background: "rgba(200,92,44,0.07)",
+                      color: "var(--brand)",
+                      cursor: photoBusy ? "not-allowed" : "pointer",
+                      fontWeight: 600,
+                      fontSize: 13,
+                      opacity: photoBusy ? 0.6 : 1,
+                      transition: "opacity 140ms ease",
+                    }}
+                  >
+                    刪除照片
+                  </button>
+                )}
+              </div>
+
+              <p style={{ color: "var(--muted)", fontSize: 12, margin: 0 }}>
+                支援 JPEG、PNG、WebP，檔案大小上限 5 MB，長邊會自動縮至 1600px。
+              </p>
+
+              <input
+                ref={photoInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                style={{ display: "none" }}
+                onChange={handlePhotoUpload}
+              />
+            </div>
+          )}
+
+          {/* ── Name ── */}
           <label style={{ display: "grid", gap: 6 }}>
             <span style={{ fontWeight: 600 }}>餐點名稱 *</span>
             <input
@@ -91,6 +238,7 @@ export default function VendorMenuFormPage() {
             />
           </label>
 
+          {/* ── Description ── */}
           <label style={{ display: "grid", gap: 6 }}>
             <span style={{ fontWeight: 600 }}>描述</span>
             <textarea
@@ -104,6 +252,7 @@ export default function VendorMenuFormPage() {
             />
           </label>
 
+          {/* ── Price ── */}
           <label style={{ display: "grid", gap: 6 }}>
             <span style={{ fontWeight: 600 }}>價格（元）*</span>
             <input
@@ -119,6 +268,7 @@ export default function VendorMenuFormPage() {
             />
           </label>
 
+          {/* ── Daily quota ── */}
           <label style={{ display: "grid", gap: 6 }}>
             <span style={{ fontWeight: 600 }}>今日配額</span>
             <input
@@ -135,6 +285,7 @@ export default function VendorMenuFormPage() {
             </span>
           </label>
 
+          {/* ── Available toggle ── */}
           <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
             <input
               type="checkbox"
