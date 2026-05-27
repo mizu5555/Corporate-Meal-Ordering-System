@@ -54,6 +54,10 @@ class MealSelection(BaseModel):
 OrderStatus = Literal["pending", "confirmed", "preparing", "ready", "delivered", "cancelled"]
 
 
+class VendorOrderStatusUpdate(BaseModel):
+    status: OrderStatus
+
+
 class EmployeeOrderItemCreate(BaseModel):
     item_id: int
     quantity: int = Field(ge=1)

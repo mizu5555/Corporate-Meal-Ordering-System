@@ -130,6 +130,53 @@ class PostgresEmployeeSelectionRepository:
                 )
         return selections
 
+    def list_orders_by_vendor(self, *, vendor_id: int) -> list[EmployeeOrder]:
+        with get_connection() as conn:
+            order_rows = conn.execute(
+                """
+                SELECT id, employee_id, vendor_id, meal_date, status,
+                       total_price_cents, created_at, updated_at, cancelled_at
+                FROM orders
+                WHERE vendor_id = %s
+                ORDER BY id
+                """,
+                (vendor_id,),
+            ).fetchall()
+            return [self._hydrate_order(conn, row) for row in order_rows]
+
+    def get_order_for_vendor(self, *, vendor_id: int, order_id: int) -> EmployeeOrder | None:
+        with get_connection() as conn:
+            row = conn.execute(
+                """
+                SELECT id, employee_id, vendor_id, meal_date, status,
+                       total_price_cents, created_at, updated_at, cancelled_at
+                FROM orders
+                WHERE vendor_id = %s AND id = %s
+                """,
+                (vendor_id, order_id),
+            ).fetchone()
+            if row is None:
+                return None
+            return self._hydrate_order(conn, row)
+
+    def update_order_status(self, *, vendor_id: int, order_id: int, new_status: str) -> EmployeeOrder | None:
+        with get_connection() as conn:
+            row = conn.execute(
+                """
+                UPDATE orders
+                SET status = %s,
+                    updated_at = NOW(),
+                    cancelled_at = CASE WHEN %s = 'cancelled' THEN NOW() ELSE cancelled_at END
+                WHERE vendor_id = %s AND id = %s
+                RETURNING id, employee_id, vendor_id, meal_date, status,
+                          total_price_cents, created_at, updated_at, cancelled_at
+                """,
+                (new_status, new_status, vendor_id, order_id),
+            ).fetchone()
+            if row is None:
+                return None
+            return self._hydrate_order(conn, row)
+
     def list_by_vendor(self, *, vendor_id: int) -> list[MealSelection]:
         with get_connection() as conn:
             rows = conn.execute(

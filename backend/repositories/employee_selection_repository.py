@@ -172,6 +172,35 @@ class EmployeeSelectionRepository:
             selections.extend(self._order_to_selection_schemas(order.id))
         return selections
 
+    def list_orders_by_vendor(self, *, vendor_id: int) -> list[EmployeeOrder]:
+        rows = [r for r in self._orders.values() if r.vendor_id == vendor_id]
+        rows.sort(key=lambda r: r.id)
+        return [self._order_to_schema(r) for r in rows]
+
+    def get_order_for_vendor(self, *, vendor_id: int, order_id: int) -> EmployeeOrder | None:
+        order = self._orders.get(order_id)
+        if order is None or order.vendor_id != vendor_id:
+            return None
+        return self._order_to_schema(order)
+
+    def update_order_status(self, *, vendor_id: int, order_id: int, new_status: str) -> EmployeeOrder | None:
+        order = self._orders.get(order_id)
+        if order is None or order.vendor_id != vendor_id:
+            return None
+        now = datetime.now(timezone.utc)
+        cancelled_at = now if new_status == "cancelled" else order.cancelled_at
+        self._orders[order_id] = _OrderRecord(
+            id=order.id,
+            employee_id=order.employee_id,
+            vendor_id=order.vendor_id,
+            meal_date=order.meal_date,
+            status=new_status,
+            created_at=order.created_at,
+            updated_at=now,
+            cancelled_at=cancelled_at,
+        )
+        return self._order_to_schema(self._orders[order_id])
+
     def list_by_vendor(self, *, vendor_id: int) -> list[MealSelection]:
         selections: list[MealSelection] = []
         for order in sorted(self._orders.values(), key=lambda r: r.id):

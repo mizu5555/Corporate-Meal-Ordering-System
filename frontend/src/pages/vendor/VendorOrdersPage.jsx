@@ -2,31 +2,38 @@ import { useEffect, useState } from "react";
 import { getMyOrders } from "../../api/vendor";
 import { formatPrice } from "../../utils/format";
 
-function formatTime(isoString) {
-  const d = new Date(isoString);
-  return d.toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", hour12: false });
-}
+const STATUS_LABEL = {
+  pending: "待確認",
+  confirmed: "已確認",
+  preparing: "備餐中",
+  ready: "可取餐",
+  delivered: "已完成",
+  cancelled: "已取消",
+};
 
 function useVendorOrders() {
-  const [selections, setSelections] = useState([]);
+  const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     getMyOrders()
-      .then(setSelections)
+      .then(setOrders)
       .catch((err) => setError(err.message ?? "無法載入訂單"))
       .finally(() => setLoading(false));
   }, []);
 
-  return { selections, loading, error };
+  return { orders, loading, error };
 }
 
 export default function VendorOrdersPage() {
-  const { selections, loading, error } = useVendorOrders();
+  const { orders, loading, error } = useVendorOrders();
 
-  const totalRevenue = selections.reduce((sum, s) => sum + s.total_price_cents, 0);
-  const totalItems = selections.reduce((sum, s) => sum + s.quantity, 0);
+  const totalRevenue = orders.reduce((sum, o) => sum + o.total_price_cents, 0);
+  const totalItems = orders.reduce(
+    (sum, o) => sum + o.items.reduce((s, item) => s + item.quantity, 0),
+    0,
+  );
 
   return (
     <div>
@@ -39,16 +46,16 @@ export default function VendorOrdersPage() {
 
       {error && <p className="error-state">{error}</p>}
 
-      {!loading && !error && selections.length === 0 && (
+      {!loading && !error && orders.length === 0 && (
         <p className="empty-state">今日尚未收到任何訂單。</p>
       )}
 
-      {!loading && !error && selections.length > 0 && (
+      {!loading && !error && orders.length > 0 && (
         <>
           <div style={{ display: "flex", gap: 16, marginBottom: 24 }}>
             <div className="panel" style={{ flex: 1, padding: "16px 20px" }}>
               <p style={{ margin: 0, color: "var(--muted)", fontSize: 13 }}>訂單數</p>
-              <p style={{ margin: "4px 0 0", fontWeight: 700, fontSize: 22 }}>{selections.length}</p>
+              <p style={{ margin: "4px 0 0", fontWeight: 700, fontSize: 22 }}>{orders.length}</p>
             </div>
             <div className="panel" style={{ flex: 1, padding: "16px 20px" }}>
               <p style={{ margin: 0, color: "var(--muted)", fontSize: 13 }}>總份數</p>
@@ -64,7 +71,7 @@ export default function VendorOrdersPage() {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "140px 1fr 80px 100px 100px 80px",
+                gridTemplateColumns: "60px 140px 1fr 80px 100px 90px",
                 padding: "10px 20px",
                 borderBottom: "1px solid var(--line)",
                 color: "var(--muted)",
@@ -74,41 +81,64 @@ export default function VendorOrdersPage() {
                 letterSpacing: "0.05em",
               }}
             >
+              <span>#</span>
               <span>來源</span>
               <span>品項</span>
               <span style={{ textAlign: "right" }}>數量</span>
-              <span style={{ textAlign: "right" }}>單價</span>
               <span style={{ textAlign: "right" }}>小計</span>
-              <span style={{ textAlign: "right" }}>時間</span>
+              <span style={{ textAlign: "right" }}>狀態</span>
             </div>
 
-            {selections.map((s, idx) => (
-              <div
-                key={s.id}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "140px 1fr 80px 100px 100px 80px",
-                  alignItems: "center",
-                  padding: "14px 20px",
-                  borderBottom: idx < selections.length - 1 ? "1px solid var(--line)" : "none",
-                }}
-              >
-                <p style={{ margin: 0, fontSize: 13, color: "var(--muted)" }}>
-                  {s.employee_name ?? `員工 #${s.employee_id}`}
-                </p>
-                <p style={{ margin: 0, fontWeight: 500 }}>{s.item_name}</p>
-                <p style={{ margin: 0, textAlign: "right" }}>× {s.quantity}</p>
-                <p style={{ margin: 0, textAlign: "right", color: "var(--muted)" }}>
-                  {formatPrice(s.unit_price_cents)}
-                </p>
-                <p style={{ margin: 0, textAlign: "right", fontWeight: 600 }}>
-                  {formatPrice(s.total_price_cents)}
-                </p>
-                <p style={{ margin: 0, textAlign: "right", color: "var(--muted)", fontSize: 13 }}>
-                  {formatTime(s.created_at)}
-                </p>
-              </div>
-            ))}
+            {orders.map((order, orderIdx) =>
+              order.items.map((item, itemIdx) => (
+                <div
+                  key={`${order.id}-${item.id}`}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "60px 140px 1fr 80px 100px 90px",
+                    alignItems: "center",
+                    padding: "14px 20px",
+                    borderBottom:
+                      orderIdx < orders.length - 1 || itemIdx < order.items.length - 1
+                        ? "1px solid var(--line)"
+                        : "none",
+                  }}
+                >
+                  {itemIdx === 0 ? (
+                    <p style={{ margin: 0, fontSize: 12, color: "var(--muted)" }}>#{order.id}</p>
+                  ) : (
+                    <span />
+                  )}
+                  <p style={{ margin: 0, fontSize: 13, color: "var(--muted)" }}>
+                    {`員工 #${order.employee_id}`}
+                  </p>
+                  <p style={{ margin: 0, fontWeight: 500 }}>{item.item_name}</p>
+                  <p style={{ margin: 0, textAlign: "right" }}>× {item.quantity}</p>
+                  <p style={{ margin: 0, textAlign: "right", fontWeight: 600 }}>
+                    {formatPrice(item.total_price_cents)}
+                  </p>
+                  {itemIdx === 0 ? (
+                    <p
+                      style={{
+                        margin: 0,
+                        textAlign: "right",
+                        fontSize: 12,
+                        color:
+                          order.status === "cancelled"
+                            ? "var(--error, #e53)"
+                            : order.status === "delivered"
+                              ? "var(--muted)"
+                              : "inherit",
+                      }}
+                    >
+                      {STATUS_LABEL[order.status] ?? order.status}
+                    </p>
+                  ) : (
+                    <span />
+                  )}
+                </div>
+              )),
+            )}
           </div>
         </>
       )}
