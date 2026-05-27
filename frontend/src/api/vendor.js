@@ -20,6 +20,18 @@ export function getMyOrders() {
   return apiFetch("/vendor/me/orders");
 }
 
+export function getMyOrder(orderId) {
+  return apiFetch(`/vendor/me/orders/${orderId}`);
+}
+
+export function updateOrderStatus(orderId, status) {
+  return apiFetch(`/vendor/me/orders/${orderId}/status`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status }),
+  });
+}
+
 export function createMenuItem(data) {
   return apiFetch("/vendor/me/menu", {
     method: "POST",

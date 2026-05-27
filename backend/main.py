@@ -19,6 +19,7 @@ from backend.routes import (
     vendor_application,
     vendor_categories,
     vendor_menu,
+    vendor_orders,
     vendor_profile,
 )
 
@@ -61,6 +62,7 @@ def create_app() -> FastAPI:
     app.include_router(vendor_profile.router)
     app.include_router(vendor_categories.router)
     app.include_router(vendor_menu.router)
+    app.include_router(vendor_orders.router)
     app.include_router(employee_ordering.router)
 
     Instrumentator(should_instrument_requests_inprogress=True).instrument(app).expose(app)
