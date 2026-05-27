@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date
 
+from backend.core.errors import CodedHTTPException
 from backend.db.connection import get_connection
 from backend.repositories.employee_selection_repository import OrderItemSnapshot
 from backend.schemas.employee import EmployeeOrder, EmployeeOrderItem, MealSelection
@@ -72,8 +73,69 @@ class PostgresEmployeeSelectionRepository:
         items: list[OrderItemSnapshot],
         meal_date: date | None = None,
     ) -> EmployeeOrder:
-        total_price_cents = sum(item.quantity * item.unit_price_cents for item in items)
         with get_connection() as conn:
+            # ── Step 1: Acquire row locks and validate quota atomically ──────
+            # SELECT ... FOR UPDATE locks each menu_items row for the duration
+            # of this transaction, preventing concurrent transactions from
+            # passing the quota check simultaneously (eliminates TOCTOU race).
+            for item_snap in items:
+                menu_row = conn.execute(
+                    """
+                    SELECT id, daily_quota, available
+                    FROM menu_items
+                    WHERE id = %s
+                    FOR UPDATE
+                    """,
+                    (item_snap.item_id,),
+                ).fetchone()
+
+                if menu_row is None:
+                    raise CodedHTTPException(
+                        status_code=404, code="not_found", detail="menu item not found"
+                    )
+                if not menu_row["available"]:
+                    raise CodedHTTPException(
+                        status_code=409, code="item_unavailable", detail="menu item unavailable"
+                    )
+
+                if menu_row["daily_quota"] is not None:
+                    # Count already-ordered quantity within the same locked
+                    # transaction for a consistent, race-free read.
+                    used_row = conn.execute(
+                        """
+                        SELECT COALESCE(SUM(oi.quantity), 0) AS used
+                        FROM order_items oi
+                        JOIN orders o ON o.id = oi.order_id
+                        WHERE oi.item_id = %s
+                          AND o.meal_date = %s
+                          AND o.status <> 'cancelled'
+                        """,
+                        (item_snap.item_id, meal_date),
+                    ).fetchone()
+                    used = int(used_row["used"])
+
+                    if used + item_snap.quantity > menu_row["daily_quota"]:
+                        raise CodedHTTPException(
+                            status_code=409,
+                            code="quota_exhausted",
+                            detail="daily quota exhausted for this item",
+                        )
+
+                    # Issue #53: auto-mark sold out when this order fills the
+                    # last slot — happens inside the same transaction so
+                    # employees immediately stop seeing the item as available.
+                    if used + item_snap.quantity >= menu_row["daily_quota"]:
+                        conn.execute(
+                            """
+                            UPDATE menu_items
+                            SET available = FALSE, updated_at = NOW()
+                            WHERE id = %s
+                            """,
+                            (item_snap.item_id,),
+                        )
+
+            # ── Step 2: Insert order and line items ──────────────────────────
+            total_price_cents = sum(s.quantity * s.unit_price_cents for s in items)
             order_row = conn.execute(
                 """
                 INSERT INTO orders (employee_id, vendor_id, meal_date, total_price_cents)
@@ -84,8 +146,9 @@ class PostgresEmployeeSelectionRepository:
                 (employee_id, vendor_id, meal_date, total_price_cents),
             ).fetchone()
             order_id = order_row["id"]
+
             item_rows = []
-            for item in items:
+            for item_snap in items:
                 item_rows.append(
                     conn.execute(
                         """
@@ -99,14 +162,15 @@ class PostgresEmployeeSelectionRepository:
                         """,
                         (
                             order_id,
-                            item.item_id,
-                            item.item_name,
-                            item.quantity,
-                            item.unit_price_cents,
-                            item.quantity * item.unit_price_cents,
+                            item_snap.item_id,
+                            item_snap.item_name,
+                            item_snap.quantity,
+                            item_snap.unit_price_cents,
+                            item_snap.quantity * item_snap.unit_price_cents,
                         ),
                     ).fetchone()
                 )
+        # Transaction commits here; all locks released.
         return _order_to_schema(order_row, item_rows)
 
     def list(self, *, employee_id: int) -> list[MealSelection]:
