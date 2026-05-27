@@ -20,6 +20,7 @@ import VendorApplyPage from "../pages/vendor/VendorApplyPage";
 import VendorHomePage from "../pages/vendor/VendorHomePage";
 import VendorMenuFormPage from "../pages/vendor/VendorMenuFormPage";
 import VendorMenuListPage from "../pages/vendor/VendorMenuListPage";
+import VendorOrderDetailPage from "../pages/vendor/VendorOrderDetailPage";
 import VendorOrdersPage from "../pages/vendor/VendorOrdersPage";
 import VendorRevenuePage from "../pages/vendor/VendorRevenuePage";
 import ProtectedRoute from "./ProtectedRoute";
@@ -27,7 +28,7 @@ import RoleRoute from "./RoleRoute";
 import { VendorMenuProvider } from "../vendor/VendorMenuContext";
 
 function HomeRedirect() {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth(); //取得登入狀態和使用者資訊
 
   if (!isAuthenticated || !user) {
     return <Navigate replace to="/login" />;
@@ -83,6 +84,7 @@ export function AppRouter() {
                   <Route element={<VendorMenuFormPage />} path="menu/new" />
                   <Route element={<VendorMenuFormPage />} path="menu/:itemId/edit" />
                   <Route element={<VendorOrdersPage />} path="orders" />
+                  <Route element={<VendorOrderDetailPage />} path="orders/:orderId" />
                   <Route element={<VendorRevenuePage />} path="revenue" />
                 </Route>
               </Route>
