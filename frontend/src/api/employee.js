@@ -34,6 +34,27 @@ export function getMySelections() {
   return withMockFallback(() => apiFetch("/employee/me/selections"), []);
 }
 
+export function getMyOrders() {
+  return withMockFallback(() => apiFetch("/employee/me/orders"), []);
+}
+
+export function updateMyOrder(orderId, { items, mealDate }) {
+  const payload = { items: items.map((item) => ({ item_id: item.itemId, quantity: item.quantity })) };
+  if (mealDate != null) payload.meal_date = mealDate;
+
+  return apiFetch(`/employee/me/orders/${orderId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteMyOrder(orderId) {
+  return apiFetch(`/employee/me/orders/${orderId}`, {
+    method: "DELETE",
+  });
+}
+
 export function getVendorMenu(vendorId, { available } = {}) {
   const params = new URLSearchParams();
   if (available != null) params.set("available", String(available));

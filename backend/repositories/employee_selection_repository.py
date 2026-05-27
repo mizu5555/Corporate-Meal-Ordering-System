@@ -138,6 +138,46 @@ class EmployeeSelectionRepository:
         )
         return self._order_to_schema(self._orders[order.id])
 
+    def update_order(
+        self,
+        *,
+        employee_id: int,
+        order_id: int,
+        items: list[OrderItemSnapshot],
+        meal_date: date | None = None,
+    ) -> EmployeeOrder | None:
+        order = self._orders.get(order_id)
+        if order is None or order.employee_id != employee_id:
+            return None
+
+        now = datetime.now(timezone.utc)
+        self._orders[order.id] = _OrderRecord(
+            id=order.id,
+            employee_id=order.employee_id,
+            vendor_id=order.vendor_id,
+            meal_date=meal_date,
+            status=order.status,
+            created_at=order.created_at,
+            updated_at=now,
+            cancelled_at=order.cancelled_at,
+        )
+
+        for item_id in [r.id for r in self._items.values() if r.order_id == order.id]:
+            del self._items[item_id]
+
+        for item in items:
+            rec = _OrderItemRecord(
+                id=next(self._item_id_seq),
+                order_id=order.id,
+                item_id=item.item_id,
+                item_name=item.item_name,
+                quantity=item.quantity,
+                unit_price_cents=item.unit_price_cents,
+            )
+            self._items[rec.id] = rec
+
+        return self._order_to_schema(self._orders[order.id])
+
     def create(
         self,
         *,
@@ -210,12 +250,18 @@ class EmployeeSelectionRepository:
         return selections
 
     def item_quantities_for_date(
-        self, *, meal_date: date, vendor_ids: list[int] | None = None
+        self,
+        *,
+        meal_date: date,
+        vendor_ids: list[int] | None = None,
+        exclude_order_id: int | None = None,
     ) -> dict[int, int]:
         vendor_filter = set(vendor_ids) if vendor_ids is not None else None
         quantities: dict[int, int] = {}
         for order in self._orders.values():
             if order.meal_date != meal_date or order.status == "cancelled":
+                continue
+            if exclude_order_id is not None and order.id == exclude_order_id:
                 continue
             if vendor_filter is not None and order.vendor_id not in vendor_filter:
                 continue

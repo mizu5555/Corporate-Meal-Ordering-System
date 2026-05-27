@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, Response, status
 
 from backend.core.config import settings
 from backend.core.employee_identity import require_employee, require_employee_role
@@ -18,6 +18,7 @@ from backend.schemas.employee import (
     EmployeeMenuItem,
     EmployeeOrder,
     EmployeeOrderCreate,
+    EmployeeOrderUpdate,
     EmployeeVendor,
     MealSelection,
     MealSelectionCreate,
@@ -137,6 +138,16 @@ def get_my_order(
     return service.get_my_order(employee_id, order_id)
 
 
+@router.put("/me/orders/{order_id}", response_model=EmployeeOrder)
+def update_my_order(
+    order_id: int,
+    payload: EmployeeOrderUpdate,
+    employee_id: Annotated[int, Depends(require_employee)],
+    service: Annotated[EmployeeOrderingService, Depends(get_employee_ordering_service)],
+) -> EmployeeOrder:
+    return service.update_my_order(employee_id, order_id, payload)
+
+
 @router.post("/me/orders/{order_id}/cancel", response_model=EmployeeOrder)
 def cancel_my_order(
     order_id: int,
@@ -144,3 +155,13 @@ def cancel_my_order(
     service: Annotated[EmployeeOrderingService, Depends(get_employee_ordering_service)],
 ) -> EmployeeOrder:
     return service.cancel_my_order(employee_id, order_id)
+
+
+@router.delete("/me/orders/{order_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_my_order(
+    order_id: int,
+    employee_id: Annotated[int, Depends(require_employee)],
+    service: Annotated[EmployeeOrderingService, Depends(get_employee_ordering_service)],
+) -> Response:
+    service.cancel_my_order(employee_id, order_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
