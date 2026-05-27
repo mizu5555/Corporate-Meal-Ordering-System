@@ -27,9 +27,12 @@ pytestmark = pytest.mark.skipif(
 
 @pytest.fixture(scope="module")
 def db_conn():
-    """Open a raw psycopg connection for test setup/teardown."""
+    """Run migrations, then open a raw psycopg connection for test setup/teardown."""
     from psycopg import connect
     from psycopg.rows import dict_row
+    from backend.db.migrate import run_migrations
+
+    run_migrations()
 
     conn = connect(DATABASE_URL, row_factory=dict_row, autocommit=True)
     yield conn
