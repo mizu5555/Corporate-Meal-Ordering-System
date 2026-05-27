@@ -140,7 +140,12 @@ def test_concurrent_orders_no_oversell(quota_item) -> None:
     assert len(failures) == CONCURRENCY - 1, (
         f"Expected {CONCURRENCY - 1} failures, got {len(failures)}: {failures}"
     )
-    quota_exhausted = [f for f in failures if f == "quota_exhausted"]
-    assert len(quota_exhausted) == CONCURRENCY - 1, (
-        f"All failures should be quota_exhausted, got: {failures}"
+    # After the winning thread commits, the item is auto-marked available=FALSE
+    # (issue #53). Threads that checked *before* the commit see quota_exhausted;
+    # threads that checked *after* see item_unavailable. Both are correct — no
+    # oversell occurred either way.
+    valid_rejection_codes = {"quota_exhausted", "item_unavailable"}
+    unexpected = [f for f in failures if f not in valid_rejection_codes]
+    assert not unexpected, (
+        f"All failures should be quota_exhausted or item_unavailable, got unexpected: {unexpected}"
     )
