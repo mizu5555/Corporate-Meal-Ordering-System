@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { createMenuItem, deleteMenuItem, getMyMenu, updateMenuItem } from "../api/vendor";
+import { createMenuItem, deleteMenuItem, deleteMenuItemPhoto, getMyMenu, updateMenuItem, uploadMenuItemPhoto } from "../api/vendor";
 
 const VendorMenuContext = createContext(null);
 
@@ -40,8 +40,23 @@ export function VendorMenuProvider({ children }) {
     return items.find((item) => item.id === id) ?? null;
   }
 
+  async function uploadPhoto(id, file) {
+    const result = await uploadMenuItemPhoto(id, file);
+    setItems((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, photo_path: result.photo_path } : item)),
+    );
+    return result;
+  }
+
+  async function removePhoto(id) {
+    await deleteMenuItemPhoto(id);
+    setItems((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, photo_path: null } : item)),
+    );
+  }
+
   return (
-    <VendorMenuContext.Provider value={{ items, loading, error, addItem, updateItem, removeItem, getItem }}>
+    <VendorMenuContext.Provider value={{ items, loading, error, addItem, updateItem, removeItem, getItem, uploadPhoto, removePhoto }}>
       {children}
     </VendorMenuContext.Provider>
   );
