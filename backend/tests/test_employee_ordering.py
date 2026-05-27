@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 
 from backend.core.vendor_identity import get_vendor_profile_repository
 from backend.main import app
-from backend.repositories.employee_selection_repository import EmployeeSelectionRepository
+from backend.repositories.employee_selection_repository import EmployeeSelectionRepository, OrderItemSnapshot
 from backend.repositories.menu_item_repository import MenuItemRepository
 from backend.repositories.vendor_profile_repository import VendorProfileRepository, VendorRecord
 from backend.routes.employee_ordering import get_employee_selection_repository
@@ -199,7 +199,7 @@ def test_create_order_sums_duplicate_item_quantities_for_quota() -> None:
     )
 
     assert resp.status_code == 409
-    assert resp.json()["code"] == "quantity_exceeds_daily_quota"
+    assert resp.json()["code"] == "QUOTA_EXHAUSTED"
 
 
 def test_create_order_tracks_quota_by_meal_date() -> None:
@@ -225,7 +225,7 @@ def test_create_order_tracks_quota_by_meal_date() -> None:
     )
 
     assert same_date.status_code == 409
-    assert same_date.json()["code"] == "quantity_exceeds_daily_quota"
+    assert same_date.json()["code"] == "QUOTA_EXHAUSTED"
     assert other_date.status_code == 201
     assert other_date.json()["meal_date"] == other_meal_date
 
@@ -354,7 +354,41 @@ def test_select_unavailable_item_returns_409() -> None:
     )
 
     assert resp.status_code == 409
-    assert resp.json()["code"] == "item_unavailable"
+    assert resp.json()["code"] == "ITEM_UNAVAILABLE"
+
+
+def test_select_auto_sold_out_item_returns_quota_exhausted() -> None:
+    client, item_repo, selection_repo = _setup()
+    item = item_repo.create(
+        vendor_id=1,
+        name="Last Bento",
+        price_cents=120,
+        available=False,
+        daily_quota=1,
+    )
+    meal_date = date.today()
+    selection_repo.create_order(
+        employee_id=200,
+        vendor_id=1,
+        meal_date=meal_date,
+        items=[
+            OrderItemSnapshot(
+                item_id=item.id,
+                item_name=item.name,
+                quantity=1,
+                unit_price_cents=item.price_cents,
+            )
+        ],
+    )
+
+    resp = client.post(
+        "/employee/vendors/1/selections",
+        headers=_h(),
+        json={"item_id": item.id, "quantity": 1, "meal_date": meal_date.isoformat()},
+    )
+
+    assert resp.status_code == 409
+    assert resp.json()["code"] == "QUOTA_EXHAUSTED"
 
 
 def test_select_quantity_over_daily_quota_returns_409() -> None:
@@ -368,7 +402,7 @@ def test_select_quantity_over_daily_quota_returns_409() -> None:
     )
 
     assert resp.status_code == 409
-    assert resp.json()["code"] == "quantity_exceeds_daily_quota"
+    assert resp.json()["code"] == "QUOTA_EXHAUSTED"
 
 
 def test_employee_endpoints_require_employee_role() -> None:

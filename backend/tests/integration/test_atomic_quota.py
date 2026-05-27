@@ -7,7 +7,7 @@ Scenario
 --------
 A menu item has daily_quota = 1.
 N threads each try to create an order for that item simultaneously.
-Expected outcome: exactly 1 succeeds (HTTP 201), the rest get 409 quota_exhausted.
+Expected outcome: exactly 1 succeeds (HTTP 201), the rest get 409 QUOTA_EXHAUSTED.
 """
 from __future__ import annotations
 
@@ -140,12 +140,10 @@ def test_concurrent_orders_no_oversell(quota_item) -> None:
     assert len(failures) == CONCURRENCY - 1, (
         f"Expected {CONCURRENCY - 1} failures, got {len(failures)}: {failures}"
     )
-    # After the winning thread commits, the item is auto-marked available=FALSE
-    # (issue #53). Threads that checked *before* the commit see quota_exhausted;
-    # threads that checked *after* see item_unavailable. Both are correct — no
-    # oversell occurred either way.
-    valid_rejection_codes = {"quota_exhausted", "item_unavailable"}
+    # After the winning thread commits, the item is auto-marked available=FALSE,
+    # but order placement still reports the race-lost case as quota exhaustion.
+    valid_rejection_codes = {"QUOTA_EXHAUSTED"}
     unexpected = [f for f in failures if f not in valid_rejection_codes]
     assert not unexpected, (
-        f"All failures should be quota_exhausted or item_unavailable, got unexpected: {unexpected}"
+        f"All failures should be QUOTA_EXHAUSTED, got unexpected: {unexpected}"
     )

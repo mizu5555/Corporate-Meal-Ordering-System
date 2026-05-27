@@ -2,9 +2,9 @@
 
 Tests verify that create_order():
   - issues SELECT ... FOR UPDATE on menu_items (row lock)
-  - raises 409 quota_exhausted when quota is full
+  - raises 409 QUOTA_EXHAUSTED when quota is full
   - marks item available=FALSE when quota reaches zero (issue #53)
-  - raises 409 item_unavailable for unavailable items
+  - raises 409 ITEM_UNAVAILABLE for unavailable items
   - raises 404 not_found for missing items
 """
 from __future__ import annotations
@@ -133,7 +133,7 @@ def test_create_order_raises_quota_exhausted_when_used_equals_quota() -> None:
             )
 
     assert exc_info.value.status_code == 409
-    assert exc_info.value.code == "quota_exhausted"
+    assert exc_info.value.code == "QUOTA_EXHAUSTED"
 
 
 def test_create_order_raises_quota_exhausted_when_request_would_exceed() -> None:
@@ -152,7 +152,7 @@ def test_create_order_raises_quota_exhausted_when_request_would_exceed() -> None
             )
 
     assert exc_info.value.status_code == 409
-    assert exc_info.value.code == "quota_exhausted"
+    assert exc_info.value.code == "QUOTA_EXHAUSTED"
 
 
 def test_create_order_succeeds_when_used_plus_requested_equals_quota() -> None:
@@ -234,7 +234,7 @@ def test_create_order_does_not_mark_sold_out_when_quota_not_exhausted() -> None:
 
 
 def test_create_order_skips_quota_check_when_daily_quota_is_none() -> None:
-    """Items with no quota limit should never trigger quota_exhausted."""
+    """Items with no quota limit should never trigger QUOTA_EXHAUSTED."""
     ctx = _conn_with_side_effects(
         _menu_row(daily_quota=None),  # no quota limit
         _order_row(),
@@ -257,7 +257,7 @@ def test_create_order_skips_quota_check_when_daily_quota_is_none() -> None:
 # ---------------------------------------------------------------------------
 
 def test_create_order_raises_item_unavailable() -> None:
-    ctx = _conn_with_side_effects(_menu_row(available=False))
+    ctx = _conn_with_side_effects(_menu_row(daily_quota=None, available=False))
     with patch(
         "backend.repositories.postgres_employee_selection_repository.get_connection",
         return_value=ctx,
@@ -269,7 +269,71 @@ def test_create_order_raises_item_unavailable() -> None:
             )
 
     assert exc_info.value.status_code == 409
-    assert exc_info.value.code == "item_unavailable"
+    assert exc_info.value.code == "ITEM_UNAVAILABLE"
+
+
+def test_create_order_returns_quota_exhausted_when_auto_sold_out_item_is_full() -> None:
+    ctx = _conn_with_side_effects(
+        _menu_row(daily_quota=5, available=False),
+        _used_row(used=5),
+    )
+    with patch(
+        "backend.repositories.postgres_employee_selection_repository.get_connection",
+        return_value=ctx,
+    ):
+        repo = PostgresEmployeeSelectionRepository()
+        with pytest.raises(Exception) as exc_info:
+            repo.create_order(
+                employee_id=1, vendor_id=2, items=[_snapshot()], meal_date=_MEAL_DATE
+            )
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.code == "QUOTA_EXHAUSTED"
+
+
+def test_create_order_returns_item_unavailable_when_vendor_disabled_before_quota_full() -> None:
+    ctx = _conn_with_side_effects(
+        _menu_row(daily_quota=5, available=False),
+        _used_row(used=3),
+    )
+    with patch(
+        "backend.repositories.postgres_employee_selection_repository.get_connection",
+        return_value=ctx,
+    ):
+        repo = PostgresEmployeeSelectionRepository()
+        with pytest.raises(Exception) as exc_info:
+            repo.create_order(
+                employee_id=1, vendor_id=2, items=[_snapshot()], meal_date=_MEAL_DATE
+            )
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.code == "ITEM_UNAVAILABLE"
+
+
+def test_create_order_translates_lock_conflict_to_concurrent_conflict() -> None:
+    from backend.repositories import postgres_employee_selection_repository as repo_module
+
+    if not repo_module._PSYCOPG_CONFLICT_ERRORS:
+        pytest.skip("psycopg is not installed")
+
+    conn = MagicMock()
+    conn.execute.side_effect = repo_module._PSYCOPG_CONFLICT_ERRORS[0]("lock conflict")
+    ctx = MagicMock()
+    ctx.__enter__ = MagicMock(return_value=conn)
+    ctx.__exit__ = MagicMock(return_value=False)
+
+    with patch(
+        "backend.repositories.postgres_employee_selection_repository.get_connection",
+        return_value=ctx,
+    ):
+        repo = PostgresEmployeeSelectionRepository()
+        with pytest.raises(Exception) as exc_info:
+            repo.create_order(
+                employee_id=1, vendor_id=2, items=[_snapshot()], meal_date=_MEAL_DATE
+            )
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.code == "CONCURRENT_CONFLICT"
 
 
 def test_create_order_raises_not_found_for_missing_item() -> None:

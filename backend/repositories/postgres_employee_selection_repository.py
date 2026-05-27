@@ -3,9 +3,28 @@ from __future__ import annotations
 from datetime import date
 
 from backend.core.errors import CodedHTTPException
+from backend.core.order_failure_codes import (
+    CONCURRENT_CONFLICT,
+    ITEM_UNAVAILABLE,
+    QUOTA_EXHAUSTED,
+)
 from backend.db.connection import get_connection
 from backend.repositories.employee_selection_repository import OrderItemSnapshot
 from backend.schemas.employee import EmployeeOrder, EmployeeOrderItem, MealSelection
+
+try:
+    from psycopg import errors as psycopg_errors
+except ImportError:  # pragma: no cover - psycopg is present in deployed Postgres environments.
+    psycopg_errors = None
+
+if psycopg_errors is None:
+    _PSYCOPG_CONFLICT_ERRORS: tuple[type[BaseException], ...] = ()
+else:
+    _PSYCOPG_CONFLICT_ERRORS = (
+        psycopg_errors.DeadlockDetected,
+        psycopg_errors.LockNotAvailable,
+        psycopg_errors.SerializationFailure,
+    )
 
 
 def _selection_to_schema(row) -> MealSelection:
@@ -79,24 +98,28 @@ class PostgresEmployeeSelectionRepository:
             # of this transaction, preventing concurrent transactions from
             # passing the quota check simultaneously (eliminates TOCTOU race).
             for item_snap in items:
-                menu_row = conn.execute(
-                    """
-                    SELECT id, daily_quota, available
-                    FROM menu_items
-                    WHERE id = %s
-                    FOR UPDATE
-                    """,
-                    (item_snap.item_id,),
-                ).fetchone()
+                try:
+                    menu_row = conn.execute(
+                        """
+                        SELECT id, daily_quota, available
+                        FROM menu_items
+                        WHERE id = %s
+                        FOR UPDATE
+                        """,
+                        (item_snap.item_id,),
+                    ).fetchone()
+                except _PSYCOPG_CONFLICT_ERRORS as exc:
+                    raise CodedHTTPException(
+                        status_code=409,
+                        code=CONCURRENT_CONFLICT,
+                        detail="order could not be placed due to a concurrent update; please try again",
+                    ) from exc
 
                 if menu_row is None:
                     raise CodedHTTPException(
                         status_code=404, code="not_found", detail="menu item not found"
                     )
-                if not menu_row["available"]:
-                    raise CodedHTTPException(
-                        status_code=409, code="item_unavailable", detail="menu item unavailable"
-                    )
+                used = None
 
                 if menu_row["daily_quota"] is not None:
                     # Count already-ordered quantity within the same locked
@@ -114,10 +137,23 @@ class PostgresEmployeeSelectionRepository:
                     ).fetchone()
                     used = int(used_row["used"])
 
+                    if not menu_row["available"]:
+                        if used >= menu_row["daily_quota"]:
+                            raise CodedHTTPException(
+                                status_code=409,
+                                code=QUOTA_EXHAUSTED,
+                                detail="daily quota exhausted for this item",
+                            )
+                        raise CodedHTTPException(
+                            status_code=409,
+                            code=ITEM_UNAVAILABLE,
+                            detail="menu item unavailable",
+                        )
+
                     if used + item_snap.quantity > menu_row["daily_quota"]:
                         raise CodedHTTPException(
                             status_code=409,
-                            code="quota_exhausted",
+                            code=QUOTA_EXHAUSTED,
                             detail="daily quota exhausted for this item",
                         )
 
@@ -133,6 +169,13 @@ class PostgresEmployeeSelectionRepository:
                             """,
                             (item_snap.item_id,),
                         )
+
+                if not menu_row["available"]:
+                    raise CodedHTTPException(
+                        status_code=409,
+                        code=ITEM_UNAVAILABLE,
+                        detail="menu item unavailable",
+                    )
 
             # ── Step 2: Insert order and line items ──────────────────────────
             total_price_cents = sum(s.quantity * s.unit_price_cents for s in items)
