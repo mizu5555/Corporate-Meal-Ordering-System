@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { getMyOrders } from "../../api/vendor";
 import { formatPrice } from "../../utils/format";
 
@@ -11,7 +12,41 @@ const STATUS_LABEL = {
   cancelled: "已取消",
 };
 
-function useVendorOrders() {
+const STATUS_COLOR = {
+  pending: { background: "rgba(180,140,0,0.10)", color: "#9a7800" },
+  confirmed: { background: "rgba(47,100,200,0.10)", color: "#2b5cc8" },
+  preparing: { background: "rgba(200,92,44,0.10)", color: "var(--brand)" },
+  ready: { background: "rgba(47,125,74,0.12)", color: "var(--success)" },
+  delivered: { background: "rgba(23,33,43,0.07)", color: "var(--muted)" },
+  cancelled: { background: "rgba(200,92,44,0.08)", color: "var(--brand-deep)" },
+};
+
+function StatusBadge({ status }) {
+  return (
+    <span
+      style={{
+        display: "inline-block",
+        padding: "3px 12px",
+        borderRadius: 99,
+        fontSize: 12,
+        fontWeight: 600,
+        whiteSpace: "nowrap",
+        ...(STATUS_COLOR[status] ?? {}),
+      }}
+    >
+      {STATUS_LABEL[status] ?? status}
+    </span>
+  );
+}
+
+function itemsSummary(items) {
+  if (!items || items.length === 0) return "—";
+  const first = items[0].item_name;
+  return items.length > 1 ? `${first} 等 ${items.length} 項` : first;
+}
+
+export default function VendorOrdersPage() {
+  const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -22,12 +57,6 @@ function useVendorOrders() {
       .catch((err) => setError(err.message ?? "無法載入訂單"))
       .finally(() => setLoading(false));
   }, []);
-
-  return { orders, loading, error };
-}
-
-export default function VendorOrdersPage() {
-  const { orders, loading, error } = useVendorOrders();
 
   const totalRevenue = orders.reduce((sum, o) => sum + o.total_price_cents, 0);
   const totalItems = orders.reduce(
@@ -43,7 +72,6 @@ export default function VendorOrdersPage() {
       </div>
 
       {loading && <p className="loading-state">載入訂單中...</p>}
-
       {error && <p className="error-state">{error}</p>}
 
       {!loading && !error && orders.length === 0 && (
@@ -71,7 +99,7 @@ export default function VendorOrdersPage() {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "60px 140px 1fr 80px 100px 90px",
+                gridTemplateColumns: "56px 120px 1fr 110px 100px 36px",
                 padding: "10px 20px",
                 borderBottom: "1px solid var(--line)",
                 color: "var(--muted)",
@@ -84,61 +112,48 @@ export default function VendorOrdersPage() {
               <span>#</span>
               <span>來源</span>
               <span>品項</span>
-              <span style={{ textAlign: "right" }}>數量</span>
-              <span style={{ textAlign: "right" }}>小計</span>
+              <span style={{ textAlign: "right" }}>合計</span>
               <span style={{ textAlign: "right" }}>狀態</span>
+              <span />
             </div>
 
-            {orders.map((order, orderIdx) =>
-              order.items.map((item, itemIdx) => (
-                <div
-                  key={`${order.id}-${item.id}`}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "60px 140px 1fr 80px 100px 90px",
-                    alignItems: "center",
-                    padding: "14px 20px",
-                    borderBottom:
-                      orderIdx < orders.length - 1 || itemIdx < order.items.length - 1
-                        ? "1px solid var(--line)"
-                        : "none",
-                  }}
-                >
-                  {itemIdx === 0 ? (
-                    <p style={{ margin: 0, fontSize: 12, color: "var(--muted)" }}>#{order.id}</p>
-                  ) : (
-                    <span />
-                  )}
-                  <p style={{ margin: 0, fontSize: 13, color: "var(--muted)" }}>
-                    {`員工 #${order.employee_id}`}
-                  </p>
-                  <p style={{ margin: 0, fontWeight: 500 }}>{item.item_name}</p>
-                  <p style={{ margin: 0, textAlign: "right" }}>× {item.quantity}</p>
-                  <p style={{ margin: 0, textAlign: "right", fontWeight: 600 }}>
-                    {formatPrice(item.total_price_cents)}
-                  </p>
-                  {itemIdx === 0 ? (
-                    <p
-                      style={{
-                        margin: 0,
-                        textAlign: "right",
-                        fontSize: 12,
-                        color:
-                          order.status === "cancelled"
-                            ? "var(--error, #e53)"
-                            : order.status === "delivered"
-                              ? "var(--muted)"
-                              : "inherit",
-                      }}
-                    >
-                      {STATUS_LABEL[order.status] ?? order.status}
-                    </p>
-                  ) : (
-                    <span />
-                  )}
+            {orders.map((order, idx) => (
+              <button
+                key={order.id}
+                type="button"
+                onClick={() => navigate(`/vendor/orders/${order.id}`)}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "56px 120px 1fr 110px 100px 36px",
+                  alignItems: "center",
+                  width: "100%",
+                  padding: "14px 20px",
+                  border: "none",
+                  borderBottom: idx < orders.length - 1 ? "1px solid var(--line)" : "none",
+                  background: "transparent",
+                  cursor: "pointer",
+                  textAlign: "left",
+                  transition: "background 120ms ease",
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(23,33,43,0.03)")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+              >
+                <p style={{ margin: 0, fontSize: 12, color: "var(--muted)" }}>#{order.id}</p>
+                <p style={{ margin: 0, fontSize: 13, color: "var(--muted)" }}>
+                  員工 #{order.employee_id}
+                </p>
+                <p style={{ margin: 0, fontWeight: 500, fontSize: 14 }}>
+                  {itemsSummary(order.items)}
+                </p>
+                <p style={{ margin: 0, textAlign: "right", fontWeight: 600 }}>
+                  {formatPrice(order.total_price_cents)}
+                </p>
+                <div style={{ textAlign: "right" }}>
+                  <StatusBadge status={order.status} />
                 </div>
-              )),
-            )}
+                <p style={{ margin: 0, textAlign: "right", color: "var(--muted)", fontSize: 16 }}>›</p>
+              </button>
+            ))}
           </div>
         </>
       )}
