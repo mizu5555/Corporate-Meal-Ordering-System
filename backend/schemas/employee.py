@@ -68,6 +68,11 @@ class EmployeeOrderCreate(BaseModel):
     meal_date: date | None = None
 
 
+class EmployeeOrderUpdate(BaseModel):
+    items: list[EmployeeOrderItemCreate] = Field(min_length=1)
+    meal_date: date | None = None
+
+
 class EmployeeOrderItem(BaseModel):
     id: int
     order_id: int

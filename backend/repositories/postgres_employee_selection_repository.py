@@ -355,14 +355,143 @@ class PostgresEmployeeSelectionRepository:
                     return None
             return self._hydrate_order(conn, row)
 
+    def update_order(
+        self,
+        *,
+        employee_id: int,
+        order_id: int,
+        items: list[OrderItemSnapshot],
+        meal_date: date | None = None,
+    ) -> EmployeeOrder | None:
+        with get_connection() as conn:
+            order_row = conn.execute(
+                """
+                SELECT id, employee_id, vendor_id, meal_date, status,
+                       total_price_cents, created_at, updated_at, cancelled_at
+                FROM orders
+                WHERE employee_id = %s AND id = %s
+                FOR UPDATE
+                """,
+                (employee_id, order_id),
+            ).fetchone()
+            if order_row is None:
+                return None
+
+            for item_snap in items:
+                try:
+                    menu_row = conn.execute(
+                        """
+                        SELECT id, daily_quota, available
+                        FROM menu_items
+                        WHERE id = %s
+                        FOR UPDATE
+                        """,
+                        (item_snap.item_id,),
+                    ).fetchone()
+                except _PSYCOPG_CONFLICT_ERRORS as exc:
+                    raise CodedHTTPException(
+                        status_code=409,
+                        code=CONCURRENT_CONFLICT,
+                        detail="order could not be updated due to a concurrent update; please try again",
+                    ) from exc
+
+                if menu_row is None:
+                    raise CodedHTTPException(
+                        status_code=404, code="not_found", detail="menu item not found"
+                    )
+
+                if menu_row["daily_quota"] is not None:
+                    used_row = conn.execute(
+                        """
+                        SELECT COALESCE(SUM(oi.quantity), 0) AS used
+                        FROM order_items oi
+                        JOIN orders o ON o.id = oi.order_id
+                        WHERE oi.item_id = %s
+                          AND o.meal_date = %s
+                          AND o.status <> 'cancelled'
+                          AND o.id <> %s
+                        """,
+                        (item_snap.item_id, meal_date, order_id),
+                    ).fetchone()
+                    used = int(used_row["used"])
+
+                    if not menu_row["available"] and used >= menu_row["daily_quota"]:
+                        raise CodedHTTPException(
+                            status_code=409,
+                            code=QUOTA_EXHAUSTED,
+                            detail="daily quota exhausted for this item",
+                        )
+
+                    if menu_row["available"] and used + item_snap.quantity > menu_row["daily_quota"]:
+                        raise CodedHTTPException(
+                            status_code=409,
+                            code=QUOTA_EXHAUSTED,
+                            detail="daily quota exhausted for this item",
+                        )
+
+                if not menu_row["available"]:
+                    raise CodedHTTPException(
+                        status_code=409,
+                        code=ITEM_UNAVAILABLE,
+                        detail="menu item unavailable",
+                    )
+
+            total_price_cents = sum(s.quantity * s.unit_price_cents for s in items)
+            row = conn.execute(
+                """
+                UPDATE orders
+                SET meal_date = %s,
+                    total_price_cents = %s,
+                    updated_at = NOW()
+                WHERE employee_id = %s AND id = %s
+                RETURNING id, employee_id, vendor_id, meal_date, status,
+                          total_price_cents, created_at, updated_at, cancelled_at
+                """,
+                (meal_date, total_price_cents, employee_id, order_id),
+            ).fetchone()
+
+            conn.execute("DELETE FROM order_items WHERE order_id = %s", (order_id,))
+            item_rows = []
+            for item_snap in items:
+                item_rows.append(
+                    conn.execute(
+                        """
+                        INSERT INTO order_items (
+                            order_id, item_id, item_name, quantity,
+                            unit_price_cents, total_price_cents
+                        )
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                        RETURNING id, order_id, item_id, item_name, quantity,
+                                  unit_price_cents, total_price_cents
+                        """,
+                        (
+                            order_id,
+                            item_snap.item_id,
+                            item_snap.item_name,
+                            item_snap.quantity,
+                            item_snap.unit_price_cents,
+                            item_snap.quantity * item_snap.unit_price_cents,
+                        ),
+                    ).fetchone()
+                )
+
+        return _order_to_schema(row, item_rows)
+
     def item_quantities_for_date(
-        self, *, meal_date: date, vendor_ids: list[int] | None = None
+        self,
+        *,
+        meal_date: date,
+        vendor_ids: list[int] | None = None,
+        exclude_order_id: int | None = None,
     ) -> dict[int, int]:
         where = ["o.meal_date = %s", "o.status <> 'cancelled'"]
         values: list[object] = [meal_date]
         if vendor_ids is not None:
             where.append("o.vendor_id = ANY(%s)")
             values.append(vendor_ids)
+        if exclude_order_id is not None:
+            where.append("o.id <> %s")
+            values.append(exclude_order_id)
 
         with get_connection() as conn:
             rows = conn.execute(

@@ -183,6 +183,98 @@ def test_cancel_pending_order_marks_order_cancelled() -> None:
     assert body["cancelled_at"] is not None
 
 
+def test_update_pending_order_replaces_quantities_and_total() -> None:
+    client, item_repo, _ = _setup()
+    rice = item_repo.create(vendor_id=1, name="Rice Bowl", price_cents=120, daily_quota=5)
+    tea = item_repo.create(vendor_id=1, name="Tea", price_cents=40, daily_quota=5)
+    order = client.post(
+        "/employee/vendors/1/orders",
+        headers=_h(100),
+        json={
+            "items": [
+                {"item_id": rice.id, "quantity": 1},
+                {"item_id": tea.id, "quantity": 1},
+            ]
+        },
+    ).json()
+
+    resp = client.put(
+        f"/employee/me/orders/{order['id']}",
+        headers=_h(100),
+        json={"items": [{"item_id": rice.id, "quantity": 3}]},
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "pending"
+    assert body["total_price_cents"] == 360
+    assert [(item["item_name"], item["quantity"]) for item in body["items"]] == [
+        ("Rice Bowl", 3),
+    ]
+
+
+def test_update_pending_order_checks_quota_without_counting_original_order() -> None:
+    client, item_repo, _ = _setup()
+    item = item_repo.create(vendor_id=1, name="Rice Bowl", price_cents=120, daily_quota=3)
+    meal_date = _meal_date()
+    order = client.post(
+        "/employee/vendors/1/orders",
+        headers=_h(100),
+        json={"meal_date": meal_date, "items": [{"item_id": item.id, "quantity": 2}]},
+    ).json()
+
+    same_quantity = client.put(
+        f"/employee/me/orders/{order['id']}",
+        headers=_h(100),
+        json={"meal_date": meal_date, "items": [{"item_id": item.id, "quantity": 2}]},
+    )
+    increased_quantity = client.put(
+        f"/employee/me/orders/{order['id']}",
+        headers=_h(100),
+        json={"meal_date": meal_date, "items": [{"item_id": item.id, "quantity": 4}]},
+    )
+
+    assert same_quantity.status_code == 200
+    assert increased_quantity.status_code == 409
+    assert increased_quantity.json()["code"] == "QUOTA_EXHAUSTED"
+
+
+def test_update_order_rejects_cancelled_order() -> None:
+    client, item_repo, _ = _setup()
+    item = item_repo.create(vendor_id=1, name="Rice Bowl", price_cents=120)
+    order = client.post(
+        "/employee/vendors/1/orders",
+        headers=_h(100),
+        json={"items": [{"item_id": item.id, "quantity": 1}]},
+    ).json()
+    client.post(f"/employee/me/orders/{order['id']}/cancel", headers=_h(100))
+
+    resp = client.put(
+        f"/employee/me/orders/{order['id']}",
+        headers=_h(100),
+        json={"items": [{"item_id": item.id, "quantity": 2}]},
+    )
+
+    assert resp.status_code == 409
+    assert resp.json()["code"] == "order_not_modifiable"
+
+
+def test_delete_pending_order_cancels_order() -> None:
+    client, item_repo, _ = _setup()
+    item = item_repo.create(vendor_id=1, name="Rice Bowl", price_cents=120)
+    order = client.post(
+        "/employee/vendors/1/orders",
+        headers=_h(100),
+        json={"items": [{"item_id": item.id, "quantity": 1}]},
+    ).json()
+
+    resp = client.delete(f"/employee/me/orders/{order['id']}", headers=_h(100))
+
+    assert resp.status_code == 204
+    detail = client.get(f"/employee/me/orders/{order['id']}", headers=_h(100)).json()
+    assert detail["status"] == "cancelled"
+
+
 def test_create_order_sums_duplicate_item_quantities_for_quota() -> None:
     client, item_repo, _ = _setup()
     item = item_repo.create(vendor_id=1, name="Rice Bowl", price_cents=120, daily_quota=2)

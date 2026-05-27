@@ -14,6 +14,7 @@ from backend.schemas.employee import (
     EmployeeOrder,
     EmployeeOrderCreate,
     EmployeeOrderItemCreate,
+    EmployeeOrderUpdate,
     EmployeeVendor,
     MealSelection,
     MealSelectionCreate,
@@ -169,6 +170,36 @@ class EmployeeOrderingService:
             raise CodedHTTPException(status_code=404, code="not_found", detail="order not found")
         return cancelled
 
+    def update_my_order(
+        self, employee_id: int, order_id: int, payload: EmployeeOrderUpdate
+    ) -> EmployeeOrder:
+        order = self.get_my_order(employee_id, order_id)
+        if order.status != "pending":
+            raise CodedHTTPException(
+                status_code=409,
+                code="order_not_modifiable",
+                detail="only pending orders can be modified",
+            )
+
+        self._get_approved_vendor(order.vendor_id)
+        meal_date = payload.meal_date or order.meal_date or date.today()
+        self._ensure_meal_date_in_window(meal_date)
+        snapshots = self._build_order_items(
+            order.vendor_id,
+            EmployeeOrderCreate(meal_date=meal_date, items=payload.items),
+            meal_date=meal_date,
+            exclude_order_id=order.id,
+        )
+        updated = self.selection_repository.update_order(
+            employee_id=employee_id,
+            order_id=order_id,
+            items=snapshots,
+            meal_date=meal_date,
+        )
+        if updated is None:
+            raise CodedHTTPException(status_code=404, code="not_found", detail="order not found")
+        return updated
+
     def _get_approved_vendor(self, vendor_id: int) -> VendorRecord:
         vendor = self.vendor_repository.get(vendor_id)
         if vendor is None or vendor.status != "approved":
@@ -201,7 +232,12 @@ class EmployeeOrderingService:
         )
 
     def _build_order_items(
-        self, vendor_id: int, payload: EmployeeOrderCreate, *, meal_date: date
+        self,
+        vendor_id: int,
+        payload: EmployeeOrderCreate,
+        *,
+        meal_date: date,
+        exclude_order_id: int | None = None,
     ) -> list[OrderItemSnapshot]:
         requested_by_item: dict[int, int] = {}
         for requested in payload.items:
@@ -212,6 +248,7 @@ class EmployeeOrderingService:
         used_by_item = self.selection_repository.item_quantities_for_date(
             meal_date=meal_date,
             vendor_ids=[vendor_id],
+            exclude_order_id=exclude_order_id,
         )
         snapshots: list[OrderItemSnapshot] = []
         for requested in payload.items:
