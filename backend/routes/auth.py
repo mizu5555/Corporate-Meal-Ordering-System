@@ -7,7 +7,10 @@ from backend.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-_DUMMY_HASH = "$2b$12$lHiK1mHe6SpHhZxArGe4GekOeUH9iRv6lXc25aM5kCu0HaJhni2uq"
+# Constant-time placeholder so verify_password always runs even when the account
+# does not exist, keeping login latency uniform (mitigates username enumeration).
+# Computed at import so no bcrypt hash literal lives in the source.
+_DUMMY_HASH = hash_password("timing-attack-placeholder")
 
 
 def _fetch_user(email: str) -> dict | None:
