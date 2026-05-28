@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import FacilityScopeLabel from "../../facility/FacilityScopeLabel";
 import { formatPrice, photoUrl } from "../../utils/format";
 import { useVendorMenu } from "../../vendor/VendorMenuContext";
 
@@ -168,6 +169,7 @@ export default function VendorMenuListPage() {
         style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}
       >
         <div>
+          <FacilityScopeLabel label="Managing facility" />
           <p className="eyebrow">Vendor · Menu</p>
           <h2>菜單管理</h2>
         </div>

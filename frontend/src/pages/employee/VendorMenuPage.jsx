@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import MealDetailModal from "../../components/employee/MealDetailModal";
 import MenuItemCard from "../../components/employee/MenuItemCard";
+import { useFacility } from "../../facility/FacilityContext";
+import FacilityScopeLabel from "../../facility/FacilityScopeLabel";
 import { useVendor } from "../../hooks/useVendor";
 import { useVendorMenu } from "../../hooks/useVendorMenu";
 
@@ -16,10 +18,12 @@ export default function VendorMenuPage() {
 
   const [availableFilter, setAvailableFilter] = useState(undefined);
   const [selectedItem, setSelectedItem] = useState(null);
+  const { selectedFacilityId } = useFacility();
 
-  const { vendor, loading: vendorLoading } = useVendor(vendorId);
+  const { vendor, loading: vendorLoading } = useVendor(vendorId, { facilityId: selectedFacilityId });
   const { items, loading: menuLoading, error } = useVendorMenu(vendorId, {
     available: availableFilter,
+    facilityId: selectedFacilityId,
   });
 
   const loading = vendorLoading || menuLoading;
@@ -35,6 +39,7 @@ export default function VendorMenuPage() {
           ← 返回
         </button>
         <div className="menu-page-title">
+          <FacilityScopeLabel label="Menu facility" />
           <p className="eyebrow">Vendor Menu</p>
           <h2>{vendor?.name ?? "載入中..."}</h2>
         </div>

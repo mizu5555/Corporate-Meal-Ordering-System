@@ -1,4 +1,5 @@
 import { apiFetch } from "./client";
+import { appendFacilityParam, facilityPayload } from "./facilityParams";
 import { MOCK_VENDORS, MOCK_MENU } from "./mockData";
 
 function withMockFallback(apiCall, mockResult) {
@@ -11,22 +12,46 @@ function withMockFallback(apiCall, mockResult) {
   });
 }
 
-export function getVendors() {
-  return withMockFallback(() => apiFetch("/employee/vendors"), MOCK_VENDORS);
+function uniqueMockFacilities() {
+  const byId = new Map();
+  for (const vendor of MOCK_VENDORS) {
+    for (const facility of vendor.served_facilities ?? []) {
+      byId.set(facility.id, facility);
+    }
+  }
+  return Array.from(byId.values());
 }
 
-export function getVendor(vendorId) {
+export function getMyFacilities() {
+  return withMockFallback(() => apiFetch("/employee/me/facilities"), uniqueMockFacilities);
+}
+
+export function getVendors({ facilityId } = {}) {
   return withMockFallback(
-    () => apiFetch(`/employee/vendors/${vendorId}`),
+    () => apiFetch(appendFacilityParam("/employee/vendors", facilityId)),
+    MOCK_VENDORS.filter((vendor) => (
+      facilityId == null || vendor.served_facilities?.some((facility) => facility.id === Number(facilityId))
+    )),
+  );
+}
+
+export function getVendor(vendorId, { facilityId } = {}) {
+  return withMockFallback(
+    () => apiFetch(appendFacilityParam(`/employee/vendors/${vendorId}`, facilityId)),
     MOCK_VENDORS.find((v) => v.id === Number(vendorId)) ?? null,
   );
 }
 
-export function submitSelection(vendorId, { itemId, quantity, mealDate }) {
+export function submitSelection(vendorId, { itemId, quantity, mealDate, facilityId }) {
   return apiFetch(`/employee/vendors/${vendorId}/selections`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ item_id: itemId, quantity, meal_date: mealDate }),
+    body: JSON.stringify({
+      item_id: itemId,
+      quantity,
+      meal_date: mealDate,
+      ...facilityPayload(facilityId),
+    }),
   });
 }
 
@@ -55,21 +80,26 @@ export function deleteMyOrder(orderId) {
   });
 }
 
-export function getVendorMenu(vendorId, { available } = {}) {
+export function getVendorMenu(vendorId, { available, facilityId } = {}) {
   const params = new URLSearchParams();
   if (available != null) params.set("available", String(available));
   const qs = params.toString();
   return withMockFallback(
-    () => apiFetch(`/employee/vendors/${vendorId}/menu${qs ? `?${qs}` : ""}`),
+    () => apiFetch(appendFacilityParam(`/employee/vendors/${vendorId}/menu${qs ? `?${qs}` : ""}`, facilityId)),
     (MOCK_MENU[Number(vendorId)] ?? []).filter(
       (item) => available == null || item.available === available,
     ),
   );
 }
 
-function mockRandomMeal({ mealDate, vendorIds }) {
+function mockRandomMeal({ mealDate, vendorIds, facilityId }) {
   const selectedIds = vendorIds?.length ? vendorIds.map(Number) : MOCK_VENDORS.map((v) => v.id);
-  const candidates = selectedIds.flatMap((vendorId) =>
+  const visibleVendorIds = selectedIds.filter((vendorId) => {
+    if (facilityId == null) return true;
+    const vendor = MOCK_VENDORS.find((v) => v.id === vendorId);
+    return vendor?.served_facilities?.some((facility) => facility.id === Number(facilityId));
+  });
+  const candidates = visibleVendorIds.flatMap((vendorId) =>
     (MOCK_MENU[vendorId] ?? [])
       .filter((item) => item.available && item.daily_quota !== 0)
       .map((item) => ({
@@ -90,8 +120,8 @@ function mockRandomMeal({ mealDate, vendorIds }) {
   return candidates[Math.floor(Math.random() * candidates.length)];
 }
 
-export function drawRandomMeal({ mealDate, vendorIds }) {
-  const payload = { meal_date: mealDate };
+export function drawRandomMeal({ mealDate, vendorIds, facilityId }) {
+  const payload = { meal_date: mealDate, ...facilityPayload(facilityId) };
   if (vendorIds != null) payload.vendor_ids = vendorIds;
   return withMockFallback(
     () => apiFetch("/employee/random-meals/draw", {
@@ -99,6 +129,6 @@ export function drawRandomMeal({ mealDate, vendorIds }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     }),
-    () => mockRandomMeal({ mealDate, vendorIds }),
+    () => mockRandomMeal({ mealDate, vendorIds, facilityId }),
   );
 }

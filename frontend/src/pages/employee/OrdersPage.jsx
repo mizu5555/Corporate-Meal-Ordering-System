@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { deleteMyOrder, updateMyOrder } from "../../api/employee";
+import FacilityScopeLabel from "../../facility/FacilityScopeLabel";
 import { useMyOrders } from "../../hooks/useMyOrders";
 import { formatPrice } from "../../utils/format";
 
@@ -94,6 +95,7 @@ export default function OrdersPage() {
   return (
     <div>
       <div className="page-header">
+        <FacilityScopeLabel label="Current facility" />
         <p className="eyebrow">Employee · Orders</p>
         <h2>我的訂單</h2>
       </div>
