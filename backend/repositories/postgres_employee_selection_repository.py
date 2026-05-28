@@ -55,11 +55,13 @@ class PostgresEmployeeSelectionRepository:
         quantity: int,
         unit_price_cents: int,
         meal_date: date | None = None,
+        facility_id: int | None = None,
     ) -> MealSelection:
         order = self.create_order(
             employee_id=employee_id,
             vendor_id=vendor_id,
             meal_date=meal_date,
+            facility_id=facility_id,
             items=[
                 OrderItemSnapshot(
                     item_id=item_id,
@@ -75,6 +77,7 @@ class PostgresEmployeeSelectionRepository:
             order_id=order.id,
             employee_id=order.employee_id,
             vendor_id=order.vendor_id,
+            facility_id=order.facility_id,
             meal_date=order.meal_date,
             item_id=item.item_id,
             item_name=item.item_name,
@@ -91,6 +94,7 @@ class PostgresEmployeeSelectionRepository:
         vendor_id: int,
         items: list[OrderItemSnapshot],
         meal_date: date | None = None,
+        facility_id: int | None = None,
     ) -> EmployeeOrder:
         with get_connection() as conn:
             # ── Step 1: Acquire row locks and validate quota atomically ──────
@@ -181,12 +185,12 @@ class PostgresEmployeeSelectionRepository:
             total_price_cents = sum(s.quantity * s.unit_price_cents for s in items)
             order_row = conn.execute(
                 """
-                INSERT INTO orders (employee_id, vendor_id, meal_date, total_price_cents)
-                VALUES (%s, %s, %s, %s)
-                RETURNING id, employee_id, vendor_id, meal_date, status,
+                INSERT INTO orders (employee_id, vendor_id, facility_id, meal_date, total_price_cents)
+                VALUES (%s, %s, %s, %s, %s)
+                RETURNING id, employee_id, vendor_id, facility_id, meal_date, status,
                           total_price_cents, created_at, updated_at, cancelled_at
                 """,
-                (employee_id, vendor_id, meal_date, total_price_cents),
+                (employee_id, vendor_id, facility_id, meal_date, total_price_cents),
             ).fetchone()
             order_id = order_row["id"]
 
@@ -226,6 +230,7 @@ class PostgresEmployeeSelectionRepository:
                         order_id=order.id,
                         employee_id=order.employee_id,
                         vendor_id=order.vendor_id,
+                        facility_id=order.facility_id,
                         meal_date=order.meal_date,
                         item_id=item.item_id,
                         item_name=item.item_name,
@@ -237,17 +242,22 @@ class PostgresEmployeeSelectionRepository:
                 )
         return selections
 
-    def list_orders_by_vendor(self, *, vendor_id: int) -> list[EmployeeOrder]:
+    def list_orders_by_vendor(self, *, vendor_id: int, facility_id: int | None = None) -> list[EmployeeOrder]:
+        where = ["vendor_id = %s"]
+        values: list[object] = [vendor_id]
+        if facility_id is not None:
+            where.append("facility_id = %s")
+            values.append(facility_id)
         with get_connection() as conn:
             order_rows = conn.execute(
-                """
-                SELECT id, employee_id, vendor_id, meal_date, status,
+                f"""
+                SELECT id, employee_id, vendor_id, facility_id, meal_date, status,
                        total_price_cents, created_at, updated_at, cancelled_at
                 FROM orders
-                WHERE vendor_id = %s
+                WHERE {" AND ".join(where)}
                 ORDER BY id
                 """,
-                (vendor_id,),
+                values,
             ).fetchall()
             return [self._hydrate_order(conn, row) for row in order_rows]
 
@@ -255,7 +265,7 @@ class PostgresEmployeeSelectionRepository:
         with get_connection() as conn:
             row = conn.execute(
                 """
-                SELECT id, employee_id, vendor_id, meal_date, status,
+                SELECT id, employee_id, vendor_id, facility_id, meal_date, status,
                        total_price_cents, created_at, updated_at, cancelled_at
                 FROM orders
                 WHERE vendor_id = %s AND id = %s
@@ -275,7 +285,7 @@ class PostgresEmployeeSelectionRepository:
                     updated_at = NOW(),
                     cancelled_at = CASE WHEN %s = 'cancelled' THEN NOW() ELSE cancelled_at END
                 WHERE vendor_id = %s AND id = %s
-                RETURNING id, employee_id, vendor_id, meal_date, status,
+                RETURNING id, employee_id, vendor_id, facility_id, meal_date, status,
                           total_price_cents, created_at, updated_at, cancelled_at
                 """,
                 (new_status, new_status, vendor_id, order_id),
@@ -289,7 +299,7 @@ class PostgresEmployeeSelectionRepository:
             rows = conn.execute(
                 """
                 SELECT oi.id, o.id AS order_id, o.employee_id, o.vendor_id,
-                       o.meal_date, oi.item_id, oi.item_name, oi.quantity,
+                       o.facility_id, o.meal_date, oi.item_id, oi.item_name, oi.quantity,
                        oi.unit_price_cents, o.created_at
                 FROM orders o
                 JOIN order_items oi ON oi.order_id = o.id
@@ -304,7 +314,7 @@ class PostgresEmployeeSelectionRepository:
         with get_connection() as conn:
             order_rows = conn.execute(
                 """
-                SELECT id, employee_id, vendor_id, meal_date, status,
+                SELECT id, employee_id, vendor_id, facility_id, meal_date, status,
                        total_price_cents, created_at, updated_at, cancelled_at
                 FROM orders
                 WHERE employee_id = %s
@@ -318,7 +328,7 @@ class PostgresEmployeeSelectionRepository:
         with get_connection() as conn:
             row = conn.execute(
                 """
-                SELECT id, employee_id, vendor_id, meal_date, status,
+                SELECT id, employee_id, vendor_id, facility_id, meal_date, status,
                        total_price_cents, created_at, updated_at, cancelled_at
                 FROM orders
                 WHERE employee_id = %s AND id = %s
@@ -336,7 +346,7 @@ class PostgresEmployeeSelectionRepository:
                 UPDATE orders
                 SET status = 'cancelled', updated_at = NOW(), cancelled_at = NOW()
                 WHERE employee_id = %s AND id = %s AND status = 'pending'
-                RETURNING id, employee_id, vendor_id, meal_date, status,
+                RETURNING id, employee_id, vendor_id, facility_id, meal_date, status,
                           total_price_cents, created_at, updated_at, cancelled_at
                 """,
                 (employee_id, order_id),
@@ -344,7 +354,7 @@ class PostgresEmployeeSelectionRepository:
             if row is None:
                 row = conn.execute(
                     """
-                    SELECT id, employee_id, vendor_id, meal_date, status,
+                    SELECT id, employee_id, vendor_id, facility_id, meal_date, status,
                            total_price_cents, created_at, updated_at, cancelled_at
                     FROM orders
                     WHERE employee_id = %s AND id = %s
@@ -362,11 +372,12 @@ class PostgresEmployeeSelectionRepository:
         order_id: int,
         items: list[OrderItemSnapshot],
         meal_date: date | None = None,
+        facility_id: int | None = None,
     ) -> EmployeeOrder | None:
         with get_connection() as conn:
             order_row = conn.execute(
                 """
-                SELECT id, employee_id, vendor_id, meal_date, status,
+                SELECT id, employee_id, vendor_id, facility_id, meal_date, status,
                        total_price_cents, created_at, updated_at, cancelled_at
                 FROM orders
                 WHERE employee_id = %s AND id = %s
@@ -441,13 +452,14 @@ class PostgresEmployeeSelectionRepository:
                 """
                 UPDATE orders
                 SET meal_date = %s,
+                    facility_id = %s,
                     total_price_cents = %s,
                     updated_at = NOW()
                 WHERE employee_id = %s AND id = %s
-                RETURNING id, employee_id, vendor_id, meal_date, status,
+                RETURNING id, employee_id, vendor_id, facility_id, meal_date, status,
                           total_price_cents, created_at, updated_at, cancelled_at
                 """,
-                (meal_date, total_price_cents, employee_id, order_id),
+                (meal_date, facility_id, total_price_cents, employee_id, order_id),
             ).fetchone()
 
             conn.execute("DELETE FROM order_items WHERE order_id = %s", (order_id,))

@@ -10,7 +10,7 @@ from backend.core.vendor_identity import (
     require_approved_vendor,
 )
 from backend.repositories.vendor_profile_repository import VendorProfileRepository
-from backend.schemas.vendor_self import VendorProfile, VendorProfileUpdate
+from backend.schemas.vendor_self import Facility, VendorProfile, VendorProfileUpdate
 from backend.services.vendor_profile_service import VendorProfileService
 
 router = APIRouter(prefix="/vendor/me", tags=["vendor-self"])
@@ -30,6 +30,14 @@ def get_profile(
 ) -> VendorProfile:
     """取得目前登入商家的資料 (含唯讀的 served_facilities 廠區清單)。"""
     return service.get(vendor_id)
+
+
+@router.get("/facilities", response_model=list[Facility])
+def list_my_facilities(
+    vendor_id: Annotated[int, Depends(require_approved_vendor)],
+    service: Annotated[VendorProfileService, Depends(get_vendor_profile_service)],
+) -> list[Facility]:
+    return service.get(vendor_id).served_facilities
 
 
 @router.patch("/profile", response_model=VendorProfile)

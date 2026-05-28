@@ -167,6 +167,34 @@ def test_list_menu_same_facility_returns_200() -> None:
     assert resp.status_code == 200
 
 
+def test_select_meal_persists_employee_facility() -> None:
+    client, _, item_repo, _ = _setup()
+    item = item_repo.create(vendor_id=1, category_id=None, name="Soup", price_cents=80, available=True)
+
+    resp = client.post(
+        "/employee/vendors/1/selections",
+        headers=_h(101),
+        json={"item_id": item.id, "quantity": 1, "facility_id": 10},
+    )
+
+    assert resp.status_code == 201
+    assert resp.json()["facility_id"] == 10
+
+
+def test_select_meal_cross_facility_returns_404() -> None:
+    client, _, item_repo, _ = _setup()
+    item = item_repo.create(vendor_id=2, category_id=None, name="Fab Bowl", price_cents=120, available=True)
+
+    resp = client.post(
+        "/employee/vendors/2/selections",
+        headers=_h(101),
+        json={"item_id": item.id, "quantity": 1, "facility_id": 10},
+    )
+
+    assert resp.status_code == 404
+    assert resp.json()["code"] == "not_found"
+
+
 # ---------------------------------------------------------------------------
 # draw_random_meal facility filter
 # ---------------------------------------------------------------------------

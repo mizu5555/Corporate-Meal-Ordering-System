@@ -12,6 +12,9 @@ def _seed_vendor_repo() -> VendorProfileRepository:
     repo = VendorProfileRepository()
     repo.seed(VendorRecord(id=1, name="Alice Bento", status="approved", address="No. 1"))
     repo.seed(VendorRecord(id=2, name="Bob Noodles", status="approved", address="No. 2"))
+    repo.assign_facility(1, facility_id=10, code="F12A", name="Fab 12A")
+    repo.assign_facility(1, facility_id=20, code="F14B", name="Fab 14B")
+    repo.assign_facility(2, facility_id=20, code="F14B", name="Fab 14B")
     return repo
 
 
@@ -57,6 +60,42 @@ def test_list_returns_empty_when_no_orders() -> None:
     )
     assert resp.status_code == 200
     assert resp.json() == []
+
+
+def test_list_my_facilities_returns_vendor_facilities() -> None:
+    resp = _client(_seed_vendor_repo(), EmployeeSelectionRepository()).get(
+        "/vendor/me/facilities", headers=_vh(1)
+    )
+
+    assert resp.status_code == 200
+    assert resp.json() == [
+        {"id": 10, "code": "F12A", "name": "Fab 12A"},
+        {"id": 20, "code": "F14B", "name": "Fab 14B"},
+    ]
+
+
+def test_list_filters_orders_by_facility() -> None:
+    vendor_repo = _seed_vendor_repo()
+    selection_repo = EmployeeSelectionRepository()
+    selection_repo.create_order(employee_id=10, vendor_id=1, items=[], meal_date=None, facility_id=10)
+    selection_repo.create_order(employee_id=20, vendor_id=1, items=[], meal_date=None, facility_id=20)
+
+    resp = _client(vendor_repo, selection_repo).get("/vendor/me/orders?facility_id=10", headers=_vh(1))
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body) == 1
+    assert body[0]["facility_id"] == 10
+    assert body[0]["employee_id"] == 10
+
+
+def test_list_rejects_unserved_facility_filter() -> None:
+    resp = _client(_seed_vendor_repo(), EmployeeSelectionRepository()).get(
+        "/vendor/me/orders?facility_id=99", headers=_vh(1)
+    )
+
+    assert resp.status_code == 403
+    assert resp.json()["code"] == "forbidden"
 
 
 def test_list_requires_vendor_manager_role() -> None:

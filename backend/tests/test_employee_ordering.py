@@ -27,6 +27,8 @@ def _setup() -> tuple[TestClient, MenuItemRepository, EmployeeSelectionRepositor
     )
     vendor_repo.seed(VendorRecord(id=2, name="Pending Bento", status="pending"))
     vendor_repo.assign_facility(1, facility_id=10, code="F12A", name="Fab 12A")
+    vendor_repo.assign_employee_facility(100, facility_id=10, code="F12A", name="Fab 12A")
+    vendor_repo.assign_employee_facility(101, facility_id=20, code="F14B", name="Fab 14B")
 
     item_repo = MenuItemRepository()
     selection_repo = EmployeeSelectionRepository()
@@ -78,6 +80,15 @@ def test_get_vendor_returns_public_vendor_information() -> None:
     assert body["contact_phone"] == "0912-000-000"
 
 
+def test_list_my_facilities_returns_employee_assignments() -> None:
+    client, _, _ = _setup()
+
+    resp = client.get("/employee/me/facilities", headers=_h(100))
+
+    assert resp.status_code == 200
+    assert resp.json() == [{"id": 10, "code": "F12A", "name": "Fab 12A"}]
+
+
 def test_pending_vendor_is_hidden_from_employee() -> None:
     client, _, _ = _setup()
 
@@ -114,6 +125,7 @@ def test_select_meal_records_quantity_and_total_price() -> None:
     assert body["order_id"] is not None
     assert body["employee_id"] == 100
     assert body["vendor_id"] == 1
+    assert body["facility_id"] == 10
     assert body["item_id"] == item.id
     assert body["item_name"] == "Rice Bowl"
     assert body["quantity"] == 2
@@ -144,12 +156,41 @@ def test_create_order_records_multiple_items_and_total_price() -> None:
     body = resp.json()
     assert body["employee_id"] == 100
     assert body["vendor_id"] == 1
+    assert body["facility_id"] == 10
     assert body["status"] == "pending"
     assert body["total_price_cents"] == 280
     assert [(item["item_name"], item["quantity"]) for item in body["items"]] == [
         ("Rice Bowl", 2),
         ("Tea", 1),
     ]
+
+
+def test_create_order_rejects_vendor_outside_employee_facility() -> None:
+    client, item_repo, _ = _setup()
+    item = item_repo.create(vendor_id=1, name="Rice Bowl", price_cents=120)
+
+    resp = client.post(
+        "/employee/vendors/1/orders",
+        headers=_h(101),
+        json={"facility_id": 20, "items": [{"item_id": item.id, "quantity": 1}]},
+    )
+
+    assert resp.status_code == 404
+    assert resp.json()["code"] == "not_found"
+
+
+def test_create_order_rejects_unassigned_facility() -> None:
+    client, item_repo, _ = _setup()
+    item = item_repo.create(vendor_id=1, name="Rice Bowl", price_cents=120)
+
+    resp = client.post(
+        "/employee/vendors/1/orders",
+        headers=_h(100),
+        json={"facility_id": 20, "items": [{"item_id": item.id, "quantity": 1}]},
+    )
+
+    assert resp.status_code == 403
+    assert resp.json()["code"] == "forbidden"
 
 
 def test_my_orders_are_scoped_by_employee() -> None:

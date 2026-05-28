@@ -21,6 +21,7 @@ class _OrderRecord:
     id: int
     employee_id: int
     vendor_id: int
+    facility_id: int | None
     meal_date: date | None
     status: OrderStatus
     created_at: datetime
@@ -56,6 +57,7 @@ def _selection_to_schema(order: _OrderRecord, item: _OrderItemRecord) -> MealSel
         order_id=order.id,
         employee_id=order.employee_id,
         vendor_id=order.vendor_id,
+        facility_id=order.facility_id,
         meal_date=order.meal_date,
         item_id=item.item_id,
         item_name=item.item_name,
@@ -80,12 +82,14 @@ class EmployeeSelectionRepository:
         vendor_id: int,
         items: list[OrderItemSnapshot],
         meal_date: date | None = None,
+        facility_id: int | None = None,
     ) -> EmployeeOrder:
         now = datetime.now(timezone.utc)
         order = _OrderRecord(
             id=next(self._order_id_seq),
             employee_id=employee_id,
             vendor_id=vendor_id,
+            facility_id=facility_id,
             meal_date=meal_date,
             status="pending",
             created_at=now,
@@ -130,6 +134,7 @@ class EmployeeSelectionRepository:
             id=order.id,
             employee_id=order.employee_id,
             vendor_id=order.vendor_id,
+            facility_id=order.facility_id,
             meal_date=order.meal_date,
             status="cancelled",
             created_at=order.created_at,
@@ -145,6 +150,7 @@ class EmployeeSelectionRepository:
         order_id: int,
         items: list[OrderItemSnapshot],
         meal_date: date | None = None,
+        facility_id: int | None = None,
     ) -> EmployeeOrder | None:
         order = self._orders.get(order_id)
         if order is None or order.employee_id != employee_id:
@@ -155,6 +161,7 @@ class EmployeeSelectionRepository:
             id=order.id,
             employee_id=order.employee_id,
             vendor_id=order.vendor_id,
+            facility_id=facility_id,
             meal_date=meal_date,
             status=order.status,
             created_at=order.created_at,
@@ -188,11 +195,13 @@ class EmployeeSelectionRepository:
         quantity: int,
         unit_price_cents: int,
         meal_date: date | None = None,
+        facility_id: int | None = None,
     ) -> MealSelection:
         order = self.create_order(
             employee_id=employee_id,
             vendor_id=vendor_id,
             meal_date=meal_date,
+            facility_id=facility_id,
             items=[
                 OrderItemSnapshot(
                     item_id=item_id,
@@ -212,8 +221,10 @@ class EmployeeSelectionRepository:
             selections.extend(self._order_to_selection_schemas(order.id))
         return selections
 
-    def list_orders_by_vendor(self, *, vendor_id: int) -> list[EmployeeOrder]:
+    def list_orders_by_vendor(self, *, vendor_id: int, facility_id: int | None = None) -> list[EmployeeOrder]:
         rows = [r for r in self._orders.values() if r.vendor_id == vendor_id]
+        if facility_id is not None:
+            rows = [r for r in rows if r.facility_id == facility_id]
         rows.sort(key=lambda r: r.id)
         return [self._order_to_schema(r) for r in rows]
 
@@ -233,6 +244,7 @@ class EmployeeSelectionRepository:
             id=order.id,
             employee_id=order.employee_id,
             vendor_id=order.vendor_id,
+            facility_id=order.facility_id,
             meal_date=order.meal_date,
             status=new_status,
             created_at=order.created_at,
@@ -278,6 +290,7 @@ class EmployeeSelectionRepository:
             id=order.id,
             employee_id=order.employee_id,
             vendor_id=order.vendor_id,
+            facility_id=order.facility_id,
             meal_date=order.meal_date,
             status=order.status,
             items=schema_items,

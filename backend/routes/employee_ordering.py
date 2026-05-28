@@ -25,6 +25,7 @@ from backend.schemas.employee import (
     RandomMealDraw,
     RandomMealDrawRequest,
 )
+from backend.schemas.vendor_self import Facility
 from backend.services.employee_ordering_service import EmployeeOrderingService
 from backend.services.notification_service import NotificationService
 
@@ -52,8 +53,9 @@ def get_employee_ordering_service(
 def list_vendors(
     employee_id: Annotated[int, Depends(require_employee)],
     service: Annotated[EmployeeOrderingService, Depends(get_employee_ordering_service)],
+    facility_id: Annotated[int | None, Query()] = None,
 ) -> list[EmployeeVendor]:
-    return service.list_vendors(employee_id=employee_id)
+    return service.list_vendors(employee_id=employee_id, facility_id=facility_id)
 
 
 @router.get("/vendors/{vendor_id}", response_model=EmployeeVendor)
@@ -61,8 +63,9 @@ def get_vendor(
     vendor_id: int,
     employee_id: Annotated[int, Depends(require_employee)],
     service: Annotated[EmployeeOrderingService, Depends(get_employee_ordering_service)],
+    facility_id: Annotated[int | None, Query()] = None,
 ) -> EmployeeVendor:
-    return service.get_vendor(vendor_id, employee_id=employee_id)
+    return service.get_vendor(vendor_id, employee_id=employee_id, facility_id=facility_id)
 
 
 @router.get("/vendors/{vendor_id}/menu", response_model=list[EmployeeMenuItem])
@@ -72,13 +75,23 @@ def list_menu(
     service: Annotated[EmployeeOrderingService, Depends(get_employee_ordering_service)],
     category_id: Annotated[int | None, Query()] = None,
     available: Annotated[bool | None, Query()] = True,
+    facility_id: Annotated[int | None, Query()] = None,
 ) -> list[EmployeeMenuItem]:
     return service.list_menu(
         vendor_id,
         category_id=category_id,
         available=available,
         employee_id=employee_id,
+        facility_id=facility_id,
     )
+
+
+@router.get("/me/facilities", response_model=list[Facility])
+def list_my_facilities(
+    employee_id: Annotated[int, Depends(require_employee)],
+    service: Annotated[EmployeeOrderingService, Depends(get_employee_ordering_service)],
+) -> list[Facility]:
+    return service.list_employee_facilities(employee_id)
 
 
 @router.post("/random-meals/draw", response_model=RandomMealDraw)
