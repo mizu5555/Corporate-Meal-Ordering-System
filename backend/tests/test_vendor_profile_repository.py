@@ -38,3 +38,10 @@ def test_assign_and_list_facilities() -> None:
     repo.assign_facility(1, facility_id=11, code="F14B", name="Fab 14B")
     facilities = repo.list_facilities(1)
     assert {f.code for f in facilities} == {"F12A", "F14B"}
+
+def test_employee_facilities_are_deduplicated() -> None:
+    repo = VendorProfileRepository()
+    repo.assign_employee_facility(100, facility_id=10, code="F12A", name="Fab 12A")
+    repo.assign_employee_facility(100, facility_id=10, code="F12A", name="Fab 12A")
+
+    assert [facility.code for facility in repo.list_employee_facilities(100)] == ["F12A"]

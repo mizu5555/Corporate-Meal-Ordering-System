@@ -15,6 +15,8 @@ from backend.routes.vendor_menu import get_menu_item_repository
 def _setup() -> tuple[TestClient, MenuItemRepository, EmployeeSelectionRepository, NotificationRepository]:
     vendor_repo = VendorProfileRepository()
     vendor_repo.seed(VendorRecord(id=1, name="Alice Bento", status="approved"))
+    vendor_repo.assign_facility(1, facility_id=10, code="F12A", name="Fab 12A")
+    vendor_repo.assign_employee_facility(100, facility_id=10, code="F12A", name="Fab 12A")
 
     item_repo = MenuItemRepository()
     selection_repo = EmployeeSelectionRepository()

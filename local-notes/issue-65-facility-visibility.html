@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Issue 65 - Facility Visibility</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #18202a;
+      --muted: #5b6573;
+      --line: #d8dee8;
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --accent: #146c63;
+      --warn: #8a5a00;
+      --code: #eef2f5;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, "Microsoft JhengHei", sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      line-height: 1.55;
+    }
+
+    main {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 32px 24px 48px;
+    }
+
+    header {
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 20px;
+      margin-bottom: 24px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 30px;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 0 0 12px;
+      font-size: 20px;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 0;
+    }
+
+    .meta {
+      color: var(--muted);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+    }
+
+    section {
+      margin-top: 16px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 18px;
+    }
+
+    ul {
+      margin: 0;
+      padding-left: 20px;
+    }
+
+    li + li {
+      margin-top: 8px;
+    }
+
+    code {
+      background: var(--code);
+      border-radius: 4px;
+      padding: 2px 5px;
+      font-family: Consolas, monospace;
+      font-size: 0.95em;
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 10px;
+      margin-top: 8px;
+    }
+
+    .step {
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--accent);
+      border-radius: 6px;
+      padding: 10px;
+      background: #fbfcfd;
+    }
+
+    .label {
+      display: inline-block;
+      color: var(--accent);
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .warning {
+      border-left: 4px solid var(--warn);
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Issue 65 - 廠區標籤與員工商家可見性</h1>
+      <div class="meta">
+        <span>Branch: <code>issue-65-facility-visibility</code></span>
+        <span>Base: <code>main @ 6b1f594</code></span>
+        <span>Issue: <code>#65</code></span>
+      </div>
+    </header>
+
+    <section>
+      <h2>這次解決什麼</h2>
+      <p>
+        系統原本有商家的 <code>vendor_facilities</code>，但沒有員工端的廠區歸屬。
+        本次新增 <code>employee_facilities</code>，並把員工端瀏覽、查看菜單、下單與隨機餐點都收斂到
+        「員工廠區與商家服務廠區有交集」才可見。
+      </p>
+    </section>
+
+    <div class="grid">
+      <section>
+        <h2>DB 變更</h2>
+        <ul>
+          <li>新增 <code>backend/db/migrations/006_employee_facility_visibility.sql</code>。</li>
+          <li>新增 <code>employee_facilities(user_id, facility_id)</code> 關聯表。</li>
+          <li>補上 <code>idx_employee_facilities_facility_id</code> 索引。</li>
+          <li>Seed demo 廠區 <code>F12A</code>、<code>F14B</code>。</li>
+          <li>Demo employee 與 Sunny Kitchen 都綁到 <code>F12A</code>，確保預設資料可正常瀏覽。</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>後端行為</h2>
+        <ul>
+          <li>Repository 新增員工廠區指派與 <code>list_for_employee</code> 查詢。</li>
+          <li><code>GET /employee/vendors</code> 只回傳同廠區核准商家。</li>
+          <li>商家詳情與菜單若跨廠區，回 <code>404 not_found</code>。</li>
+          <li>下單、選餐、更新訂單會檢查目前員工是否仍可見該商家。</li>
+          <li>Random meal draw 只會從員工可見商家挑餐點。</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>測試案例</h2>
+        <ul>
+          <li>同廠區員工可以看到核准商家。</li>
+          <li>沒有廠區的員工看不到商家。</li>
+          <li>跨廠區商家詳情與菜單會被隱藏。</li>
+          <li>跨廠區下單會被拒絕。</li>
+          <li>Repository 會依員工/商家廠區交集篩選，並去重廠區資料。</li>
+        </ul>
+      </section>
+    </div>
+
+    <section>
+      <h2>可見性流程</h2>
+      <div class="flow">
+        <div class="step">
+          <span class="label">1. 員工登入</span>
+          <p>API 透過 JWT 或測試 header 取得 <code>employee_id</code>。</p>
+        </div>
+        <div class="step">
+          <span class="label">2. 查廠區</span>
+          <p>從 <code>employee_facilities</code> 找員工所屬廠區。</p>
+        </div>
+        <div class="step">
+          <span class="label">3. 比對商家</span>
+          <p>商家必須同時是 <code>approved</code> 且有共同 <code>facility_id</code>。</p>
+        </div>
+        <div class="step">
+          <span class="label">4. 回傳或拒絕</span>
+          <p>符合者可瀏覽與下單，不符合者以 <code>404</code> 隱藏。</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="warning">
+      <h2>驗證指令</h2>
+      <ul>
+        <li><code>pytest backend/tests/test_vendor_profile_repository.py backend/tests/test_employee_ordering.py backend/tests/test_notifications.py</code></li>
+        <li><code>pytest backend/tests --basetemp .tmp/pytest</code></li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>
