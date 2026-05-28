@@ -177,9 +177,9 @@ export default function AdminPermissionsPage() {
             }}
           >
             <span>用戶</span>
-            <span>角色</span>
-            <span>狀態</span>
-            <span>建立日期</span>
+            <span style={{ textAlign: "center" }}>角色</span>
+            <span style={{ textAlign: "center" }}>狀態</span>
+            <span style={{ textAlign: "center" }}>建立日期</span>
             <span></span>
             <span style={{ textAlign: "right" }}>操作</span>
           </div>
@@ -200,11 +200,11 @@ export default function AdminPermissionsPage() {
                 <p style={{ margin: 0, fontWeight: 500, fontSize: 14 }}>{u.display_name}</p>
                 <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--muted)" }}>{u.email}</p>
               </div>
-              <p style={{ margin: 0, fontSize: 13 }}>{ROLE_LABELS[u.role] ?? u.role}</p>
-              <div>
+              <p style={{ margin: 0, fontSize: 13, textAlign: "center" }}>{ROLE_LABELS[u.role] ?? u.role}</p>
+              <div style={{ textAlign: "center" }}>
                 <StatusBadge isActive={u.is_active} />
               </div>
-              <p style={{ margin: 0, fontSize: 13, color: "var(--muted)" }}>{formatDate(u.created_at)}</p>
+              <p style={{ margin: 0, fontSize: 13, color: "var(--muted)", textAlign: "center" }}>{formatDate(u.created_at)}</p>
               <div />
               <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
                 {!isSelf(u.id) && u.is_active && (
