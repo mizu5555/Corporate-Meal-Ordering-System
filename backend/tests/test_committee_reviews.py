@@ -1,6 +1,9 @@
 from fastapi.testclient import TestClient
 
+from backend.core.audit import get_audit_log_repository
+from backend.core.rbac import get_current_user_id
 from backend.main import app
+from backend.repositories.audit_log_repository import AuditLogRepository
 from backend.repositories.committee_review_repository import CommitteeReviewRecord, CommitteeReviewRepository
 from backend.routes.committee_reviews import get_committee_review_repository
 
@@ -73,6 +76,31 @@ def test_committee_reviewer_can_record_decision() -> None:
     assert response.status_code == 202
     assert response.json()["status"] == "approved"
     assert repo.get(1).status == "approved"
+
+
+def test_committee_decision_records_audit_entry_with_actor() -> None:
+    _setup_repo()
+    audit_repo = AuditLogRepository()
+    app.dependency_overrides[get_audit_log_repository] = lambda: audit_repo
+    app.dependency_overrides[get_current_user_id] = lambda: 77
+
+    response = client.post(
+        "/committee/reviews/1/decision",
+        json={"decision": "approved", "reason": "looks good"},
+        headers={"x-user-role": "committee_reviewer", "x-user-id": "77"},
+    )
+
+    assert response.status_code == 202
+
+    entries = audit_repo.list(action="committee.review")
+    assert len(entries) == 1
+    entry = entries[0]
+    assert entry.action == "committee.review"
+    assert entry.target_type == "committee_review"
+    assert entry.target_id == 1
+    assert entry.actor_user_id == 77
+    assert entry.actor_role == "committee_reviewer"
+    assert entry.metadata == {"decision": "approved", "reason": "looks good"}
 
 
 def test_unknown_committee_review_returns_404() -> None:
