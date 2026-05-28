@@ -1,6 +1,12 @@
 pipeline {
   agent any
 
+  parameters {
+    string(name: 'IMAGE_TAG',  defaultValue: '', description: 'GHCR image tag, e.g. pr-42')
+    string(name: 'PR_NUMBER',  defaultValue: '', description: 'PR number for slot/comment')
+    string(name: 'PR_BRANCH',  defaultValue: '', description: 'PR head branch for slug')
+  }
+
   options {
     disableConcurrentBuilds()
     timeout(time: 20, unit: 'MINUTES')
@@ -8,97 +14,85 @@ pipeline {
   }
 
   environment {
-    PROJECT_PREFIX  = 'mealorder'
-    PREVIEW_LIMIT   = '3'
-    PUBLIC_BASE     = 'https://nol.cs.nycu.edu.tw'
+    PROJECT_PREFIX = 'mealorder'
+    PREVIEW_LIMIT  = '3'
+    PUBLIC_BASE    = 'https://nol.cs.nycu.edu.tw'
   }
 
   stages {
+    stage('Validate params') {
+      steps {
+        script {
+          if (!params.IMAGE_TAG?.trim() || !params.PR_BRANCH?.trim()) {
+            error('IMAGE_TAG and PR_BRANCH are required (triggered by GitHub Actions).')
+          }
+        }
+      }
+    }
+
     stage('Checkout') {
-      when { changeRequest() }
       steps { checkout scm }
     }
 
     stage('Deploy preview') {
-      when { changeRequest() }
-      environment {
-        BRANCH_RAW = "${env.CHANGE_BRANCH}"
-      }
       steps {
-        withCredentials([usernamePassword(credentialsId: 'github-token-eason', usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN')]) {
+        withCredentials([
+          usernamePassword(credentialsId: 'github-token-eason', usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN'),
+          usernamePassword(credentialsId: 'ghcr-pull', usernameVariable: 'GHCR_USER', passwordVariable: 'GHCR_TOKEN')
+        ]) {
           sh '''
             set -euo pipefail
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
 
-            if [ -z "${BRANCH_RAW:-}" ]; then
-              echo "BRANCH_RAW empty; refusing to deploy" >&2
-              exit 2
-            fi
-
-            SLUG=$(bash scripts/preview-sanitize-branch.sh "$BRANCH_RAW")
+            SLUG=$(bash scripts/preview-sanitize-branch.sh "$PR_BRANCH")
             if [ -z "$SLUG" ]; then
-              gh pr comment "$CHANGE_ID" --repo "$CHANGE_URL" --body "Preview deploy aborted: branch name '$BRANCH_RAW' produces empty slug." || true
-              echo "empty SLUG from sanitize" >&2
-              exit 2
+              gh pr comment "$PR_NUMBER" --body "Preview aborted: branch '$PR_BRANCH' produces empty slug." || true
+              echo "empty SLUG" >&2; exit 2
             fi
 
             PROJECT="${PROJECT_PREFIX}-${SLUG}"
             ROOT_PATH="/meal-preview/${SLUG}"
+            BASE_PATH="${ROOT_PATH}/"
 
-            docker network inspect preview-net >/dev/null 2>&1 \
-              || docker network create preview-net
+            docker network inspect preview-net >/dev/null 2>&1 || docker network create preview-net
 
-            # Slot check — count active preview stacks excluding stable ones.
             COUNT=$(docker compose ls --filter name=${PROJECT_PREFIX}- --format json \
               | jq --arg p "$PROJECT_PREFIX" --arg this "$PROJECT" '
-                  [.[]
-                    | select(.Name != $this)
-                    | select(.Name != ($p + "-main"))
-                    | select(.Name != ($p + "-staging"))
-                    | select(.Name != ($p + "-prod"))
-                  ] | length')
+                  [.[] | select(.Name != $this)
+                       | select(.Name != ($p + "-main"))
+                       | select(.Name != ($p + "-staging"))
+                       | select(.Name != ($p + "-prod"))] | length')
             if [ "$COUNT" -ge "$PREVIEW_LIMIT" ]; then
-              gh pr comment "$CHANGE_ID" --body "Preview slot full ($COUNT/$PREVIEW_LIMIT). Will retry on next push." || true
-              echo "preview slot full" >&2
-              exit 0
+              gh pr comment "$PR_NUMBER" --body "Preview slot full ($COUNT/$PREVIEW_LIMIT). Retry on next push." || true
+              echo "slot full" >&2; exit 0
             fi
 
-            BRANCH_RAW="$BRANCH_RAW" \
-            ROOT_PATH="$ROOT_PATH" \
-            SLUG="$SLUG" \
+            IMAGE_TAG="${IMAGE_TAG}" BRANCH_RAW="$PR_BRANCH" ROOT_PATH="$ROOT_PATH" BASE_PATH="$BASE_PATH" SLUG="$SLUG" \
             GATEWAY_CONTAINER_NAME="mealorder-${SLUG}-gateway" \
-              docker compose \
-                -p "$PROJECT" \
-                -f docker-compose.yml \
-                -f infra/deploy/docker-compose.preview.yml \
+              docker compose -p "$PROJECT" \
+                -f docker-compose.yml -f infra/deploy/docker-compose.preview.yml \
                 down -v --remove-orphans || true
 
-            BRANCH_RAW="$BRANCH_RAW" \
-            ROOT_PATH="$ROOT_PATH" \
-            BASE_PATH="${ROOT_PATH}/" \
-            SLUG="$SLUG" \
+            IMAGE_TAG="${IMAGE_TAG}" BRANCH_RAW="$PR_BRANCH" ROOT_PATH="$ROOT_PATH" BASE_PATH="$BASE_PATH" SLUG="$SLUG" \
             GATEWAY_CONTAINER_NAME="mealorder-${SLUG}-gateway" \
-              docker compose \
-                -p "$PROJECT" \
-                -f docker-compose.yml \
-                -f infra/deploy/docker-compose.preview.yml \
-                up -d --build
+              docker compose -p "$PROJECT" \
+                -f docker-compose.yml -f infra/deploy/docker-compose.preview.yml pull
+
+            IMAGE_TAG="${IMAGE_TAG}" BRANCH_RAW="$PR_BRANCH" ROOT_PATH="$ROOT_PATH" BASE_PATH="$BASE_PATH" SLUG="$SLUG" \
+            GATEWAY_CONTAINER_NAME="mealorder-${SLUG}-gateway" \
+              docker compose -p "$PROJECT" \
+                -f docker-compose.yml -f infra/deploy/docker-compose.preview.yml up -d
 
             URL="${PUBLIC_BASE}/meal-preview/${SLUG}/"
-
-            # Smoke check — retry health up to 60s.
             ok=0
             for i in $(seq 1 30); do
-              if curl -fsS "${URL}health" >/dev/null; then
-                ok=1
-                break
-              fi
+              if curl -fsS "${URL}health" >/dev/null; then ok=1; break; fi
               sleep 2
             done
-
             if [ "$ok" -eq 1 ]; then
-              gh pr comment "$CHANGE_ID" --body "Preview ready: ${URL} (health: ${URL}health)" || true
+              gh pr comment "$PR_NUMBER" --body "Preview ready: ${URL} (health: ${URL}health)" || true
             else
-              gh pr comment "$CHANGE_ID" --body "Preview deploy reached but /health failed after 60s. Check Jenkins console for ${PROJECT}." || true
+              gh pr comment "$PR_NUMBER" --body "Preview reached but /health failed after 60s. Check Jenkins for ${PROJECT}." || true
               docker compose -p "$PROJECT" logs --tail=200 >&2 || true
               exit 1
             fi
@@ -108,7 +102,5 @@ pipeline {
     }
   }
 
-  post {
-    always { cleanWs() }
-  }
+  post { always { cleanWs() } }
 }
