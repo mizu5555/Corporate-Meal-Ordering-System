@@ -91,7 +91,7 @@ jobs:
       - name: Run tests with coverage
         run: pytest backend/tests --cov=backend --cov-report=xml -q
       - name: SonarCloud scan
-        uses: SonarSource/sonarqube-scan-action@v4
+        uses: SonarSource/sonarqube-scan-action@v6
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
