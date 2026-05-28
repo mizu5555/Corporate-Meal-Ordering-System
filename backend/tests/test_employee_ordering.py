@@ -41,8 +41,9 @@ def _h(user_id: int = 100) -> dict[str, str]:
     return {"x-user-role": "employee", "x-user-id": str(user_id)}
 
 
-def _browse_h() -> dict[str, str]:
-    return {"x-user-role": "employee"}
+def _browse_h(user_id: int = 999) -> dict[str, str]:
+    """Browse headers — employee role + user-id (facility filter requires identity)."""
+    return {"x-user-role": "employee", "x-user-id": str(user_id)}
 
 
 def _meal_date(days_from_today: int = 0) -> str:

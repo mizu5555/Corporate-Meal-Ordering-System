@@ -6,7 +6,7 @@ from typing import Annotated
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, Response, status
 
 from backend.core.config import settings
-from backend.core.employee_identity import require_employee, require_employee_role
+from backend.core.employee_identity import require_employee
 from backend.core.vendor_identity import get_vendor_profile_repository
 from backend.repositories.employee_selection_repository import EmployeeSelectionRepository
 from backend.repositories.menu_item_repository import MenuItemRepository
@@ -50,39 +50,44 @@ def get_employee_ordering_service(
 
 @router.get("/vendors", response_model=list[EmployeeVendor])
 def list_vendors(
-    _employee_role: Annotated[None, Depends(require_employee_role)],
+    employee_id: Annotated[int, Depends(require_employee)],
     service: Annotated[EmployeeOrderingService, Depends(get_employee_ordering_service)],
 ) -> list[EmployeeVendor]:
-    return service.list_vendors()
+    return service.list_vendors(employee_id=employee_id)
 
 
 @router.get("/vendors/{vendor_id}", response_model=EmployeeVendor)
 def get_vendor(
     vendor_id: int,
-    _employee_role: Annotated[None, Depends(require_employee_role)],
+    employee_id: Annotated[int, Depends(require_employee)],
     service: Annotated[EmployeeOrderingService, Depends(get_employee_ordering_service)],
 ) -> EmployeeVendor:
-    return service.get_vendor(vendor_id)
+    return service.get_vendor(vendor_id, employee_id=employee_id)
 
 
 @router.get("/vendors/{vendor_id}/menu", response_model=list[EmployeeMenuItem])
 def list_menu(
     vendor_id: int,
-    _employee_role: Annotated[None, Depends(require_employee_role)],
+    employee_id: Annotated[int, Depends(require_employee)],
     service: Annotated[EmployeeOrderingService, Depends(get_employee_ordering_service)],
     category_id: Annotated[int | None, Query()] = None,
     available: Annotated[bool | None, Query()] = True,
 ) -> list[EmployeeMenuItem]:
-    return service.list_menu(vendor_id, category_id=category_id, available=available)
+    return service.list_menu(
+        vendor_id,
+        category_id=category_id,
+        available=available,
+        employee_id=employee_id,
+    )
 
 
 @router.post("/random-meals/draw", response_model=RandomMealDraw)
 def draw_random_meal(
     payload: RandomMealDrawRequest,
-    _employee_role: Annotated[None, Depends(require_employee_role)],
+    employee_id: Annotated[int, Depends(require_employee)],
     service: Annotated[EmployeeOrderingService, Depends(get_employee_ordering_service)],
 ) -> RandomMealDraw:
-    return service.draw_random_meal(payload)
+    return service.draw_random_meal(payload, employee_id=employee_id)
 
 
 @router.post("/vendors/{vendor_id}/selections", response_model=MealSelection, status_code=status.HTTP_201_CREATED)
