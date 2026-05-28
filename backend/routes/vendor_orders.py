@@ -6,8 +6,10 @@ from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, Query
 
+from backend.core.audit import get_audit_log_repository
 from backend.core.errors import CodedHTTPException
 from backend.core.vendor_identity import get_vendor_profile_repository, require_approved_vendor
+from backend.repositories.audit_log_repository import AuditLogRepository
 from backend.repositories.employee_selection_repository import EmployeeSelectionRepository
 from backend.repositories.vendor_profile_repository import VendorProfileRepository
 from backend.routes.employee_ordering import get_employee_selection_repository
@@ -22,8 +24,9 @@ router = APIRouter(prefix="/vendor/me/orders", tags=["vendor-self"])
 def get_vendor_order_service(
     selection_repo: Annotated[EmployeeSelectionRepository, Depends(get_employee_selection_repository)],
     vendor_repo: Annotated[VendorProfileRepository, Depends(get_vendor_profile_repository)],
+    audit_repo: Annotated[AuditLogRepository, Depends(get_audit_log_repository)],
 ) -> VendorOrderService:
-    return VendorOrderService(selection_repo, vendor_repo)
+    return VendorOrderService(selection_repo, vendor_repo, audit_repo)
 
 
 def optional_header_user_id(x_user_id: Annotated[str | None, Header()] = None) -> int | None:
@@ -102,9 +105,10 @@ def update_vendor_order_status(
     payload: VendorOrderStatusUpdate,
     background_tasks: BackgroundTasks,
     vendor_id: Annotated[int, Depends(require_approved_vendor)],
+    actor_user_id: Annotated[int | None, Depends(optional_header_user_id)],
     service: Annotated[VendorOrderService, Depends(get_vendor_order_service)],
     notification_service: Annotated[NotificationService, Depends(get_notification_service)],
 ) -> EmployeeOrder:
-    order = service.update_status(vendor_id, order_id, payload.status)
+    order = service.update_status(vendor_id, order_id, payload.status, actor_user_id=actor_user_id)
     background_tasks.add_task(notification_service.create_order_status_updated, order)
     return order
