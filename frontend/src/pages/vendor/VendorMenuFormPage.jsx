@@ -24,11 +24,12 @@ function formToData(form) {
 export default function VendorMenuFormPage() {
   const { itemId } = useParams();
   const navigate = useNavigate();
-  const { getItem, addItem, updateItem, uploadPhoto, removePhoto } = useVendorMenu();
+  const { getItem, loading, addItem, updateItem, uploadPhoto, removePhoto } = useVendorMenu();
   const isEdit = Boolean(itemId);
 
   const [form, setForm] = useState(EMPTY_FORM);
   const [error, setError] = useState(null);
+  const [notFound, setNotFound] = useState(false);
 
   // Photo state — edit mode only
   const photoInputRef = useRef(null);
@@ -36,8 +37,12 @@ export default function VendorMenuFormPage() {
 
   useEffect(() => {
     if (!isEdit) return;
+    // Wait for the menu to finish loading before deciding the item is missing —
+    // otherwise a refresh / deep link redirects away before data arrives.
+    if (loading) return;
     const item = getItem(Number(itemId));
-    if (!item) { navigate("/vendor/menu"); return; }
+    if (!item) { setNotFound(true); return; }
+    setNotFound(false);
     setForm({
       name: item.name,
       description: item.description ?? "",
@@ -45,7 +50,7 @@ export default function VendorMenuFormPage() {
       available: item.available,
       daily_quota: item.daily_quota === null || item.daily_quota === undefined ? "" : String(item.daily_quota),
     });
-  }, [isEdit, itemId, navigate, getItem]);
+  }, [isEdit, itemId, loading, getItem]);
 
   function handleChange(e) {
     const { name, value, type, checked } = e.target;
@@ -106,6 +111,33 @@ export default function VendorMenuFormPage() {
   const currentItem = isEdit ? getItem(Number(itemId)) : null;
   const currentPhotoUrl = photoUrl(currentItem?.photo_path, currentItem?._photo_v);
   const photoBusy = photoState !== "idle";
+
+  if (isEdit && loading) {
+    return (
+      <div>
+        <div className="page-header">
+          <p className="eyebrow">Vendor · Menu</p>
+          <h2>編輯餐點</h2>
+        </div>
+        <p className="panel-copy">載入中…</p>
+      </div>
+    );
+  }
+
+  if (isEdit && notFound) {
+    return (
+      <div>
+        <div className="page-header">
+          <p className="eyebrow">Vendor · Menu</p>
+          <h2>編輯餐點</h2>
+        </div>
+        <p className="error-state" style={{ marginBottom: 16 }}>找不到此餐點，可能已被刪除。</p>
+        <button className="ghost-button" type="button" onClick={() => navigate("/vendor/menu")}>
+          返回菜單
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div>
