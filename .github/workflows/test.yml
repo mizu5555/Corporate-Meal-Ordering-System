@@ -58,6 +58,43 @@ jobs:
       - name: Run integration tests
         run: pytest backend/tests/integration -q
 
+  sonar:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: mealorder
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/mealorder
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install -r requirements.txt psycopg[binary]
+      - name: Apply schema
+        run: |
+          PGPASSWORD=postgres psql -h localhost -U postgres -d mealorder \
+            -f backend/db/migrations/001_initial_schema.sql
+      - name: Run tests with coverage
+        run: pytest backend/tests --cov=backend --cov-report=xml -q
+      - name: SonarCloud scan
+        uses: SonarSource/sonarqube-scan-action@v6
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
   meta:
     runs-on: ubuntu-latest
     outputs:
