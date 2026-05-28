@@ -37,7 +37,7 @@ pipeline {
 
     stage('GHCR login & pull') {
       steps {
-        withCredentials([usernamePassword(credentialsId: 'github-token-eason', usernameVariable: 'GHCR_USER', passwordVariable: 'GHCR_TOKEN')]) {
+        withCredentials([usernamePassword(credentialsId: 'github-token', usernameVariable: 'GHCR_USER', passwordVariable: 'GHCR_TOKEN')]) {
           sh '''
             set -euo pipefail
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin

@@ -257,16 +257,16 @@ and do not double-trigger alongside the new token-triggered jobs.
 **`meal-deploy-cleanup`** (or `mealorder-cleanup`)
 
 - Keep as-is with its cron trigger; no token trigger needed.
-- Ensure its PAT credential (`github-token-eason`) has `delete:packages` scope — see §11.3.
+- Ensure its PAT credential (`github-token`) has `delete:packages` scope — see §11.3.
 
 ### 11.3 Jenkins credentials
 
 Go to **Manage Jenkins → Credentials** (the appropriate domain/store). The existing
-`github-token-eason` credential is reused for everything — no new credential is needed:
+`github-token` credential is reused for everything — no new credential is needed:
 
 | Credential ID | Type | Details |
 |---|---|---|
-| `github-token-eason` | Username + password | The existing credential, reused. **Extend** its backing PAT to include `read:packages` (so all three deploy jobs can `docker login ghcr.io` and pull) and `delete:packages` (so the cleanup job can delete closed-PR `pr-*` images), in addition to its existing `repo` scope (PR comments). Since these are *added* scopes on a classic token, the token string is unchanged — **no Jenkins credential update is required**, only the GitHub scope edit. |
+| `github-token` | Username + password | The existing credential, reused. **Extend** its backing PAT to include `read:packages` (so all three deploy jobs can `docker login ghcr.io` and pull) and `delete:packages` (so the cleanup job can delete closed-PR `pr-*` images), in addition to its existing `repo` scope (PR comments). Since these are *added* scopes on a classic token, the token string is unchanged — **no Jenkins credential update is required**, only the GitHub scope edit. |
 
 ### 11.4 GHCR package permissions
 
@@ -279,7 +279,7 @@ For each package:
 1. Go to `https://github.com/orgs/mizu5555/packages` (or the user's packages page).
 2. Open the package → **Package settings**.
 3. Under **Manage Actions access**, confirm the `mizu5555/Corporate-Meal-Ordering-System` repo has **Write** access (needed so Actions can push).
-4. Confirm the `github-token-eason` PAT account has **Read** (pull) and **delete** (cleanup) capability for the package.
+4. Confirm the `github-token` PAT account has **Read** (pull) and **delete** (cleanup) capability for the package.
 
 ### 11.5 Branch protection — update required status check name
 

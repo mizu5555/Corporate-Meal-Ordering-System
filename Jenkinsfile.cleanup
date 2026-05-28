@@ -28,7 +28,7 @@ pipeline {
 
     stage('Hourly sweep') {
       steps {
-        withCredentials([usernamePassword(credentialsId: 'github-token-eason', usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN')]) {
+        withCredentials([usernamePassword(credentialsId: 'github-token', usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN')]) {
           sh '''
             set -euo pipefail
             bash scripts/sweep-stale-stacks.sh
@@ -39,7 +39,7 @@ pipeline {
 
     stage('Prune GHCR pr-* tags') {
       steps {
-        withCredentials([usernamePassword(credentialsId: 'github-token-eason', usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN')]) {
+        withCredentials([usernamePassword(credentialsId: 'github-token', usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN')]) {
           sh '''
             set -euo pipefail
             OWNER=mizu5555
