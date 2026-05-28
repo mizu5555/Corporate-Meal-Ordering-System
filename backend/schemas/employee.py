@@ -35,6 +35,7 @@ class MealSelectionCreate(BaseModel):
     item_id: int
     quantity: int = Field(ge=1)
     meal_date: date | None = None
+    facility_id: int | None = None
 
 
 class MealSelection(BaseModel):
@@ -42,6 +43,7 @@ class MealSelection(BaseModel):
     order_id: int | None = None
     employee_id: int
     vendor_id: int
+    facility_id: int | None = None
     meal_date: date | None = None
     item_id: int
     item_name: str
@@ -66,11 +68,13 @@ class EmployeeOrderItemCreate(BaseModel):
 class EmployeeOrderCreate(BaseModel):
     items: list[EmployeeOrderItemCreate] = Field(min_length=1)
     meal_date: date | None = None
+    facility_id: int | None = None
 
 
 class EmployeeOrderUpdate(BaseModel):
     items: list[EmployeeOrderItemCreate] = Field(min_length=1)
     meal_date: date | None = None
+    facility_id: int | None = None
 
 
 class EmployeeOrderItem(BaseModel):
@@ -87,6 +91,7 @@ class EmployeeOrder(BaseModel):
     id: int
     employee_id: int
     vendor_id: int
+    facility_id: int | None = None
     meal_date: date | None = None
     status: OrderStatus
     items: list[EmployeeOrderItem]
@@ -99,6 +104,7 @@ class EmployeeOrder(BaseModel):
 class RandomMealDrawRequest(BaseModel):
     meal_date: date
     vendor_ids: list[int] | None = None
+    facility_id: int | None = None
 
 
 class RandomMealDraw(BaseModel):

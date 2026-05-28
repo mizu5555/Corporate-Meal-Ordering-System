@@ -59,12 +59,12 @@ def _vh(vendor_id: int) -> dict[str, str]:
     return {"x-user-role": "vendor_manager", "x-vendor-id": str(vendor_id)}
 
 
-def _insert_order(vendor_id: int, employee_id: int) -> int:
+def _insert_order(vendor_id: int, employee_id: int, facility_id: int | None = None) -> int:
     with get_connection() as conn:
         row = conn.execute(
-            "INSERT INTO orders (employee_id, vendor_id, total_price_cents) "
-            "VALUES (%s, %s, 0) RETURNING id",
-            (employee_id, vendor_id),
+            "INSERT INTO orders (employee_id, vendor_id, facility_id, total_price_cents) "
+            "VALUES (%s, %s, %s, 0) RETURNING id",
+            (employee_id, vendor_id, facility_id),
         ).fetchone()
         conn.commit()
     return row["id"]
@@ -98,6 +98,22 @@ def test_list_orders_excludes_other_vendor(client, seeded_ids):
     resp = client.get("/vendor/me/orders", headers=_vh(vendor_id))
     assert resp.status_code == 200
     assert resp.json() == []
+
+
+def test_list_orders_filters_by_facility(client, seeded_ids):
+    vendor_id, employee_id = seeded_ids
+    with get_connection() as conn:
+        facility = conn.execute("SELECT id FROM facilities WHERE code = 'F12A'").fetchone()
+    assert facility is not None
+    order_id = _insert_order(vendor_id, employee_id, facility_id=facility["id"])
+    _insert_order(vendor_id, employee_id)
+
+    resp = client.get(f"/vendor/me/orders?facility_id={facility['id']}", headers=_vh(vendor_id))
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert [order["id"] for order in body] == [order_id]
+    assert body[0]["facility_id"] == facility["id"]
 
 
 # ---------------------------------------------------------------------------
