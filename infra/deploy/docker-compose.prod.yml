@@ -5,6 +5,7 @@
 # (gateway request rate, upstream latency) without exposing it publicly.
 services:
   backend:
+    image: ghcr.io/mizu5555/mealorder-backend:${IMAGE_TAG}
     ports: !reset []
     # See staging override for the rationale: pin Caddy gateway → backend
     # resolution to a single network alias so Docker DNS does not round-robin
@@ -19,10 +20,15 @@ services:
       SERVICE_NAME: mealorder-backend
       LOKI_URL: http://loki:3100
   frontend:
+    image: ghcr.io/mizu5555/mealorder-frontend:${IMAGE_TAG}
     ports: !reset []
+    environment:
+      BASE_PATH: ${BASE_PATH}
   db:
+    image: ghcr.io/mizu5555/mealorder-db:${IMAGE_TAG}
     ports: !reset []
   gateway:
+    image: ghcr.io/mizu5555/mealorder-gateway:${IMAGE_TAG}
     ports: !reset []
     networks: [default, preview-net, grafana_default]
 

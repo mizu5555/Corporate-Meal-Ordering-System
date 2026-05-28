@@ -5,6 +5,7 @@
 # (gateway request rate, upstream latency) without exposing it publicly.
 services:
   backend:
+    image: ghcr.io/mizu5555/mealorder-backend:${IMAGE_TAG}
     ports: !reset []
     # Per-network aliases pin the Caddy gateway's upstream resolution. `backend`
     # remains reachable as `backend` on grafana_default (Prometheus scrape) and
@@ -30,10 +31,15 @@ services:
       # Scoped to staging so prod stays minimal-privilege.
       - SYS_PTRACE
   frontend:
+    image: ghcr.io/mizu5555/mealorder-frontend:${IMAGE_TAG}
     ports: !reset []
+    environment:
+      BASE_PATH: ${BASE_PATH}
   db:
+    image: ghcr.io/mizu5555/mealorder-db:${IMAGE_TAG}
     ports: !reset []
   gateway:
+    image: ghcr.io/mizu5555/mealorder-gateway:${IMAGE_TAG}
     ports: !reset []
     networks: [default, preview-net, grafana_default]
 

@@ -6,18 +6,24 @@
 #   sweep can map a stack back to a PR via the GitHub API.
 services:
   backend:
+    image: ghcr.io/mizu5555/mealorder-backend:${IMAGE_TAG}
     ports: !reset []
     labels:
       mealorder.branch: ${BRANCH_RAW:-}
   frontend:
+    image: ghcr.io/mizu5555/mealorder-frontend:${IMAGE_TAG}
     ports: !reset []
+    environment:
+      BASE_PATH: ${BASE_PATH}
     labels:
       mealorder.branch: ${BRANCH_RAW:-}
   db:
+    image: ghcr.io/mizu5555/mealorder-db:${IMAGE_TAG}
     ports: !reset []
     labels:
       mealorder.branch: ${BRANCH_RAW:-}
   gateway:
+    image: ghcr.io/mizu5555/mealorder-gateway:${IMAGE_TAG}
     ports: !reset []
     container_name: mealorder-${SLUG:-default}-gateway
     networks: [default, preview-net]
