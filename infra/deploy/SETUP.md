@@ -91,6 +91,8 @@ curl -skI https://nol.cs.nycu.edu.tw/meal/health
 
 ## 4. Jenkins — Staging pipeline (`mealorder-staging`)
 
+> **Deprecated by §11.2 (GHCR build-once).** Keep this job disabled; deploys now use the parameterized token-triggered jobs.
+
 In the Jenkins UI:
 1. **New Item → Multibranch Pipeline**, name `mealorder-staging`.
 2. **Branch Sources → GitHub**, repo `mizu5555/Corporate-Meal-Ordering-System`, credentials = PAT with `repo` + `admin:repo_hook`.
@@ -100,6 +102,8 @@ In the Jenkins UI:
 6. Save → automatic scan triggers first build.
 
 ## 5. Jenkins — Production pipeline (`mealorder-prod`)
+
+> **Deprecated by §11.2 (GHCR build-once).** Keep this job disabled; deploys now use the parameterized token-triggered jobs.
 
 1. **New Item → Multibranch Pipeline**, name `mealorder-prod`.
 2. **Branch Sources → GitHub**, same repo + credentials.
@@ -117,6 +121,8 @@ In the Jenkins UI:
 3. Save → click **Build Now** once (registers the cron declared inside the Jenkinsfile).
 
 ## 6.5 Jenkins — PR preview pipeline (`mealorder-preview`)
+
+> **Deprecated by §11.2 (GHCR build-once).** Keep this job disabled; deploys now use the parameterized token-triggered jobs.
 
 1. **New Item → Multibranch Pipeline**, name `mealorder-preview`.
 2. **Branch Sources → GitHub**, repo `mizu5555/Corporate-Meal-Ordering-System`, credentials = your PAT.
@@ -241,10 +247,17 @@ and do not double-trigger alongside the new token-triggered jobs.
 - Token: same value as `JENKINS_PROD_TOKEN`
 - String parameter: `IMAGE_TAG` — the GHCR image tag to deploy (semver tag, e.g. `v1.2.3`)
 
+> **Note — release tags must point to a commit already on `main`.**
+> The `promote` job re-tags the existing `ghcr.io/mizu5555/mealorder-*:sha-<commit>` image.
+> Create tags on a commit that was already pushed/merged to `main`
+> (e.g. `git tag vX.Y.Z <sha-on-main>`). If the sha image does not exist
+> (tag on a commit that was never built on `main`), `promote` fails with a
+> GHCR `manifest unknown` error and prod is not deployed.
+
 **`meal-deploy-cleanup`** (or `mealorder-cleanup`)
 
 - Keep as-is with its cron trigger; no token trigger needed.
-- Ensure its PAT credential (`gh-pat`) has `delete:packages` scope — see §11.3.
+- Ensure its PAT credential (`github-token-eason`) has `delete:packages` scope — see §11.3.
 
 ### 11.3 Jenkins credentials
 

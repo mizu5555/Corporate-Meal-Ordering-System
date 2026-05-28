@@ -17,7 +17,6 @@ pipeline {
     BASE_PATH              = '/meal-staging/'
     GATEWAY_CONTAINER_NAME = 'mealorder-staging-gateway'
     PUBLIC_HEALTH_URL      = "${env.PUBLIC_HEALTH_URL ?: 'https://nol.cs.nycu.edu.tw/meal-staging/health'}"
-    REGISTRY               = 'ghcr.io/mizu5555'
   }
 
   stages {
