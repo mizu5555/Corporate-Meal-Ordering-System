@@ -137,12 +137,22 @@ export default function OrdersPage() {
                     <p style={{ color: "var(--muted)", fontSize: 13, margin: "4px 0 0" }}>
                       {order.meal_date ? `用餐日 ${order.meal_date}` : formatDate(order.created_at)}
                     </p>
+                    {order.pickup_code && (
+                      <p style={{ margin: "4px 0 0", fontSize: 13, fontWeight: 700 }}>
+                        取餐碼 {order.pickup_code}
+                      </p>
+                    )}
                   </div>
                   <div style={{ textAlign: "right" }}>
                     <p style={{ fontWeight: 800, margin: 0 }}>{formatPrice(total)}</p>
                     <p style={{ color: "var(--muted)", fontSize: 13, margin: "4px 0 0" }}>
                       {STATUS_LABELS[order.status] ?? order.status}
                     </p>
+                    {order.status === "ready" && (
+                      <span className="badge badge-available" style={{ marginTop: 6 }}>
+                        可領餐
+                      </span>
+                    )}
                   </div>
                 </div>
 

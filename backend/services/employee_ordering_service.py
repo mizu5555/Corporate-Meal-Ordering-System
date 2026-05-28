@@ -18,6 +18,8 @@ from backend.schemas.employee import (
     EmployeeVendor,
     MealSelection,
     MealSelectionCreate,
+    PickupLabel,
+    PickupLabelItem,
     RandomMealDraw,
     RandomMealDrawRequest,
 )
@@ -208,6 +210,9 @@ class EmployeeOrderingService:
             raise CodedHTTPException(status_code=404, code="not_found", detail="order not found")
         return order
 
+    def get_my_pickup_label(self, employee_id: int, order_id: int) -> PickupLabel:
+        return self._order_to_pickup_label(self.get_my_order(employee_id, order_id))
+
     def cancel_my_order(self, employee_id: int, order_id: int) -> EmployeeOrder:
         order = self.get_my_order(employee_id, order_id)
         if order.status != "pending":
@@ -387,6 +392,30 @@ class EmployeeOrderingService:
             available=item.available,
             daily_quota=item.daily_quota,
             photo_path=item.photo_path,
+        )
+
+    def _order_to_pickup_label(self, order: EmployeeOrder) -> PickupLabel:
+        vendor = self.vendor_repository.get(order.vendor_id)
+        employee_facilities = self.vendor_repository.list_employee_facilities(order.employee_id)
+        facilities = employee_facilities or self.vendor_repository.list_facilities(order.vendor_id)
+        items = [
+            PickupLabelItem(item_name=item.item_name, quantity=item.quantity)
+            for item in order.items
+        ]
+        return PickupLabel(
+            order_id=order.id,
+            pickup_code=order.pickup_code,
+            employee_id=order.employee_id,
+            vendor_id=order.vendor_id,
+            vendor_name=vendor.name if vendor else f"Vendor #{order.vendor_id}",
+            meal_date=order.meal_date,
+            status=order.status,
+            facility_names=[facility.name for facility in facilities],
+            items=items,
+            total_quantity=sum(item.quantity for item in order.items),
+            total_price_cents=order.total_price_cents,
+            pickup_confirmed_at=order.pickup_confirmed_at,
+            pickup_confirmed_by_user_id=order.pickup_confirmed_by_user_id,
         )
 
     def _build_order_items(

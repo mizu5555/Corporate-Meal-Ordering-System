@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { getMyOrder, updateOrderStatus } from "../../api/vendor";
+import { confirmPickup, getMyOrder, updateOrderStatus } from "../../api/vendor";
 import { formatPrice } from "../../utils/format";
 
 const STATUS_LABEL = {
@@ -28,7 +28,6 @@ const NEXT_ACTIONS = {
   ],
   confirmed: [{ status: "preparing", label: "開始備餐", variant: "primary" }],
   preparing: [{ status: "ready", label: "備餐完成", variant: "primary" }],
-  ready: [{ status: "delivered", label: "標記已送達", variant: "primary" }],
 };
 
 const ACTION_STYLE = {
@@ -95,11 +94,25 @@ export default function VendorOrderDetailPage() {
     }
   }
 
+  async function handleConfirmPickup() {
+    setSubmitting(true);
+    setActionError(null);
+    try {
+      const updated = await confirmPickup(orderId);
+      setOrder(updated);
+    } catch (err) {
+      setActionError(err.message ?? "領餐確認失敗");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   if (loading) return <p className="loading-state">載入訂單中...</p>;
   if (error) return <p className="error-state">{error}</p>;
   if (!order) return null;
 
   const actions = NEXT_ACTIONS[order.status] ?? [];
+  const totalQuantity = order.items.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
     <div>
@@ -195,6 +208,7 @@ export default function VendorOrderDetailPage() {
           <div className="panel">
             <p className="eyebrow" style={{ marginBottom: 14 }}>訂單資訊</p>
             <InfoRow label="訂單編號" value={`#${order.id}`} />
+            <InfoRow label="取餐碼" value={order.pickup_code ?? "-"} />
             <InfoRow label="員工" value={`員工 #${order.employee_id}`} />
             {order.meal_date && <InfoRow label="用餐日期" value={order.meal_date} />}
             <InfoRow
@@ -215,8 +229,38 @@ export default function VendorOrderDetailPage() {
             </div>
           </div>
 
+          <div className="panel">
+            <p className="eyebrow" style={{ marginBottom: 14 }}>數位配送標籤</p>
+            <div
+              style={{
+                border: "1px solid var(--line)",
+                borderRadius: "var(--radius-md)",
+                padding: 16,
+                background: "var(--surface-strong)",
+              }}
+            >
+              <p style={{ margin: "0 0 4px", color: "var(--muted)", fontSize: 12, fontWeight: 700 }}>
+                PICKUP CODE
+              </p>
+              <p style={{ margin: 0, fontSize: 28, fontWeight: 800 }}>
+                {order.pickup_code ?? "-"}
+              </p>
+              <div style={{ display: "grid", gap: 8, marginTop: 16 }}>
+                <InfoRow label="用餐日期" value={order.meal_date ?? "今日"} />
+                <InfoRow label="總份數" value={`${totalQuantity} 份`} />
+                <InfoRow label="員工" value={`#${order.employee_id}`} />
+              </div>
+            </div>
+
+            {order.pickup_confirmed_at && (
+              <p className="success-state" style={{ marginTop: 12 }}>
+                已於 {new Date(order.pickup_confirmed_at).toLocaleString("zh-TW")} 完成領餐確認。
+              </p>
+            )}
+          </div>
+
           {/* 操作按鈕 */}
-          {actions.length > 0 && (
+          {(actions.length > 0 || order.status === "ready") && (
             <div className="panel">
               <p className="eyebrow" style={{ marginBottom: 14 }}>操作</p>
 
@@ -247,6 +291,25 @@ export default function VendorOrderDetailPage() {
                     {action.label}
                   </button>
                 ))}
+                {order.status === "ready" && (
+                  <button
+                    type="button"
+                    disabled={submitting}
+                    onClick={handleConfirmPickup}
+                    style={{
+                      padding: "10px 0",
+                      borderRadius: "var(--radius-md)",
+                      fontWeight: 700,
+                      fontSize: 14,
+                      cursor: submitting ? "not-allowed" : "pointer",
+                      opacity: submitting ? 0.7 : 1,
+                      transition: "opacity 140ms ease",
+                      ...ACTION_STYLE.confirm,
+                    }}
+                  >
+                    {submitting ? "確認中..." : "確認員工已領餐"}
+                  </button>
+                )}
               </div>
             </div>
           )}
