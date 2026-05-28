@@ -46,9 +46,10 @@ class VendorProfileRepository:
         self._facilities[vendor_id].append(Facility(id=facility_id, code=code, name=name))
 
     def assign_employee_facility(self, employee_id: int, *, facility_id: int, code: str, name: str) -> None:
-        """管理端 stub：把廠區指派給員工。"""
+        """管理端 stub：把廠區指派給員工。重複 facility_id 忽略（模擬 DB PRIMARY KEY）。"""
         self._employee_facilities.setdefault(employee_id, [])
-        self._employee_facilities[employee_id].append(Facility(id=facility_id, code=code, name=name))
+        if not any(f.id == facility_id for f in self._employee_facilities[employee_id]):
+            self._employee_facilities[employee_id].append(Facility(id=facility_id, code=code, name=name))
 
     # --- read / vendor-self side ---
 
