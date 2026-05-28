@@ -184,3 +184,101 @@ curl -sk https://nol.cs.nycu.edu.tw/meal/health
 - [ ] Opening a PR triggers `mealorder-preview`; PR receives a comment with the preview URL
 - [ ] `https://nol.cs.nycu.edu.tw/preview/<slug>/health` returns 200 for the open PR
 - [ ] Closing the PR → within 1 hour, the preview stack is gone (`docker compose ls`)
+
+## 11. GHCR build-once CI/CD setup
+
+This section documents the one-time manual configuration required for the
+build-once flow introduced in the `feature/cicd/ghcr-build-once` branch.
+GitHub Actions builds and pushes images to GHCR once; Jenkins jobs pull and
+deploy without rebuilding.
+
+### 11.1 GitHub repo secrets
+
+Go to **Settings → Secrets and variables → Actions** and add:
+
+| Secret name | Value |
+|---|---|
+| `JENKINS_URL` | NOL Jenkins base URL reachable from GitHub Actions (e.g. `https://nol.cs.nycu.edu.tw/jenkins`) |
+| `JENKINS_USER` | Jenkins username that owns the API token below |
+| `JENKINS_API_TOKEN` | Jenkins API token for `JENKINS_USER` (generate under user → Configure → API Token) |
+| `JENKINS_STAGING_TOKEN` | "Trigger builds remotely" token set on the `meal-deploy-staging` job |
+| `JENKINS_PREVIEW_TOKEN` | "Trigger builds remotely" token set on the `meal-deploy-preview` job |
+| `JENKINS_PROD_TOKEN` | "Trigger builds remotely" token set on the `meal-deploy-prod` job |
+
+### 11.2 Jenkins deploy jobs (replace old multibranch jobs)
+
+Create **three parameterized Pipeline jobs** (not Multibranch) in Jenkins UI.
+The old multibranch jobs (`mealorder-staging`, `mealorder-prod`, `mealorder-preview`)
+must be **disabled or deleted** so they no longer trigger on SCM webhook events
+and do not double-trigger alongside the new token-triggered jobs.
+
+**Common setup for all three jobs:**
+
+- **Pipeline → Pipeline script from SCM**, Git repo `https://github.com/mizu5555/Corporate-Meal-Ordering-System.git`, credentials = your PAT, branch `*/main`.
+- Enable **Trigger builds remotely (e.g., from scripts)** and set the
+  Authentication Token to match the corresponding GitHub secret value.
+- Do **not** enable periodic SCM polling or webhook branch sources — these jobs
+  are triggered exclusively via the remote-build token from GitHub Actions.
+
+**`meal-deploy-staging`**
+
+- Script Path: `Jenkinsfile.staging`
+- Token: same value as `JENKINS_STAGING_TOKEN`
+- String parameter: `IMAGE_TAG` (default empty) — the GHCR image tag to deploy
+
+**`meal-deploy-preview`**
+
+- Script Path: `Jenkinsfile.preview`
+- Token: same value as `JENKINS_PREVIEW_TOKEN`
+- String parameters:
+  - `IMAGE_TAG` — the GHCR image tag to deploy
+  - `PR_NUMBER` — pull request number (used for stack name and URL slug)
+  - `PR_BRANCH` — source branch name
+
+**`meal-deploy-prod`**
+
+- Script Path: `Jenkinsfile.prod`
+- Token: same value as `JENKINS_PROD_TOKEN`
+- String parameter: `IMAGE_TAG` — the GHCR image tag to deploy (semver tag, e.g. `v1.2.3`)
+
+**`meal-deploy-cleanup`** (or `mealorder-cleanup`)
+
+- Keep as-is with its cron trigger; no token trigger needed.
+- Ensure its PAT credential (`gh-pat`) has `delete:packages` scope — see §11.3.
+
+### 11.3 Jenkins credentials
+
+Go to **Manage Jenkins → Credentials** (the appropriate domain/store) and add or update:
+
+| Credential ID | Type | Details |
+|---|---|---|
+| `ghcr-pull` | Username + password | Username = a GitHub account with package read access; password = a PAT with `read:packages` scope. All three deploy jobs use this to `docker login ghcr.io` before pulling images. |
+| `github-token-eason` | Secret text / PAT | **Extend** the existing PAT to include `delete:packages` scope (in addition to whatever scopes it already has). The cleanup job uses this to delete closed-PR `pr-*` images from GHCR. |
+
+### 11.4 GHCR package permissions
+
+After the first GitHub Actions workflow push succeeds, four packages appear under
+the `mizu5555` account: `mealorder-backend`, `mealorder-frontend`, `mealorder-db`,
+`mealorder-gateway`.
+
+For each package:
+
+1. Go to `https://github.com/orgs/mizu5555/packages` (or the user's packages page).
+2. Open the package → **Package settings**.
+3. Under **Manage Actions access**, confirm the `mizu5555/Corporate-Meal-Ordering-System` repo has **Write** access (needed so Actions can push).
+4. Confirm the `ghcr-pull` PAT account has at least **Read** access for pull.
+5. Confirm the `github-token-eason` PAT account has **Read + delete** capability for the cleanup job.
+
+### 11.5 Branch protection — update required status check name
+
+The GitHub Actions workflow `name:` changed from `Test` to `CI/CD` in this
+refactor. If the `main` branch protection rule (or any other branch rule) lists
+`Test` as a required status check, update it:
+
+1. **Settings → Branches → Edit** the protection rule for `main`.
+2. In **Require status checks to pass before merging**, remove `Test` and add
+   the new check name(s) emitted by the `CI/CD` workflow (e.g. `unit-tests`,
+   `integration-tests`, or `build-and-push` — check the Actions tab after the
+   first run for the exact job names).
+3. Save. Without this update the branch protection will either pass vacuously
+   (old check name never fires) or block PRs unexpectedly.
