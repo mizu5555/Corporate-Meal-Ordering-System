@@ -2,6 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, status
 
+from backend.core.audit import get_audit_log_repository
 from backend.core.errors import CodedHTTPException
 from backend.core.rbac import get_current_user_id, require_roles
 from backend.db.connection import get_connection
@@ -54,6 +55,7 @@ def disable_user(
     user_id: int,
     _role: Annotated[str, Depends(require_roles("admin"))],
     actor_id: Annotated[int | None, Depends(get_current_user_id)],
+    repo: Annotated[object, Depends(get_audit_log_repository)],
 ) -> dict:
     if actor_id == user_id:
         raise CodedHTTPException(
@@ -67,6 +69,8 @@ def disable_user(
             raise CodedHTTPException(status_code=404, code="user_not_found", detail="User not found")
         conn.execute("UPDATE users SET is_active = FALSE, updated_at = NOW() WHERE id = %s", (user_id,))
         conn.commit()
+    repo.record(actor_user_id=actor_id, actor_role="admin",
+                action="user.disable", target_type="user", target_id=user_id)
     return {"user_id": user_id, "is_active": False}
 
 
@@ -74,6 +78,8 @@ def disable_user(
 def enable_user(
     user_id: int,
     _role: Annotated[str, Depends(require_roles("admin"))],
+    actor_id: Annotated[int | None, Depends(get_current_user_id)],
+    repo: Annotated[object, Depends(get_audit_log_repository)],
 ) -> dict:
     with get_connection() as conn:
         row = conn.execute("SELECT id FROM users WHERE id = %s", (user_id,)).fetchone()
@@ -81,6 +87,8 @@ def enable_user(
             raise CodedHTTPException(status_code=404, code="user_not_found", detail="User not found")
         conn.execute("UPDATE users SET is_active = TRUE, updated_at = NOW() WHERE id = %s", (user_id,))
         conn.commit()
+    repo.record(actor_user_id=actor_id, actor_role="admin",
+                action="user.enable", target_type="user", target_id=user_id)
     return {"user_id": user_id, "is_active": True}
 
 
@@ -89,6 +97,7 @@ def delete_user(
     user_id: int,
     _role: Annotated[str, Depends(require_roles("admin"))],
     actor_id: Annotated[int | None, Depends(get_current_user_id)],
+    repo: Annotated[object, Depends(get_audit_log_repository)],
 ) -> None:
     if actor_id == user_id:
         raise CodedHTTPException(
@@ -102,3 +111,5 @@ def delete_user(
             raise CodedHTTPException(status_code=404, code="user_not_found", detail="User not found")
         conn.execute("DELETE FROM users WHERE id = %s", (user_id,))
         conn.commit()
+    repo.record(actor_user_id=actor_id, actor_role="admin",
+                action="user.delete", target_type="user", target_id=user_id)
