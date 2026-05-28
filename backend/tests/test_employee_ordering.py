@@ -5,11 +5,14 @@ from fastapi.testclient import TestClient
 
 from backend.core.vendor_identity import get_vendor_profile_repository
 from backend.main import app
+from backend.repositories.audit_log_repository import AuditLogRepository
 from backend.repositories.employee_selection_repository import EmployeeSelectionRepository, OrderItemSnapshot
 from backend.repositories.menu_item_repository import MenuItemRepository
 from backend.repositories.vendor_profile_repository import VendorProfileRepository, VendorRecord
 from backend.routes.employee_ordering import get_employee_selection_repository
 from backend.routes.vendor_menu import get_menu_item_repository
+from backend.schemas.employee import EmployeeOrderCreate, EmployeeOrderItemCreate
+from backend.services.employee_ordering_service import EmployeeOrderingService
 
 
 def _setup() -> tuple[TestClient, MenuItemRepository, EmployeeSelectionRepository]:
@@ -546,6 +549,33 @@ def test_employee_endpoints_require_employee_role() -> None:
 
     assert resp.status_code == 403
     assert resp.json()["code"] == "forbidden"
+
+
+def test_create_order_records_audit_entry() -> None:
+    vendor_repo = VendorProfileRepository()
+    vendor_repo.seed(VendorRecord(id=1, name="Alice Bento", status="approved", address="No. 1"))
+    item_repo = MenuItemRepository()
+    selection_repo = EmployeeSelectionRepository()
+    audit_repo = AuditLogRepository()
+    item = item_repo.create(vendor_id=1, name="Rice Bowl", price_cents=120, daily_quota=5)
+
+    service = EmployeeOrderingService(vendor_repo, item_repo, selection_repo, audit_repo)
+    order = service.create_order(
+        100,
+        1,
+        EmployeeOrderCreate(items=[EmployeeOrderItemCreate(item_id=item.id, quantity=2)]),
+        actor_user_id=100,
+    )
+
+    entries = audit_repo.list(action="order.create")
+    assert len(entries) == 1
+    entry = entries[0]
+    assert entry.target_type == "order"
+    assert entry.target_id == order.id
+    assert entry.actor_user_id == 100
+    assert entry.actor_role == "employee"
+    assert entry.metadata["vendor_id"] == 1
+    assert entry.metadata["total_cents"] == 240
 
 
 def test_select_meal_requires_employee_id() -> None:

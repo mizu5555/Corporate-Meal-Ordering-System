@@ -6,6 +6,7 @@ from datetime import date, timedelta
 
 from backend.core.errors import CodedHTTPException
 from backend.core.order_failure_codes import ITEM_UNAVAILABLE, QUOTA_EXHAUSTED
+from backend.repositories.audit_log_repository import AuditLogRepository
 from backend.repositories.employee_selection_repository import EmployeeSelectionRepository, OrderItemSnapshot
 from backend.repositories.menu_item_repository import MenuItemRepository
 from backend.repositories.vendor_profile_repository import VendorProfileRepository, VendorRecord
@@ -34,10 +35,12 @@ class EmployeeOrderingService:
         vendor_repository: VendorProfileRepository,
         menu_item_repository: MenuItemRepository,
         selection_repository: EmployeeSelectionRepository,
+        audit_log_repository: AuditLogRepository | None = None,
     ) -> None:
         self.vendor_repository = vendor_repository
         self.menu_item_repository = menu_item_repository
         self.selection_repository = selection_repository
+        self.audit_log_repository = audit_log_repository or AuditLogRepository()
 
     def list_vendors(
         self,
@@ -100,6 +103,7 @@ class EmployeeOrderingService:
                     )
                 ],
             ),
+            actor_user_id=employee_id,
         )
         item = order.items[0]
         return MealSelection(
@@ -125,19 +129,30 @@ class EmployeeOrderingService:
         employee_id: int,
         vendor_id: int,
         payload: EmployeeOrderCreate,
+        *,
+        actor_user_id: int | None = None,
     ) -> EmployeeOrder:
         vendor = self._vendor_to_schema(self._get_approved_vendor(vendor_id))
         facility_id = self._resolve_order_facility(employee_id, vendor, payload.facility_id)
         meal_date = payload.meal_date or date.today()
         self._ensure_meal_date_in_window(meal_date)
         snapshots = self._build_order_items(vendor_id, payload, meal_date=meal_date)
-        return self.selection_repository.create_order(
+        order = self.selection_repository.create_order(
             employee_id=employee_id,
             vendor_id=vendor_id,
             items=snapshots,
             meal_date=meal_date,
             facility_id=facility_id,
         )
+        self.audit_log_repository.record(
+            actor_user_id=actor_user_id,
+            actor_role="employee",
+            action="order.create",
+            target_type="order",
+            target_id=order.id,
+            metadata={"vendor_id": order.vendor_id, "total_cents": order.total_price_cents},
+        )
+        return order
 
     def draw_random_meal(
         self,

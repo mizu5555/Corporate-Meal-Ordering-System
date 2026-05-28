@@ -5,9 +5,11 @@ from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, Response, status
 
+from backend.core.audit import get_audit_log_repository
 from backend.core.config import settings
 from backend.core.employee_identity import require_employee
 from backend.core.vendor_identity import get_vendor_profile_repository
+from backend.repositories.audit_log_repository import AuditLogRepository
 from backend.repositories.employee_selection_repository import EmployeeSelectionRepository
 from backend.repositories.menu_item_repository import MenuItemRepository
 from backend.repositories.postgres_employee_selection_repository import PostgresEmployeeSelectionRepository
@@ -46,8 +48,9 @@ def get_employee_ordering_service(
     vendor_repo: Annotated[VendorProfileRepository, Depends(get_vendor_profile_repository)],
     item_repo: Annotated[MenuItemRepository, Depends(get_menu_item_repository)],
     selection_repo: Annotated[EmployeeSelectionRepository, Depends(get_employee_selection_repository)],
+    audit_repo: Annotated[AuditLogRepository, Depends(get_audit_log_repository)],
 ) -> EmployeeOrderingService:
-    return EmployeeOrderingService(vendor_repo, item_repo, selection_repo)
+    return EmployeeOrderingService(vendor_repo, item_repo, selection_repo, audit_repo)
 
 
 @router.get("/vendors", response_model=list[EmployeeVendor])
@@ -127,7 +130,7 @@ def create_order(
     service: Annotated[EmployeeOrderingService, Depends(get_employee_ordering_service)],
     notification_service: Annotated[NotificationService, Depends(get_notification_service)],
 ) -> EmployeeOrder:
-    order = service.create_order(employee_id, vendor_id, payload)
+    order = service.create_order(employee_id, vendor_id, payload, actor_user_id=employee_id)
     background_tasks.add_task(notification_service.create_order_placed, order)
     return order
 
