@@ -28,10 +28,37 @@ pipeline {
 
     stage('Hourly sweep') {
       steps {
-        withCredentials([usernamePassword(credentialsId: 'github-token-eason', usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN')]) {
+        withCredentials([usernamePassword(credentialsId: 'github-token', usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN')]) {
           sh '''
             set -euo pipefail
             bash scripts/sweep-stale-stacks.sh
+          '''
+        }
+      }
+    }
+
+    stage('Prune GHCR pr-* tags') {
+      steps {
+        withCredentials([usernamePassword(credentialsId: 'github-token', usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN')]) {
+          sh '''
+            set -euo pipefail
+            OWNER=mizu5555
+            for svc in backend frontend db gateway; do
+              PKG="mealorder-${svc}"
+              gh api --paginate "/users/${OWNER}/packages/container/${PKG}/versions" \
+                --jq '.[] | {id: .id, tags: .metadata.container.tags}' 2>/dev/null \
+                | jq -c 'select(.tags[]? | startswith("pr-"))' \
+                | while read -r row; do
+                    VID=$(echo "$row" | jq -r '.id')
+                    TAG=$(echo "$row" | jq -r '.tags[] | select(startswith("pr-"))' | head -1)
+                    NUM="${TAG#pr-}"
+                    STATE=$(gh api "/repos/${OWNER}/Corporate-Meal-Ordering-System/pulls/${NUM}" --jq '.state' 2>/dev/null || echo "")
+                    if [ "$STATE" = "closed" ]; then
+                      echo "pruning ${PKG} ${TAG} (PR #${NUM} closed) version=${VID}"
+                      gh api -X DELETE "/users/${OWNER}/packages/container/${PKG}/versions/${VID}" || true
+                    fi
+                  done
+            done
           '''
         }
       }

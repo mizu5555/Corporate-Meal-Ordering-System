@@ -1,6 +1,10 @@
 pipeline {
   agent any
 
+  parameters {
+    string(name: 'IMAGE_TAG', defaultValue: '', description: 'GHCR image tag to deploy, e.g. sha-abc123def456')
+  }
+
   options {
     disableConcurrentBuilds()
     timeout(time: 20, unit: 'MINUTES')
@@ -8,68 +12,72 @@ pipeline {
   }
 
   environment {
-    COMPOSE_PROJECT_NAME     = 'mealorder-staging'
-    ROOT_PATH                = '/meal-staging'
-    GATEWAY_CONTAINER_NAME   = 'mealorder-staging-gateway'
-    PUBLIC_HEALTH_URL        = "${env.PUBLIC_HEALTH_URL ?: 'https://nol.cs.nycu.edu.tw/meal-staging/health'}"
+    COMPOSE_PROJECT_NAME   = 'mealorder-staging'
+    ROOT_PATH              = '/meal-staging'
+    BASE_PATH              = '/meal-staging/'
+    GATEWAY_CONTAINER_NAME = 'mealorder-staging-gateway'
+    PUBLIC_HEALTH_URL      = "${env.PUBLIC_HEALTH_URL ?: 'https://nol.cs.nycu.edu.tw/meal-staging/health'}"
   }
 
   stages {
+    stage('Validate params') {
+      steps {
+        script {
+          if (!params.IMAGE_TAG?.trim()) {
+            error('IMAGE_TAG is required. This job must be triggered by GitHub Actions with a built image tag.')
+          }
+          echo "Deploying IMAGE_TAG=${params.IMAGE_TAG} to staging"
+        }
+      }
+    }
+
     stage('Checkout') {
-      when { branch 'main' }
       steps { checkout scm }
     }
 
-    stage('Verify commit') {
-      when { branch 'main' }
+    stage('GHCR login & pull') {
       steps {
-        sh '''
-          set -eu
-          BUILT=$(git rev-parse HEAD)
-          REMOTE=$(git ls-remote origin refs/heads/main | awk '{print $1}')
-          echo "Built  SHA: $BUILT"
-          echo "origin/main: $REMOTE"
-          git log -1 --pretty=format:'subject: %s%nauthor : %an <%ae>%ndate   : %ad' --date=iso
-          echo
-          if [ "$BUILT" != "$REMOTE" ]; then
-            echo "WARNING: building stale commit (behind origin/main)"
-          fi
-        '''
+        withCredentials([usernamePassword(credentialsId: 'github-token', usernameVariable: 'GHCR_USER', passwordVariable: 'GHCR_TOKEN')]) {
+          sh '''
+            set -euo pipefail
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            docker network inspect preview-net >/dev/null 2>&1 || docker network create preview-net
+            IMAGE_TAG="${IMAGE_TAG}" \
+            ROOT_PATH="$ROOT_PATH" BASE_PATH="$BASE_PATH" \
+            GATEWAY_CONTAINER_NAME="$GATEWAY_CONTAINER_NAME" \
+              docker compose -p "$COMPOSE_PROJECT_NAME" \
+                -f docker-compose.yml -f infra/deploy/docker-compose.staging.yml pull
+          '''
+        }
       }
     }
 
     stage('Reset and deploy staging') {
-      when { branch 'main' }
       steps {
         sh '''
           set -euo pipefail
-          docker network inspect preview-net >/dev/null 2>&1 \
-            || docker network create preview-net
-          docker compose -p "$COMPOSE_PROJECT_NAME" \
-            -f docker-compose.yml \
-            -f infra/deploy/docker-compose.staging.yml \
-            down -v --remove-orphans || true
-          ROOT_PATH="$ROOT_PATH" \
-          BASE_PATH="${ROOT_PATH}/" \
+          IMAGE_TAG="${IMAGE_TAG}" \
+          ROOT_PATH="$ROOT_PATH" BASE_PATH="$BASE_PATH" \
           GATEWAY_CONTAINER_NAME="$GATEWAY_CONTAINER_NAME" \
             docker compose -p "$COMPOSE_PROJECT_NAME" \
-            -f docker-compose.yml \
-            -f infra/deploy/docker-compose.staging.yml \
-            up -d --build
+              -f docker-compose.yml -f infra/deploy/docker-compose.staging.yml \
+              down -v --remove-orphans || true
+          IMAGE_TAG="${IMAGE_TAG}" \
+          ROOT_PATH="$ROOT_PATH" BASE_PATH="$BASE_PATH" \
+          GATEWAY_CONTAINER_NAME="$GATEWAY_CONTAINER_NAME" \
+            docker compose -p "$COMPOSE_PROJECT_NAME" \
+              -f docker-compose.yml -f infra/deploy/docker-compose.staging.yml \
+              up -d
         '''
       }
     }
 
     stage('Smoke check') {
-      when { branch 'main' }
       steps {
         sh '''
           set -euo pipefail
           for i in $(seq 1 30); do
-            if curl -fsS "$PUBLIC_HEALTH_URL" >/dev/null; then
-              echo "staging /health OK"
-              exit 0
-            fi
+            if curl -fsS "$PUBLIC_HEALTH_URL" >/dev/null; then echo "staging /health OK"; exit 0; fi
             sleep 2
           done
           echo "staging /health failed after 60s" >&2
@@ -80,39 +88,17 @@ pipeline {
     }
 
     stage('k6 vendor smoke') {
-      when { branch 'main' }
       steps {
-        // Post-deploy load smoke: drive the vendor golden path against the
-        // freshly deployed staging URL. k6 thresholds (defined in the script)
-        // fail the build if request rate / latency regresses, which surfaces
-        // perf regressions that TestClient cannot — same flow as load/vendor-flow.js
-        // running in PR CI, but against the real environment.
         sh '''
           set -euo pipefail
           BASE_URL="${BASE_URL:-https://nol.cs.nycu.edu.tw/meal-staging}"
           echo "running k6 vendor-flow against $BASE_URL"
-          # Dockerised k6 — no jenkins-service image change required.
-          # Short ramp + low VUS so a deploy gate stays under ~40s.
-          # No VENDOR_ID: the script logs in via /auth/login and reads vendor_id
-          # from the JWT (the deployed gateway strips x-user-role/x-vendor-id, so
-          # header-based auth would 403). Credentials default to the seeded
-          # vendor_manager in 003_auth.sql; override with VENDOR_EMAIL/PASSWORD.
-          docker run --rm -i \
-            -e BASE_URL="$BASE_URL" \
-            -e VUS=3 \
-            -e DURATION=20s \
-            grafana/k6:latest run --insecure-skip-tls-verify - \
-            < load/vendor-flow.js
+          docker run --rm -i -e BASE_URL="$BASE_URL" -e VUS=3 -e DURATION=20s \
+            grafana/k6:latest run --insecure-skip-tls-verify - < load/vendor-flow.js
         '''
-        // No DB cleanup stage: the 'Reset and deploy staging' stage runs
-        // `docker compose down -v`, dropping the Postgres volume on every
-        // deploy, and the k6 script self-cleans its k6-* rows per iteration
-        // plus a teardown() sweep. The shared demo vendor row is never deleted.
       }
     }
   }
 
-  post {
-    always { cleanWs() }
-  }
+  post { always { cleanWs() } }
 }

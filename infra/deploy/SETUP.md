@@ -91,6 +91,8 @@ curl -skI https://nol.cs.nycu.edu.tw/meal/health
 
 ## 4. Jenkins — Staging pipeline (`mealorder-staging`)
 
+> **Deprecated by §11.2 (GHCR build-once).** Keep this job disabled; deploys now use the parameterized token-triggered jobs.
+
 In the Jenkins UI:
 1. **New Item → Multibranch Pipeline**, name `mealorder-staging`.
 2. **Branch Sources → GitHub**, repo `mizu5555/Corporate-Meal-Ordering-System`, credentials = PAT with `repo` + `admin:repo_hook`.
@@ -100,6 +102,8 @@ In the Jenkins UI:
 6. Save → automatic scan triggers first build.
 
 ## 5. Jenkins — Production pipeline (`mealorder-prod`)
+
+> **Deprecated by §11.2 (GHCR build-once).** Keep this job disabled; deploys now use the parameterized token-triggered jobs.
 
 1. **New Item → Multibranch Pipeline**, name `mealorder-prod`.
 2. **Branch Sources → GitHub**, same repo + credentials.
@@ -117,6 +121,8 @@ In the Jenkins UI:
 3. Save → click **Build Now** once (registers the cron declared inside the Jenkinsfile).
 
 ## 6.5 Jenkins — PR preview pipeline (`mealorder-preview`)
+
+> **Deprecated by §11.2 (GHCR build-once).** Keep this job disabled; deploys now use the parameterized token-triggered jobs.
 
 1. **New Item → Multibranch Pipeline**, name `mealorder-preview`.
 2. **Branch Sources → GitHub**, repo `mizu5555/Corporate-Meal-Ordering-System`, credentials = your PAT.
@@ -184,3 +190,120 @@ curl -sk https://nol.cs.nycu.edu.tw/meal/health
 - [ ] Opening a PR triggers `mealorder-preview`; PR receives a comment with the preview URL
 - [ ] `https://nol.cs.nycu.edu.tw/preview/<slug>/health` returns 200 for the open PR
 - [ ] Closing the PR → within 1 hour, the preview stack is gone (`docker compose ls`)
+
+## 11. GHCR build-once CI/CD setup
+
+This section documents the one-time manual configuration required for the
+build-once flow introduced in the `feature/cicd/ghcr-build-once` branch.
+GitHub Actions builds and pushes images to GHCR once; Jenkins jobs pull and
+deploy without rebuilding.
+
+### 11.1 GitHub repo secrets
+
+Go to **Settings → Secrets and variables → Actions** and add:
+
+| Secret name | Value |
+|---|---|
+| `JENKINS_URL` | NOL Jenkins base URL reachable from GitHub Actions (e.g. `https://nol.cs.nycu.edu.tw/jenkins`) |
+| `JENKINS_USER` | Jenkins username that owns the API token below |
+| `JENKINS_API_TOKEN` | Jenkins API token for `JENKINS_USER` (generate under user → Configure → API Token) |
+| `JENKINS_STAGING_TOKEN` | "Trigger builds remotely" token set on the `meal-deploy-staging` job |
+| `JENKINS_PREVIEW_TOKEN` | "Trigger builds remotely" token set on the `meal-deploy-preview` job |
+| `JENKINS_PROD_TOKEN` | "Trigger builds remotely" token set on the `meal-deploy-prod` job |
+
+### 11.2 Jenkins deploy jobs (replace old multibranch jobs)
+
+Create **three parameterized Pipeline jobs** (not Multibranch) **inside the
+`Meal-Ordering-Project` folder** in Jenkins UI. The old multibranch jobs
+(`mealorder-staging`, `mealorder-prod`, `mealorder-preview`) must be **disabled or
+deleted** so they no longer trigger on SCM webhook events and do not double-trigger
+alongside the new token-triggered jobs.
+
+> **Job path / trigger URL.** Because the jobs live in the `Meal-Ordering-Project`
+> folder, the remote-trigger URL includes the folder segment:
+> `${JENKINS_URL}/job/Meal-Ordering-Project/job/meal-deploy-<env>/buildWithParameters`.
+> This is exactly what `.github/workflows/test.yml` uses — if you rename the folder
+> or jobs, update those three URLs to match.
+
+**Common setup for all three jobs:**
+
+- **Pipeline → Pipeline script from SCM**, Git repo `https://github.com/mizu5555/Corporate-Meal-Ordering-System.git`, credentials = your PAT, branch `*/main`.
+- Enable **Trigger builds remotely (e.g., from scripts)** and set the
+  Authentication Token to match the corresponding GitHub secret value.
+- Do **not** enable periodic SCM polling or webhook branch sources — these jobs
+  are triggered exclusively via the remote-build token from GitHub Actions.
+
+**`meal-deploy-staging`**
+
+- Script Path: `Jenkinsfile.staging`
+- Token: same value as `JENKINS_STAGING_TOKEN`
+- String parameter: `IMAGE_TAG` (default empty) — the GHCR image tag to deploy
+
+**`meal-deploy-preview`**
+
+- Script Path: `Jenkinsfile.preview`
+- Token: same value as `JENKINS_PREVIEW_TOKEN`
+- String parameters:
+  - `IMAGE_TAG` — the GHCR image tag to deploy
+  - `PR_NUMBER` — pull request number (used for stack name and URL slug)
+  - `PR_BRANCH` — source branch name
+
+**`meal-deploy-prod`**
+
+- Script Path: `Jenkinsfile.prod`
+- Token: same value as `JENKINS_PROD_TOKEN`
+- String parameter: `IMAGE_TAG` — the GHCR image tag to deploy (semver tag, e.g. `v1.2.3`)
+
+> **Note — release tags must point to a commit already on `main`.**
+> The `promote` job re-tags the existing `ghcr.io/mizu5555/mealorder-*:sha-<commit>` image.
+> Create tags on a commit that was already pushed/merged to `main`
+> (e.g. `git tag vX.Y.Z <sha-on-main>`). If the sha image does not exist
+> (tag on a commit that was never built on `main`), `promote` fails with a
+> GHCR `manifest unknown` error and prod is not deployed.
+
+**`meal-deploy-cleanup`** (or `mealorder-cleanup`)
+
+- Keep as-is with its cron trigger; no token trigger needed.
+- Ensure its PAT credential (`github-token`) has `delete:packages` scope — see §11.3.
+
+### 11.3 Jenkins credentials
+
+Add the credential at **folder scope** so only jobs inside `Meal-Ordering-Project`
+can use it (not every job on the shared Jenkins). Open the `Meal-Ordering-Project`
+folder → left sidebar **Credentials** → add to the folder store (NOT the global
+System store):
+
+| Credential ID | Type | Details |
+|---|---|---|
+| `github-token` | Username + password | Username = your GitHub account; password = a classic PAT with `repo` (PR comments) + `read:packages` (all three deploy jobs `docker login ghcr.io` and pull) + `delete:packages` (cleanup job deletes closed-PR `pr-*` images). **ID must be exactly `github-token`** — the Jenkinsfiles reference this id. The ID field only appears when *creating* a credential (it cannot be renamed later). |
+
+> Note: a Jenkins credential ID is immutable. If an older global credential with a
+> personal-name id exists, leave it for the deprecated multibranch jobs and remove it
+> once those are deleted; the new build-once jobs use only this folder-scoped `github-token`.
+
+### 11.4 GHCR package permissions
+
+After the first GitHub Actions workflow push succeeds, four packages appear under
+the `mizu5555` account: `mealorder-backend`, `mealorder-frontend`, `mealorder-db`,
+`mealorder-gateway`.
+
+For each package:
+
+1. Go to `https://github.com/orgs/mizu5555/packages` (or the user's packages page).
+2. Open the package → **Package settings**.
+3. Under **Manage Actions access**, confirm the `mizu5555/Corporate-Meal-Ordering-System` repo has **Write** access (needed so Actions can push).
+4. Confirm the `github-token` PAT account has **Read** (pull) and **delete** (cleanup) capability for the package.
+
+### 11.5 Branch protection — update required status check name
+
+The GitHub Actions workflow `name:` changed from `Test` to `CI/CD` in this
+refactor. If the `main` branch protection rule (or any other branch rule) lists
+`Test` as a required status check, update it:
+
+1. **Settings → Branches → Edit** the protection rule for `main`.
+2. In **Require status checks to pass before merging**, remove `Test` and add
+   the new check name(s) emitted by the `CI/CD` workflow (e.g. `unit-tests`,
+   `integration-tests`, or `build-and-push` — check the Actions tab after the
+   first run for the exact job names).
+3. Save. Without this update the branch protection will either pass vacuously
+   (old check name never fires) or block PRs unexpectedly.
