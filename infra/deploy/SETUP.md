@@ -213,10 +213,17 @@ Go to **Settings → Secrets and variables → Actions** and add:
 
 ### 11.2 Jenkins deploy jobs (replace old multibranch jobs)
 
-Create **three parameterized Pipeline jobs** (not Multibranch) in Jenkins UI.
-The old multibranch jobs (`mealorder-staging`, `mealorder-prod`, `mealorder-preview`)
-must be **disabled or deleted** so they no longer trigger on SCM webhook events
-and do not double-trigger alongside the new token-triggered jobs.
+Create **three parameterized Pipeline jobs** (not Multibranch) **inside the
+`Meal-Ordering-Project` folder** in Jenkins UI. The old multibranch jobs
+(`mealorder-staging`, `mealorder-prod`, `mealorder-preview`) must be **disabled or
+deleted** so they no longer trigger on SCM webhook events and do not double-trigger
+alongside the new token-triggered jobs.
+
+> **Job path / trigger URL.** Because the jobs live in the `Meal-Ordering-Project`
+> folder, the remote-trigger URL includes the folder segment:
+> `${JENKINS_URL}/job/Meal-Ordering-Project/job/meal-deploy-<env>/buildWithParameters`.
+> This is exactly what `.github/workflows/test.yml` uses — if you rename the folder
+> or jobs, update those three URLs to match.
 
 **Common setup for all three jobs:**
 
@@ -261,12 +268,18 @@ and do not double-trigger alongside the new token-triggered jobs.
 
 ### 11.3 Jenkins credentials
 
-Go to **Manage Jenkins → Credentials** (the appropriate domain/store). The existing
-`github-token` credential is reused for everything — no new credential is needed:
+Add the credential at **folder scope** so only jobs inside `Meal-Ordering-Project`
+can use it (not every job on the shared Jenkins). Open the `Meal-Ordering-Project`
+folder → left sidebar **Credentials** → add to the folder store (NOT the global
+System store):
 
 | Credential ID | Type | Details |
 |---|---|---|
-| `github-token` | Username + password | The existing credential, reused. **Extend** its backing PAT to include `read:packages` (so all three deploy jobs can `docker login ghcr.io` and pull) and `delete:packages` (so the cleanup job can delete closed-PR `pr-*` images), in addition to its existing `repo` scope (PR comments). Since these are *added* scopes on a classic token, the token string is unchanged — **no Jenkins credential update is required**, only the GitHub scope edit. |
+| `github-token` | Username + password | Username = your GitHub account; password = a classic PAT with `repo` (PR comments) + `read:packages` (all three deploy jobs `docker login ghcr.io` and pull) + `delete:packages` (cleanup job deletes closed-PR `pr-*` images). **ID must be exactly `github-token`** — the Jenkinsfiles reference this id. The ID field only appears when *creating* a credential (it cannot be renamed later). |
+
+> Note: a Jenkins credential ID is immutable. If an older global credential with a
+> personal-name id exists, leave it for the deprecated multibranch jobs and remove it
+> once those are deleted; the new build-once jobs use only this folder-scoped `github-token`.
 
 ### 11.4 GHCR package permissions
 
