@@ -8,6 +8,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Header, Query
 
 from backend.core.audit import get_audit_log_repository
 from backend.core.errors import CodedHTTPException
+from backend.core.rbac import get_current_user_id
 from backend.core.vendor_identity import get_vendor_profile_repository, require_approved_vendor
 from backend.repositories.audit_log_repository import AuditLogRepository
 from backend.repositories.employee_selection_repository import EmployeeSelectionRepository
@@ -105,7 +106,7 @@ def update_vendor_order_status(
     payload: VendorOrderStatusUpdate,
     background_tasks: BackgroundTasks,
     vendor_id: Annotated[int, Depends(require_approved_vendor)],
-    actor_user_id: Annotated[int | None, Depends(optional_header_user_id)],
+    actor_user_id: Annotated[int | None, Depends(get_current_user_id)],
     service: Annotated[VendorOrderService, Depends(get_vendor_order_service)],
     notification_service: Annotated[NotificationService, Depends(get_notification_service)],
 ) -> EmployeeOrder:

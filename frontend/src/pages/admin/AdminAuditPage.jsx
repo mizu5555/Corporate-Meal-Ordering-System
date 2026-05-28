@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { getAuditLogs } from "../../api/admin";
+import { formatPrice } from "../../utils/format";
 
 const PAGE_SIZE = 50;
 
@@ -21,6 +22,27 @@ const ACTION_LABEL = ACTION_FILTERS.reduce((acc, f) => {
 
 function formatTime(iso) {
   return new Date(iso).toLocaleString("zh-TW");
+}
+
+const DECISION_LABEL = { approved: "核准", rejected: "駁回" };
+
+// Human-readable detail per action, instead of raw JSON.
+function formatDetail(action, meta) {
+  const m = meta ?? {};
+  if (action === "order.status_update" && m.from && m.to) {
+    return `${m.from} → ${m.to}`;
+  }
+  if (action === "order.create") {
+    const parts = [];
+    if (m.vendor_id != null) parts.push(`廠商 #${m.vendor_id}`);
+    if (m.total_cents != null) parts.push(formatPrice(m.total_cents));
+    return parts.join("・") || "—";
+  }
+  if (action === "vendor.review" || action === "committee.review") {
+    const d = DECISION_LABEL[m.decision] ?? m.decision;
+    return m.reason ? `${d}：${m.reason}` : (d ?? "—");
+  }
+  return Object.keys(m).length ? JSON.stringify(m) : "—";
 }
 
 export default function AdminAuditPage() {
@@ -76,7 +98,8 @@ export default function AdminAuditPage() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "180px 140px 160px 160px 1fr",
+              gridTemplateColumns: "170px 150px 110px 130px 1fr",
+              gap: 12,
               padding: "10px 20px",
               borderBottom: "1px solid var(--line)",
               color: "var(--muted)",
@@ -98,7 +121,8 @@ export default function AdminAuditPage() {
               key={e.id}
               style={{
                 display: "grid",
-                gridTemplateColumns: "180px 140px 160px 160px 1fr",
+                gridTemplateColumns: "170px 150px 110px 130px 1fr",
+              gap: 12,
                 alignItems: "center",
                 padding: "12px 20px",
                 borderBottom: idx < entries.length - 1 ? "1px solid var(--line)" : "none",
@@ -106,17 +130,19 @@ export default function AdminAuditPage() {
               }}
             >
               <span style={{ color: "var(--muted)" }}>{formatTime(e.created_at)}</span>
-              <span>
-                #{e.actor_user_id ?? "—"}
-                {e.actor_role ? ` (${e.actor_role})` : ""}
+              <span style={{ minWidth: 0 }}>
+                {e.actor_user_id != null ? `#${e.actor_user_id}` : "系統"}
+                {e.actor_role ? (
+                  <span style={{ color: "var(--muted)", marginLeft: 6, fontSize: 12 }}>{e.actor_role}</span>
+                ) : null}
               </span>
-              <span>{ACTION_LABEL[e.action] ?? e.action}</span>
+              <span style={{ fontWeight: 500 }}>{ACTION_LABEL[e.action] ?? e.action}</span>
               <span style={{ color: "var(--muted)" }}>
                 {e.target_type}
                 {e.target_id != null ? ` #${e.target_id}` : ""}
               </span>
-              <span style={{ color: "var(--muted)", fontFamily: "monospace", fontSize: 12, wordBreak: "break-all" }}>
-                {Object.keys(e.metadata ?? {}).length ? JSON.stringify(e.metadata) : "—"}
+              <span style={{ color: "var(--text)", minWidth: 0, wordBreak: "break-word" }}>
+                {formatDetail(e.action, e.metadata)}
               </span>
             </div>
           ))}
