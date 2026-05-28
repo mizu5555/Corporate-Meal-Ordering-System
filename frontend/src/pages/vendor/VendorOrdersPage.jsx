@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getMyOrders } from "../../api/vendor";
+import { useFacility } from "../../facility/FacilityContext";
+import FacilityScopeLabel from "../../facility/FacilityScopeLabel";
 import { formatPrice } from "../../utils/format";
 
 const STATUS_LABEL = {
@@ -47,16 +49,19 @@ function itemsSummary(items) {
 
 export default function VendorOrdersPage() {
   const navigate = useNavigate();
+  const { selectedFacilityId } = useFacility();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    getMyOrders()
+    setLoading(true);
+    setError(null);
+    getMyOrders({ facilityId: selectedFacilityId })
       .then(setOrders)
       .catch((err) => setError(err.message ?? "無法載入訂單"))
       .finally(() => setLoading(false));
-  }, []);
+  }, [selectedFacilityId]);
 
   const totalRevenue = orders.reduce((sum, o) => sum + o.total_price_cents, 0);
   const totalItems = orders.reduce(
@@ -67,6 +72,7 @@ export default function VendorOrdersPage() {
   return (
     <div>
       <div className="page-header">
+        <FacilityScopeLabel label="Orders facility" />
         <p className="eyebrow">Vendor · Orders</p>
         <h2>今日訂單</h2>
       </div>

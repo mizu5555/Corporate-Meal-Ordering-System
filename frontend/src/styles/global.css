@@ -726,6 +726,60 @@ p {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.facility-chip,
+.facility-select-label {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fef4e6;
+  font-size: 0.84rem;
+  font-weight: 700;
+  padding: 0 14px;
+  white-space: nowrap;
+}
+
+.facility-chip-warning {
+  color: #ffe9b3;
+  border-color: rgba(255, 209, 102, 0.32);
+}
+
+.facility-select-label span {
+  color: rgba(255, 247, 235, 0.72);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.facility-select {
+  max-width: min(260px, 42vw);
+  border: none;
+  outline: none;
+  background: transparent;
+  color: #fff7eb;
+  font: inherit;
+  cursor: pointer;
+}
+
+.facility-select option {
+  color: #17212b;
+}
+
+.facility-scope {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.facility-scope span {
+  color: var(--ink);
+  font-weight: 700;
 }
 
 .cart-button {
@@ -950,5 +1004,14 @@ p {
     align-items: start;
     flex-direction: column;
     gap: 16px;
+  }
+
+  .topbar-actions {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .facility-select {
+    max-width: 70vw;
   }
 }

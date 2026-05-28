@@ -1,6 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { drawRandomMeal, submitSelection } from "../../api/employee";
+import { useFacility } from "../../facility/FacilityContext";
+import FacilityScopeLabel from "../../facility/FacilityScopeLabel";
 import { useVendors } from "../../hooks/useVendors";
 import { formatPrice, quotaLabel } from "../../utils/format";
 
@@ -25,7 +27,8 @@ function drawErrorMessage(err) {
 
 export default function RandomMealPage() {
   const navigate = useNavigate();
-  const { vendors, loading, error } = useVendors();
+  const { selectedFacilityId } = useFacility();
+  const { vendors, loading, error } = useVendors({ facilityId: selectedFacilityId });
   const minMealDate = addDaysIso(0);
   const maxMealDate = addDaysIso(6);
   const [mealDate, setMealDate] = useState(minMealDate);
@@ -46,6 +49,12 @@ export default function RandomMealPage() {
     return `${draw.remaining_quantity} left`;
   }, [draw]);
 
+  useEffect(() => {
+    setSelectedVendorIds([]);
+    setDraw(null);
+    setSubmitted(false);
+  }, [selectedFacilityId]);
+
   function toggleVendor(vendorId) {
     setSelectedVendorIds((current) =>
       current.includes(vendorId)
@@ -64,6 +73,7 @@ export default function RandomMealPage() {
       const result = await drawRandomMeal({
         mealDate,
         vendorIds: allVendors ? null : selectedVendorIds,
+        facilityId: selectedFacilityId,
       });
       setDraw(result);
     } catch (err) {
@@ -83,6 +93,7 @@ export default function RandomMealPage() {
         itemId: draw.item.id,
         quantity: 1,
         mealDate,
+        facilityId: selectedFacilityId,
       });
       setSubmitted(true);
     } catch (err) {
@@ -95,6 +106,7 @@ export default function RandomMealPage() {
   return (
     <div>
       <div className="page-header">
+        <FacilityScopeLabel label="Random meal facility" />
         <p className="eyebrow">Employee / Random Meal</p>
         <h2>Let the menu decide</h2>
       </div>

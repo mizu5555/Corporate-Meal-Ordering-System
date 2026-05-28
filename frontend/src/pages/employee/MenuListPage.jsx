@@ -2,10 +2,13 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import SearchBar from "../../components/employee/SearchBar";
 import VendorCard from "../../components/employee/VendorCard";
+import { useFacility } from "../../facility/FacilityContext";
+import FacilityScopeLabel from "../../facility/FacilityScopeLabel";
 import { useVendors } from "../../hooks/useVendors";
 
 export default function MenuListPage() {
-  const { vendors, loading, error } = useVendors();
+  const { selectedFacilityId } = useFacility();
+  const { vendors, loading, error } = useVendors({ facilityId: selectedFacilityId });
   const [query, setQuery] = useState("");
   const navigate = useNavigate();
 
@@ -17,6 +20,7 @@ export default function MenuListPage() {
   return (
     <div>
       <div className="page-header">
+        <FacilityScopeLabel label="Browsing facility" />
         <p className="eyebrow">Employee · Browse</p>
         <h2>今日供應廠商</h2>
       </div>

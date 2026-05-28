@@ -1,5 +1,6 @@
 import { apiFetch } from "./client";
-import { MOCK_MENU } from "./mockData";
+import { appendFacilityParam } from "./facilityParams";
+import { MOCK_MENU, MOCK_VENDORS } from "./mockData";
 
 function withMockFallback(apiCall, mockResult) {
   return apiCall().catch(() => mockResult);
@@ -16,8 +17,12 @@ export function getMyMenu() {
   );
 }
 
-export function getMyOrders() {
-  return apiFetch("/vendor/me/orders");
+export function getMyFacilities() {
+  return withMockFallback(() => apiFetch("/vendor/me/facilities"), MOCK_VENDORS[0]?.served_facilities ?? []);
+}
+
+export function getMyOrders({ facilityId } = {}) {
+  return apiFetch(appendFacilityParam("/vendor/me/orders", facilityId));
 }
 
 export function getMyOrder(orderId) {

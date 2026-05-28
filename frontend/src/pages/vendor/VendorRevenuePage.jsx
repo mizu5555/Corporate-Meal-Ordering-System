@@ -1,4 +1,5 @@
 import { MOCK_VENDOR_SELECTIONS } from "../../api/mockData";
+import FacilityScopeLabel from "../../facility/FacilityScopeLabel";
 import { formatPrice } from "../../utils/format";
 
 const MOCK_WEEKLY_REVENUE = 284500;
@@ -47,6 +48,7 @@ export default function VendorRevenuePage() {
   return (
     <div>
       <div className="page-header">
+        <FacilityScopeLabel label="Revenue facility" />
         <p className="eyebrow">Vendor · Revenue</p>
         <h2>收益總覽</h2>
       </div>

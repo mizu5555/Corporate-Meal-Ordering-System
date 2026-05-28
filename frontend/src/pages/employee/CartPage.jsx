@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { submitSelection } from "../../api/employee";
 import { useCart } from "../../cart/CartContext";
+import { useFacility } from "../../facility/FacilityContext";
+import FacilityScopeLabel from "../../facility/FacilityScopeLabel";
 import { formatPrice } from "../../utils/format";
 
 function errorMessage(item, err) {
@@ -23,6 +25,7 @@ function errorMessage(item, err) {
 
 export default function CartPage() {
   const { items, updateQuantity, removeItem, clearCart, totalCount } = useCart();
+  const { selectedFacilityId } = useFacility();
   const navigate = useNavigate();
 
   const [submitting, setSubmitting] = useState(false);
@@ -43,6 +46,7 @@ export default function CartPage() {
         await submitSelection(cartItem.vendorId, {
           itemId: cartItem.item.id,
           quantity: cartItem.quantity,
+          facilityId: selectedFacilityId,
         });
       } catch (err) {
         errors.push(errorMessage(cartItem, err));
@@ -112,6 +116,7 @@ export default function CartPage() {
   return (
     <div>
       <div className="page-header">
+        <FacilityScopeLabel label="Order facility" />
         <p className="eyebrow">Employee · Cart</p>
         <h2>購物車</h2>
       </div>
