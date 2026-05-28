@@ -10,8 +10,9 @@ export function quotaLabel(dailyQuota) {
   return `剩餘 ${dailyQuota} 份`;
 }
 
-export function photoUrl(photoPath) {
+export function photoUrl(photoPath, version) {
   if (!photoPath) return null;
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
-  return `${base}/uploads/${photoPath}`;
+  const url = `${base}/uploads/${photoPath}`;
+  return version ? `${url}?v=${version}` : url;
 }

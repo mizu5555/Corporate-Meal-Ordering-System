@@ -10,7 +10,7 @@ function MenuItemPhoto({ item, onUpload, onDelete }) {
   const inputRef = useRef(null);
   const [state, setState] = useState("idle"); // "idle" | "uploading" | "deleting"
   const [hover, setHover] = useState(false);
-  const url = photoUrl(item.photo_path);
+  const url = photoUrl(item.photo_path, item._photo_v);
   const busy = state !== "idle";
 
   async function handleFileChange(e) {

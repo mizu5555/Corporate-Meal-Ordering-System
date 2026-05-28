@@ -51,8 +51,13 @@
 
 	handle_path /uploads/* {
 		root * /srv/uploads
+		# Only cache responses that actually serve a file. Without the file
+		# matcher the header would also apply to 404s, which the browser caches
+		# for an hour — so a photo requested before upload stays "missing" even
+		# after it exists (#66).
+		@exists file
+		header @exists Cache-Control "public, max-age=3600"
 		file_server
-		header Cache-Control "public, max-age=3600"
 	}
 
 	# /metrics is explicitly blocked on the public listeners. Backend metrics
