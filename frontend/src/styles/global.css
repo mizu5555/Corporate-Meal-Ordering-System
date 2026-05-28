@@ -484,6 +484,12 @@ p {
   color: #fff7eb;
 }
 
+/* Keep the selected pill's text light on hover — otherwise .filter-pill:hover
+   turns it brand-orange on the orange background and it becomes unreadable. */
+.filter-pill-active:hover {
+  color: #fff7eb;
+}
+
 /* Menu item grid */
 .menu-grid {
   display: grid;
