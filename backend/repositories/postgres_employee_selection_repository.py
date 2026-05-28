@@ -185,22 +185,38 @@ class PostgresEmployeeSelectionRepository:
             total_price_cents = sum(s.quantity * s.unit_price_cents for s in items)
             order_row = conn.execute(
                 """
-                WITH inserted AS (
-                    INSERT INTO orders (employee_id, vendor_id, facility_id, meal_date, total_price_cents)
-                    VALUES (%s, %s, %s, %s, %s)
-                    RETURNING id
+                WITH next_order AS (
+                    SELECT nextval(pg_get_serial_sequence('orders', 'id')) AS id
+                ),
+                order_input AS (
+                    SELECT
+                        %s::BIGINT AS employee_id,
+                        %s::BIGINT AS vendor_id,
+                        %s::BIGINT AS facility_id,
+                        %s::DATE AS meal_date,
+                        %s::INT AS total_price_cents
                 )
-                UPDATE orders AS o
-                SET pickup_code = CONCAT(
-                    COALESCE(TO_CHAR(o.meal_date, 'MMDD'), 'P'),
-                    '-',
-                    LPAD(o.id::TEXT, 4, '0')
+                INSERT INTO orders (
+                    id, employee_id, vendor_id, facility_id,
+                    meal_date, total_price_cents, pickup_code
                 )
-                FROM inserted
-                WHERE o.id = inserted.id
-                RETURNING o.id, o.employee_id, o.vendor_id, o.facility_id, o.meal_date, o.status,
-                          o.total_price_cents, o.pickup_code, o.pickup_confirmed_at,
-                          o.pickup_confirmed_by_user_id, o.created_at, o.updated_at, o.cancelled_at
+                SELECT
+                    next_order.id,
+                    order_input.employee_id,
+                    order_input.vendor_id,
+                    order_input.facility_id,
+                    order_input.meal_date,
+                    order_input.total_price_cents,
+                    CONCAT(
+                        COALESCE(TO_CHAR(order_input.meal_date, 'MMDD'), 'P'),
+                        '-',
+                        LPAD(next_order.id::TEXT, 4, '0')
+                    )
+                FROM next_order
+                CROSS JOIN order_input
+                RETURNING id, employee_id, vendor_id, facility_id, meal_date, status,
+                          total_price_cents, pickup_code, pickup_confirmed_at,
+                          pickup_confirmed_by_user_id, created_at, updated_at, cancelled_at
                 """,
                 (employee_id, vendor_id, facility_id, meal_date, total_price_cents),
             ).fetchone()
