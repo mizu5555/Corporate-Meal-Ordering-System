@@ -25,6 +25,14 @@ export function getVendorApplications(status = null) {
   return apiFetch(`/admin/vendors/applications${qs}`);
 }
 
+export function getAuditLogs({ limit = 50, offset = 0, action } = {}) {
+  const params = new URLSearchParams();
+  params.set("limit", String(limit));
+  params.set("offset", String(offset));
+  if (action) params.set("action", action);
+  return apiFetch(`/admin/audit-logs?${params.toString()}`);
+}
+
 export function getVendorApplication(applicationId) {
   return apiFetch(`/admin/vendors/applications/${applicationId}`);
 }

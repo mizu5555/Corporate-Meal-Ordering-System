@@ -2,6 +2,7 @@ import { Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import AppShell from "../layout/AppShell";
 import { roleHomePath } from "../layout/navigation";
+import AdminAuditPage from "../pages/admin/AdminAuditPage";
 import AdminHomePage from "../pages/admin/AdminHomePage";
 import AdminPermissionsPage from "../pages/admin/AdminPermissionsPage";
 import AdminVendorReviewDetailPage from "../pages/admin/AdminVendorReviewDetailPage";
@@ -96,15 +97,7 @@ export function AppRouter() {
             <Route element={<AdminVendorReviewListPage />} path="/admin/vendors" />
             <Route element={<AdminVendorReviewDetailPage />} path="/admin/vendors/:applicationId" />
             <Route element={<AdminPermissionsPage />} path="/admin/permissions" />
-            <Route
-              element={
-                <PlaceholderPage
-                  description="Audit log browsing depends on backend data and is intentionally deferred."
-                  title="Admin Audit"
-                />
-              }
-              path="/admin/audit"
-            />
+            <Route element={<AdminAuditPage />} path="/admin/audit" />
           </Route>
 
           <Route
