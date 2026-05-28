@@ -37,28 +37,54 @@ pipeline {
       }
     }
 
-    stage('Prune GHCR pr-* tags') {
+    stage('Prune GHCR images') {
+      // Retention per package (mealorder-{backend,frontend,db,gateway}):
+      //   - pr-*  : keep newest KEEP_PR
+      //   - sha-* : keep newest KEEP_SHA
+      //   - v*    : keep all (releases) — never touched
+      //   - untagged: deleted (orphaned manifests from overwritten tags; safe
+      //     while images are single-arch — revisit if the build goes multi-arch).
+      // Deletes need the token to have `delete:packages` AND admin on the package
+      // (the packages are owned by the `mizu5555` user). If a delete fails the
+      // stage exits non-zero so the failure is visible, not silently swallowed.
       steps {
         withCredentials([usernamePassword(credentialsId: 'github-token', usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN')]) {
           sh '''
             set -euo pipefail
             OWNER=mizu5555
+            KEEP_PR=3
+            KEEP_SHA=5
+            FAILED=0
+
+            ids_untagged() {
+              echo "$1" | jq -r '.[] | select((.metadata.container.tags // []) | length == 0) | .id'
+            }
+            ids_old_for_prefix() {  # $1=versions json  $2=tag prefix  $3=keep newest
+              echo "$1" | jq -r --arg pre "$2" --argjson keep "$3" '
+                [ .[] | select((.metadata.container.tags // []) | any(startswith($pre))) ]
+                | sort_by(.created_at) | reverse | .[$keep:] | .[].id'
+            }
+
             for svc in backend frontend db gateway; do
               PKG="mealorder-${svc}"
-              gh api --paginate "/users/${OWNER}/packages/container/${PKG}/versions" \
-                --jq '.[] | {id: .id, tags: .metadata.container.tags}' 2>/dev/null \
-                | jq -c 'select(.tags[]? | startswith("pr-"))' \
-                | while read -r row; do
-                    VID=$(echo "$row" | jq -r '.id')
-                    TAG=$(echo "$row" | jq -r '.tags[] | select(startswith("pr-"))' | head -1)
-                    NUM="${TAG#pr-}"
-                    STATE=$(gh api "/repos/${OWNER}/Corporate-Meal-Ordering-System/pulls/${NUM}" --jq '.state' 2>/dev/null || echo "")
-                    if [ "$STATE" = "closed" ]; then
-                      echo "pruning ${PKG} ${TAG} (PR #${NUM} closed) version=${VID}"
-                      gh api -X DELETE "/users/${OWNER}/packages/container/${PKG}/versions/${VID}" || true
-                    fi
-                  done
+              ALL=$(gh api --paginate "/users/${OWNER}/packages/container/${PKG}/versions")
+              for VID in $(ids_untagged "$ALL") \
+                         $(ids_old_for_prefix "$ALL" "pr-"  "$KEEP_PR") \
+                         $(ids_old_for_prefix "$ALL" "sha-" "$KEEP_SHA"); do
+                [ -z "$VID" ] && continue
+                if gh api -X DELETE "/users/${OWNER}/packages/container/${PKG}/versions/${VID}"; then
+                  echo "deleted ${PKG} version=${VID}"
+                else
+                  echo "WARNING: failed to delete ${PKG} version=${VID} — token needs delete:packages + admin on the package" >&2
+                  FAILED=$((FAILED + 1))
+                fi
+              done
             done
+
+            if [ "$FAILED" -gt 0 ]; then
+              echo "GHCR prune: ${FAILED} deletion(s) failed; see WARNING lines above." >&2
+              exit 1
+            fi
           '''
         }
       }

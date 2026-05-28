@@ -287,12 +287,14 @@ After the first GitHub Actions workflow push succeeds, four packages appear unde
 the `mizu5555` account: `mealorder-backend`, `mealorder-frontend`, `mealorder-db`,
 `mealorder-gateway`.
 
-For each package:
+`mizu5555` is a **user** account (not an org), so the packages are personal.
+For each package (`https://github.com/users/mizu5555/packages` → open package → **Package settings**):
 
-1. Go to `https://github.com/orgs/mizu5555/packages` (or the user's packages page).
-2. Open the package → **Package settings**.
-3. Under **Manage Actions access**, confirm the `mizu5555/Corporate-Meal-Ordering-System` repo has **Write** access (needed so Actions can push).
-4. Confirm the `github-token` PAT account has **Read** (pull) and **delete** (cleanup) capability for the package.
+1. **Manage Actions access** — confirm `mizu5555/Corporate-Meal-Ordering-System` has **Write** (so Actions can push).
+2. **Visibility** — the repo is public and the images bake no runtime secrets (`.env` is dockerignored), so set the 4 packages **Public**. Public GHCR storage/transfer is free and unlimited, which removes any quota pressure.
+3. **Delete permission for cleanup** — the `Prune GHCR images` stage in `Jenkinsfile.cleanup` deletes versions via the GitHub API. Deleting a version of a *user-owned* package requires the token to have `delete:packages` **and admin on the package**. Since the Jenkins `github-token` belongs to a contributor (not `mizu5555`), the owner must grant that account **Admin** under **Manage access** on each package — otherwise the delete returns `404 Package not found` and the cleanup stage fails (by design, so it is visible). Alternatively back `github-token` with `mizu5555`'s own PAT.
+
+**Retention policy** (`Jenkinsfile.cleanup`, hourly): per package keep newest 3 `pr-*`, newest 5 `sha-*`, all `v*` (releases); delete untagged. Tune `KEEP_PR` / `KEEP_SHA` in the Jenkinsfile.
 
 ### 11.5 Branch protection — update required status check name
 
