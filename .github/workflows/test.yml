@@ -1,11 +1,17 @@
-name: Test
+name: CI/CD
 
 on:
   pull_request:
   push:
     branches:
       - main
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
   workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
 
 jobs:
   unit:
@@ -51,3 +57,100 @@ jobs:
             -f backend/db/migrations/001_initial_schema.sql
       - name: Run integration tests
         run: pytest backend/tests/integration -q
+
+  meta:
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.tag.outputs.image_tag }}
+    steps:
+      - name: Compute image tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "image_tag=pr-${{ github.event.number }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "image_tag=sha-${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+          fi
+
+  build-push:
+    needs: [integration, meta]
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - { name: backend,  context: ".",          file: "backend/Dockerfile" }
+          - { name: frontend, context: "./frontend", file: "./frontend/Dockerfile" }
+          - { name: db,       context: ".",          file: "backend/db/Dockerfile" }
+          - { name: gateway,  context: ".",          file: "infra/caddy/Dockerfile" }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          push: true
+          tags: ghcr.io/mizu5555/mealorder-${{ matrix.name }}:${{ needs.meta.outputs.image_tag }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+  promote:
+    needs: integration
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Re-tag sha image to version
+        run: |
+          SHA="sha-${GITHUB_SHA::12}"
+          VER="${GITHUB_REF_NAME}"
+          for svc in backend frontend db gateway; do
+            docker buildx imagetools create \
+              -t "ghcr.io/mizu5555/mealorder-${svc}:${VER}" \
+              "ghcr.io/mizu5555/mealorder-${svc}:${SHA}"
+          done
+
+  deploy-staging:
+    needs: [build-push, meta]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Jenkins staging
+        run: |
+          curl -fsS -X POST \
+            "${{ secrets.JENKINS_URL }}/job/meal-deploy-staging/buildWithParameters?IMAGE_TAG=${{ needs.meta.outputs.image_tag }}&token=${{ secrets.JENKINS_STAGING_TOKEN }}" \
+            --user "${{ secrets.JENKINS_USER }}:${{ secrets.JENKINS_API_TOKEN }}"
+
+  deploy-preview:
+    needs: [build-push, meta]
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Jenkins preview
+        env:
+          PR_BRANCH: ${{ github.head_ref }}
+        run: |
+          curl -fsS -X POST \
+            "${{ secrets.JENKINS_URL }}/job/meal-deploy-preview/buildWithParameters?IMAGE_TAG=${{ needs.meta.outputs.image_tag }}&PR_NUMBER=${{ github.event.number }}&PR_BRANCH=${PR_BRANCH}&token=${{ secrets.JENKINS_PREVIEW_TOKEN }}" \
+            --user "${{ secrets.JENKINS_USER }}:${{ secrets.JENKINS_API_TOKEN }}"
+
+  deploy-prod:
+    needs: promote
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Jenkins prod
+        run: |
+          curl -fsS -X POST \
+            "${{ secrets.JENKINS_URL }}/job/meal-deploy-prod/buildWithParameters?IMAGE_TAG=${{ github.ref_name }}&token=${{ secrets.JENKINS_PROD_TOKEN }}" \
+            --user "${{ secrets.JENKINS_USER }}:${{ secrets.JENKINS_API_TOKEN }}"
