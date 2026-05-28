@@ -96,9 +96,33 @@ class EmployeeOrder(BaseModel):
     status: OrderStatus
     items: list[EmployeeOrderItem]
     total_price_cents: int
+    pickup_code: str | None = None
+    pickup_confirmed_at: datetime | None = None
+    pickup_confirmed_by_user_id: int | None = None
     created_at: datetime
     updated_at: datetime
     cancelled_at: datetime | None = None
+
+
+class PickupLabelItem(BaseModel):
+    item_name: str
+    quantity: int
+
+
+class PickupLabel(BaseModel):
+    order_id: int
+    pickup_code: str | None = None
+    employee_id: int
+    vendor_id: int
+    vendor_name: str
+    meal_date: date | None = None
+    status: OrderStatus
+    facility_names: list[str] = Field(default_factory=list)
+    items: list[PickupLabelItem]
+    total_quantity: int
+    total_price_cents: int
+    pickup_confirmed_at: datetime | None = None
+    pickup_confirmed_by_user_id: int | None = None
 
 
 class RandomMealDrawRequest(BaseModel):

@@ -185,10 +185,22 @@ class PostgresEmployeeSelectionRepository:
             total_price_cents = sum(s.quantity * s.unit_price_cents for s in items)
             order_row = conn.execute(
                 """
-                INSERT INTO orders (employee_id, vendor_id, facility_id, meal_date, total_price_cents)
-                VALUES (%s, %s, %s, %s, %s)
-                RETURNING id, employee_id, vendor_id, facility_id, meal_date, status,
-                          total_price_cents, created_at, updated_at, cancelled_at
+                WITH inserted AS (
+                    INSERT INTO orders (employee_id, vendor_id, facility_id, meal_date, total_price_cents)
+                    VALUES (%s, %s, %s, %s, %s)
+                    RETURNING id
+                )
+                UPDATE orders AS o
+                SET pickup_code = CONCAT(
+                    COALESCE(TO_CHAR(o.meal_date, 'MMDD'), 'P'),
+                    '-',
+                    LPAD(o.id::TEXT, 4, '0')
+                )
+                FROM inserted
+                WHERE o.id = inserted.id
+                RETURNING o.id, o.employee_id, o.vendor_id, o.facility_id, o.meal_date, o.status,
+                          o.total_price_cents, o.pickup_code, o.pickup_confirmed_at,
+                          o.pickup_confirmed_by_user_id, o.created_at, o.updated_at, o.cancelled_at
                 """,
                 (employee_id, vendor_id, facility_id, meal_date, total_price_cents),
             ).fetchone()
@@ -252,7 +264,8 @@ class PostgresEmployeeSelectionRepository:
             order_rows = conn.execute(
                 f"""
                 SELECT id, employee_id, vendor_id, facility_id, meal_date, status,
-                       total_price_cents, created_at, updated_at, cancelled_at
+                       total_price_cents, pickup_code, pickup_confirmed_at,
+                       pickup_confirmed_by_user_id, created_at, updated_at, cancelled_at
                 FROM orders
                 WHERE {" AND ".join(where)}
                 ORDER BY id
@@ -266,7 +279,8 @@ class PostgresEmployeeSelectionRepository:
             row = conn.execute(
                 """
                 SELECT id, employee_id, vendor_id, facility_id, meal_date, status,
-                       total_price_cents, created_at, updated_at, cancelled_at
+                       total_price_cents, pickup_code, pickup_confirmed_at,
+                       pickup_confirmed_by_user_id, created_at, updated_at, cancelled_at
                 FROM orders
                 WHERE vendor_id = %s AND id = %s
                 """,
@@ -283,12 +297,43 @@ class PostgresEmployeeSelectionRepository:
                 UPDATE orders
                 SET status = %s,
                     updated_at = NOW(),
-                    cancelled_at = CASE WHEN %s = 'cancelled' THEN NOW() ELSE cancelled_at END
+                    cancelled_at = CASE WHEN %s = 'cancelled' THEN NOW() ELSE cancelled_at END,
+                    pickup_confirmed_at = CASE
+                        WHEN %s = 'delivered' AND pickup_confirmed_at IS NULL THEN NOW()
+                        ELSE pickup_confirmed_at
+                    END
                 WHERE vendor_id = %s AND id = %s
                 RETURNING id, employee_id, vendor_id, facility_id, meal_date, status,
-                          total_price_cents, created_at, updated_at, cancelled_at
+                          total_price_cents, pickup_code, pickup_confirmed_at,
+                          pickup_confirmed_by_user_id, created_at, updated_at, cancelled_at
                 """,
-                (new_status, new_status, vendor_id, order_id),
+                (new_status, new_status, new_status, vendor_id, order_id),
+            ).fetchone()
+            if row is None:
+                return None
+            return self._hydrate_order(conn, row)
+
+    def confirm_pickup(
+        self,
+        *,
+        vendor_id: int,
+        order_id: int,
+        confirmer_user_id: int | None = None,
+    ) -> EmployeeOrder | None:
+        with get_connection() as conn:
+            row = conn.execute(
+                """
+                UPDATE orders
+                SET status = 'delivered',
+                    pickup_confirmed_at = COALESCE(pickup_confirmed_at, NOW()),
+                    pickup_confirmed_by_user_id = COALESCE(pickup_confirmed_by_user_id, %s),
+                    updated_at = NOW()
+                WHERE vendor_id = %s AND id = %s
+                RETURNING id, employee_id, vendor_id, facility_id, meal_date, status,
+                          total_price_cents, pickup_code, pickup_confirmed_at,
+                          pickup_confirmed_by_user_id, created_at, updated_at, cancelled_at
+                """,
+                (confirmer_user_id, vendor_id, order_id),
             ).fetchone()
             if row is None:
                 return None
@@ -315,7 +360,8 @@ class PostgresEmployeeSelectionRepository:
             order_rows = conn.execute(
                 """
                 SELECT id, employee_id, vendor_id, facility_id, meal_date, status,
-                       total_price_cents, created_at, updated_at, cancelled_at
+                       total_price_cents, pickup_code, pickup_confirmed_at,
+                       pickup_confirmed_by_user_id, created_at, updated_at, cancelled_at
                 FROM orders
                 WHERE employee_id = %s
                 ORDER BY id
@@ -329,7 +375,8 @@ class PostgresEmployeeSelectionRepository:
             row = conn.execute(
                 """
                 SELECT id, employee_id, vendor_id, facility_id, meal_date, status,
-                       total_price_cents, created_at, updated_at, cancelled_at
+                       total_price_cents, pickup_code, pickup_confirmed_at,
+                       pickup_confirmed_by_user_id, created_at, updated_at, cancelled_at
                 FROM orders
                 WHERE employee_id = %s AND id = %s
                 """,
@@ -347,7 +394,8 @@ class PostgresEmployeeSelectionRepository:
                 SET status = 'cancelled', updated_at = NOW(), cancelled_at = NOW()
                 WHERE employee_id = %s AND id = %s AND status = 'pending'
                 RETURNING id, employee_id, vendor_id, facility_id, meal_date, status,
-                          total_price_cents, created_at, updated_at, cancelled_at
+                          total_price_cents, pickup_code, pickup_confirmed_at,
+                          pickup_confirmed_by_user_id, created_at, updated_at, cancelled_at
                 """,
                 (employee_id, order_id),
             ).fetchone()
@@ -355,7 +403,8 @@ class PostgresEmployeeSelectionRepository:
                 row = conn.execute(
                     """
                     SELECT id, employee_id, vendor_id, facility_id, meal_date, status,
-                           total_price_cents, created_at, updated_at, cancelled_at
+                           total_price_cents, pickup_code, pickup_confirmed_at,
+                           pickup_confirmed_by_user_id, created_at, updated_at, cancelled_at
                     FROM orders
                     WHERE employee_id = %s AND id = %s
                     """,
@@ -378,7 +427,8 @@ class PostgresEmployeeSelectionRepository:
             order_row = conn.execute(
                 """
                 SELECT id, employee_id, vendor_id, facility_id, meal_date, status,
-                       total_price_cents, created_at, updated_at, cancelled_at
+                       total_price_cents, pickup_code, pickup_confirmed_at,
+                       pickup_confirmed_by_user_id, created_at, updated_at, cancelled_at
                 FROM orders
                 WHERE employee_id = %s AND id = %s
                 FOR UPDATE
@@ -457,7 +507,8 @@ class PostgresEmployeeSelectionRepository:
                     updated_at = NOW()
                 WHERE employee_id = %s AND id = %s
                 RETURNING id, employee_id, vendor_id, facility_id, meal_date, status,
-                          total_price_cents, created_at, updated_at, cancelled_at
+                          total_price_cents, pickup_code, pickup_confirmed_at,
+                          pickup_confirmed_by_user_id, created_at, updated_at, cancelled_at
                 """,
                 (meal_date, facility_id, total_price_cents, employee_id, order_id),
             ).fetchone()

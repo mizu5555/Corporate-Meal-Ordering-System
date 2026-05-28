@@ -22,6 +22,7 @@ from backend.schemas.employee import (
     EmployeeVendor,
     MealSelection,
     MealSelectionCreate,
+    PickupLabel,
     RandomMealDraw,
     RandomMealDrawRequest,
 )
@@ -154,6 +155,15 @@ def get_my_order(
     service: Annotated[EmployeeOrderingService, Depends(get_employee_ordering_service)],
 ) -> EmployeeOrder:
     return service.get_my_order(employee_id, order_id)
+
+
+@router.get("/me/orders/{order_id}/pickup-label", response_model=PickupLabel)
+def get_my_pickup_label(
+    order_id: int,
+    employee_id: Annotated[int, Depends(require_employee)],
+    service: Annotated[EmployeeOrderingService, Depends(get_employee_ordering_service)],
+) -> PickupLabel:
+    return service.get_my_pickup_label(employee_id, order_id)
 
 
 @router.put("/me/orders/{order_id}", response_model=EmployeeOrder)

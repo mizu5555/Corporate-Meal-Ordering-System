@@ -37,6 +37,12 @@ export function updateOrderStatus(orderId, status) {
   });
 }
 
+export function confirmPickup(orderId) {
+  return apiFetch(`/vendor/me/orders/${orderId}/pickup-confirm`, {
+    method: "POST",
+  });
+}
+
 export function createMenuItem(data) {
   return apiFetch("/vendor/me/menu", {
     method: "POST",
