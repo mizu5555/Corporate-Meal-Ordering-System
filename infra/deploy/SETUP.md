@@ -261,12 +261,12 @@ and do not double-trigger alongside the new token-triggered jobs.
 
 ### 11.3 Jenkins credentials
 
-Go to **Manage Jenkins → Credentials** (the appropriate domain/store) and add or update:
+Go to **Manage Jenkins → Credentials** (the appropriate domain/store). The existing
+`github-token-eason` credential is reused for everything — no new credential is needed:
 
 | Credential ID | Type | Details |
 |---|---|---|
-| `ghcr-pull` | Username + password | Username = a GitHub account with package read access; password = a PAT with `read:packages` scope. All three deploy jobs use this to `docker login ghcr.io` before pulling images. |
-| `github-token-eason` | Secret text / PAT | **Extend** the existing PAT to include `delete:packages` scope (in addition to whatever scopes it already has). The cleanup job uses this to delete closed-PR `pr-*` images from GHCR. |
+| `github-token-eason` | Username + password | The existing credential, reused. **Extend** its backing PAT to include `read:packages` (so all three deploy jobs can `docker login ghcr.io` and pull) and `delete:packages` (so the cleanup job can delete closed-PR `pr-*` images), in addition to its existing `repo` scope (PR comments). Since these are *added* scopes on a classic token, the token string is unchanged — **no Jenkins credential update is required**, only the GitHub scope edit. |
 
 ### 11.4 GHCR package permissions
 
@@ -279,8 +279,7 @@ For each package:
 1. Go to `https://github.com/orgs/mizu5555/packages` (or the user's packages page).
 2. Open the package → **Package settings**.
 3. Under **Manage Actions access**, confirm the `mizu5555/Corporate-Meal-Ordering-System` repo has **Write** access (needed so Actions can push).
-4. Confirm the `ghcr-pull` PAT account has at least **Read** access for pull.
-5. Confirm the `github-token-eason` PAT account has **Read + delete** capability for the cleanup job.
+4. Confirm the `github-token-eason` PAT account has **Read** (pull) and **delete** (cleanup) capability for the package.
 
 ### 11.5 Branch protection — update required status check name
 

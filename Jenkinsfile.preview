@@ -36,13 +36,10 @@ pipeline {
 
     stage('Deploy preview') {
       steps {
-        withCredentials([
-          usernamePassword(credentialsId: 'github-token-eason', usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN'),
-          usernamePassword(credentialsId: 'ghcr-pull', usernameVariable: 'GHCR_USER', passwordVariable: 'GHCR_TOKEN')
-        ]) {
+        withCredentials([usernamePassword(credentialsId: 'github-token-eason', usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN')]) {
           sh '''
             set -euo pipefail
-            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            echo "$GH_TOKEN" | docker login ghcr.io -u "$GH_USER" --password-stdin
 
             SLUG=$(bash scripts/preview-sanitize-branch.sh "$PR_BRANCH")
             if [ -z "$SLUG" ]; then
