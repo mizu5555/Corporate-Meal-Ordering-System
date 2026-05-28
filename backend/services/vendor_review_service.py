@@ -16,9 +16,24 @@ class VendorReviewService:
         self,
         application_id: int,
         payload: VendorReviewRequest,
+        *,
+        actor_user_id: int | None = None,
+        actor_role: str | None = None,
     ) -> VendorReviewResponse:
-        self.vendor_repository.mark_application_reviewed(application_id, payload.decision)
-        self.audit_log_repository.record_vendor_review(application_id, payload.decision)
+        self.vendor_repository.mark_application_reviewed(
+            application_id,
+            decision=payload.decision,
+            reviewer_user_id=actor_user_id,
+            reason=payload.reason,
+        )
+        self.audit_log_repository.record(
+            actor_user_id=actor_user_id,
+            actor_role=actor_role,
+            action="vendor.review",
+            target_type="vendor_application",
+            target_id=application_id,
+            metadata={"decision": payload.decision},
+        )
 
         return VendorReviewResponse(
             application_id=application_id,

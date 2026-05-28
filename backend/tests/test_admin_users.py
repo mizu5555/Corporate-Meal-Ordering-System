@@ -5,8 +5,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from backend.core.audit import get_audit_log_repository
 from backend.core.security import create_access_token, hash_password
 from backend.main import app
+from backend.repositories.audit_log_repository import AuditLogRepository
 
 client = TestClient(app)
 
@@ -171,6 +173,70 @@ def test_delete_self_returns_403() -> None:
 
     assert resp.status_code == 403
     assert resp.json()["code"] == "cannot_delete_self"
+
+
+# ---------------------------------------------------------------------------
+# Audit trail (issue #56)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def audit_repo():
+    """Substitute an in-memory audit repo for the duration of a test."""
+    repo = AuditLogRepository()
+    app.dependency_overrides[get_audit_log_repository] = lambda: repo
+    yield repo
+    app.dependency_overrides.pop(get_audit_log_repository, None)
+
+
+def test_disable_user_records_audit_entry(audit_repo) -> None:
+    with patch("backend.routes.admin_users.get_connection", return_value=_action_conn(exists=True)):
+        resp = client.patch("/admin/users/2/disable", headers=_ADMIN_HEADERS)
+
+    assert resp.status_code == 200
+    entries = audit_repo.list(action="user.disable")
+    assert len(entries) == 1
+    entry = entries[0]
+    assert entry.target_type == "user"
+    assert entry.target_id == 2
+    assert entry.actor_role == "admin"
+    assert entry.actor_user_id == 1
+
+
+def test_enable_user_records_audit_entry(audit_repo) -> None:
+    with patch("backend.routes.admin_users.get_connection", return_value=_action_conn(exists=True)):
+        resp = client.patch("/admin/users/2/enable", headers=_ADMIN_HEADERS)
+
+    assert resp.status_code == 200
+    entries = audit_repo.list(action="user.enable")
+    assert len(entries) == 1
+    entry = entries[0]
+    assert entry.target_type == "user"
+    assert entry.target_id == 2
+    assert entry.actor_role == "admin"
+    assert entry.actor_user_id == 1
+
+
+def test_delete_user_records_audit_entry(audit_repo) -> None:
+    with patch("backend.routes.admin_users.get_connection", return_value=_action_conn(exists=True)):
+        resp = client.delete("/admin/users/2", headers=_ADMIN_HEADERS)
+
+    assert resp.status_code == 204
+    entries = audit_repo.list(action="user.delete")
+    assert len(entries) == 1
+    entry = entries[0]
+    assert entry.target_type == "user"
+    assert entry.target_id == 2
+    assert entry.actor_role == "admin"
+    assert entry.actor_user_id == 1
+
+
+def test_failed_disable_does_not_record_audit(audit_repo) -> None:
+    """404 (user not found) must not produce an audit entry."""
+    with patch("backend.routes.admin_users.get_connection", return_value=_action_conn(exists=False)):
+        resp = client.patch("/admin/users/999/disable", headers=_ADMIN_HEADERS)
+
+    assert resp.status_code == 404
+    assert audit_repo.list(action="user.disable") == []
 
 
 # ---------------------------------------------------------------------------

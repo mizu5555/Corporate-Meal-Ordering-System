@@ -14,8 +14,10 @@ from datetime import date, timedelta
 import pytest
 from fastapi.testclient import TestClient
 
+from backend.core.audit import get_audit_log_repository
 from backend.core.vendor_identity import get_vendor_profile_repository
 from backend.main import app
+from backend.repositories.audit_log_repository import AuditLogRepository
 from backend.repositories.employee_selection_repository import EmployeeSelectionRepository
 from backend.repositories.menu_item_repository import MenuItemRepository
 from backend.repositories.vendor_profile_repository import VendorProfileRepository, VendorRecord
@@ -65,6 +67,7 @@ def _setup() -> tuple[TestClient, VendorProfileRepository, MenuItemRepository, E
     app.dependency_overrides[get_vendor_profile_repository] = lambda: vendor_repo
     app.dependency_overrides[get_menu_item_repository] = lambda: item_repo
     app.dependency_overrides[get_employee_selection_repository] = lambda: selection_repo
+    app.dependency_overrides[get_audit_log_repository] = lambda: AuditLogRepository()
     return TestClient(app), vendor_repo, item_repo, selection_repo
 
 

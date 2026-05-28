@@ -12,6 +12,7 @@ from backend.db.migrate import run_migrations
 from backend.routes import (
     admin_users,
     admin_vendors,
+    audit_logs,
     auth,
     committee_reviews,
     employee_ordering,
@@ -66,6 +67,7 @@ def create_app() -> FastAPI:
     app.include_router(vendor_orders.router)
     app.include_router(employee_ordering.router)
     app.include_router(notifications.router)
+    app.include_router(audit_logs.router)
 
     Instrumentator(should_instrument_requests_inprogress=True).instrument(app).expose(app)
     return app

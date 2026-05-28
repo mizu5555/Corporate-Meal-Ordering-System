@@ -4,6 +4,7 @@ from __future__ import annotations
 from datetime import date
 
 from backend.core.errors import CodedHTTPException
+from backend.repositories.audit_log_repository import AuditLogRepository
 from backend.repositories.employee_selection_repository import EmployeeSelectionRepository
 from backend.repositories.vendor_profile_repository import VendorProfileRepository
 from backend.schemas.employee import EmployeeOrder, OrderStatus, PickupLabel, PickupLabelItem
@@ -21,9 +22,11 @@ class VendorOrderService:
         self,
         selection_repo: EmployeeSelectionRepository,
         vendor_repo: VendorProfileRepository,
+        audit_log_repository: AuditLogRepository | None = None,
     ) -> None:
         self._repo = selection_repo
         self._vendor_repo = vendor_repo
+        self._audit = audit_log_repository or AuditLogRepository()
 
     def list_orders(self, vendor_id: int, facility_id: int | None = None) -> list[EmployeeOrder]:
         self._assert_facility_access(vendor_id, facility_id)
@@ -76,8 +79,16 @@ class VendorOrderService:
             raise CodedHTTPException(status_code=404, code="not_found", detail="order not found")
         return updated
 
-    def update_status(self, vendor_id: int, order_id: int, new_status: str) -> EmployeeOrder:
+    def update_status(
+        self,
+        vendor_id: int,
+        order_id: int,
+        new_status: str,
+        *,
+        actor_user_id: int | None = None,
+    ) -> EmployeeOrder:
         order = self.get_order(vendor_id, order_id)
+        old_status = order.status
         allowed = ALLOWED_TRANSITIONS.get(order.status, set())
         if new_status not in allowed:
             raise CodedHTTPException(
@@ -90,6 +101,14 @@ class VendorOrderService:
         )
         if updated is None:
             raise CodedHTTPException(status_code=404, code="not_found", detail="order not found")
+        self._audit.record(
+            actor_user_id=actor_user_id,
+            actor_role="vendor_manager",
+            action="order.status_update",
+            target_type="order",
+            target_id=order_id,
+            metadata={"from": old_status, "to": new_status},
+        )
         return updated
 
     def _assert_facility_access(self, vendor_id: int, facility_id: int | None) -> None:
