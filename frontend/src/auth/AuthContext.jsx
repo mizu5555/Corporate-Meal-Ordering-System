@@ -37,7 +37,14 @@ export function AuthProvider({ children }) {
           email,
           vendorId: data.vendor_id ?? null,
         };
-        setSession({ user, token: data.access_token });
+        // Persist synchronously so the very next API call (fired by the page we
+        // redirect to) reads the token from storage. Relying only on the
+        // [session] effect races: child mount effects run before the provider's
+        // effect, so those first post-login calls would go out unauthenticated
+        // → 403, and the menu would fall back to mock data.
+        const nextSession = { user, token: data.access_token };
+        writeStoredSession(nextSession);
+        setSession(nextSession);
         return user;
       },
 
@@ -53,14 +60,18 @@ export function AuthProvider({ children }) {
           email,
           vendorId: data.vendor_id ?? null,
         };
-        setSession({ user, token: data.access_token });
+        const nextSession = { user, token: data.access_token };
+        writeStoredSession(nextSession);
+        setSession(nextSession);
         return user;
       },
 
       loginAsRole(role) {
         const user = findMockUserByRole(role);
         if (!user) return false;
-        setSession({ user, token: `mock-token-${role}` });
+        const nextSession = { user, token: `mock-token-${role}` };
+        writeStoredSession(nextSession);
+        setSession(nextSession);
         return true;
       },
 
