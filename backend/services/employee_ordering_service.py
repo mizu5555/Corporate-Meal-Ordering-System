@@ -37,16 +37,36 @@ class EmployeeOrderingService:
         self.menu_item_repository = menu_item_repository
         self.selection_repository = selection_repository
 
-    def list_vendors(self) -> list[EmployeeVendor]:
-        return [self._vendor_to_schema(vendor) for vendor in self.vendor_repository.list(status="approved")]
+    def list_vendors(self, employee_id: int | None = None) -> list[EmployeeVendor]:
+        """回傳員工可見的商家列表。
 
-    def get_vendor(self, vendor_id: int) -> EmployeeVendor:
-        return self._vendor_to_schema(self._get_approved_vendor(vendor_id))
+        過濾規則：
+        - 員工無廠區指派 → 可見所有 approved 商家（向下相容）
+        - 員工有廠區指派 → 只顯示「與員工廠區有交集」的商家
+          - 商家若無廠區設定 → 視為全廠區可見（不限制）
+        """
+        all_vendors = [self._vendor_to_schema(vendor) for vendor in self.vendor_repository.list(status="approved")]
+        if employee_id is None:
+            return all_vendors
+        return self._filter_vendors_by_facility(all_vendors, employee_id)
+
+    def get_vendor(self, vendor_id: int, employee_id: int | None = None) -> EmployeeVendor:
+        vendor = self._vendor_to_schema(self._get_approved_vendor(vendor_id))
+        if employee_id is not None:
+            self._assert_facility_access(vendor, employee_id)
+        return vendor
 
     def list_menu(
-        self, vendor_id: int, *, category_id: int | None = None, available: bool | None = True
+        self,
+        vendor_id: int,
+        *,
+        category_id: int | None = None,
+        available: bool | None = True,
+        employee_id: int | None = None,
     ) -> list[EmployeeMenuItem]:
-        self._get_approved_vendor(vendor_id)
+        vendor = self._vendor_to_schema(self._get_approved_vendor(vendor_id))
+        if employee_id is not None:
+            self._assert_facility_access(vendor, employee_id)
         return [
             self._menu_item_to_schema(item)
             for item in self.menu_item_repository.list(
@@ -102,9 +122,24 @@ class EmployeeOrderingService:
             meal_date=meal_date,
         )
 
-    def draw_random_meal(self, payload: RandomMealDrawRequest) -> RandomMealDraw:
+    def draw_random_meal(
+        self,
+        payload: RandomMealDrawRequest,
+        employee_id: int | None = None,
+    ) -> RandomMealDraw:
         self._ensure_meal_date_in_window(payload.meal_date)
-        approved_vendors = {vendor.id: vendor for vendor in self.vendor_repository.list(status="approved")}
+        all_approved = self.vendor_repository.list(status="approved")
+
+        # Apply facility filter first, then honour caller's vendor_ids list
+        if employee_id is not None:
+            visible = self._filter_vendors_by_facility(
+                [self._vendor_to_schema(v) for v in all_approved], employee_id
+            )
+            visible_ids = {v.id for v in visible}
+            approved_vendors = {v.id: v for v in all_approved if v.id in visible_ids}
+        else:
+            approved_vendors = {vendor.id: vendor for vendor in all_approved}
+
         if payload.vendor_ids is None:
             vendor_ids = list(approved_vendors)
         else:
@@ -199,6 +234,43 @@ class EmployeeOrderingService:
         if updated is None:
             raise CodedHTTPException(status_code=404, code="not_found", detail="order not found")
         return updated
+
+    # ------------------------------------------------------------------
+    # Facility helpers
+    # ------------------------------------------------------------------
+
+    def _filter_vendors_by_facility(
+        self, vendors: list[EmployeeVendor], employee_id: int
+    ) -> list[EmployeeVendor]:
+        """過濾商家清單：只保留與員工廠區有交集的商家。
+
+        規則：
+        - 員工無廠區指派 → 不限制，回傳全部
+        - 商家無廠區設定 → 全廠區可見（不限制）
+        - 否則取交集，有交集才回傳
+        """
+        employee_facilities = self.vendor_repository.list_employee_facilities(employee_id)
+        if not employee_facilities:
+            return vendors  # 員工無廠區限制
+        employee_fids = {f.id for f in employee_facilities}
+        result = []
+        for vendor in vendors:
+            if not vendor.served_facilities:
+                result.append(vendor)  # 商家無廠區設定 → 全廠區可見
+            elif any(f.id in employee_fids for f in vendor.served_facilities):
+                result.append(vendor)
+        return result
+
+    def _assert_facility_access(self, vendor: EmployeeVendor, employee_id: int) -> None:
+        """若員工無法存取此商家的廠區，拋出 404（對外不揭露存在性）。"""
+        employee_facilities = self.vendor_repository.list_employee_facilities(employee_id)
+        if not employee_facilities:
+            return  # 員工無廠區限制
+        if not vendor.served_facilities:
+            return  # 商家無廠區限制
+        employee_fids = {f.id for f in employee_facilities}
+        if not any(f.id in employee_fids for f in vendor.served_facilities):
+            raise CodedHTTPException(status_code=404, code="not_found", detail="vendor not found")
 
     def _get_approved_vendor(self, vendor_id: int) -> VendorRecord:
         vendor = self.vendor_repository.get(vendor_id)

@@ -4,6 +4,7 @@
 DB 接好後將此檔換成真正的 SQL 實作；route / service 介面不需更動。
 
 `assign_facility` 在實際系統中由委員會模組寫入；這裡保留是給測試/seed 用。
+`assign_employee_facility` 同理，管理端指派後 employee 端唯讀。
 """
 from __future__ import annotations
 
@@ -29,6 +30,8 @@ class VendorProfileRepository:
         self._vendors: dict[int, VendorRecord] = {}
         # vendor_id -> list of Facility
         self._facilities: dict[int, list[Facility]] = {}
+        # employee_id -> list of Facility
+        self._employee_facilities: dict[int, list[Facility]] = {}
 
     # --- seed / write side (admin / committee in real life) ---
 
@@ -41,6 +44,11 @@ class VendorProfileRepository:
         """委員會模組 stub：把廠區指派給商家。"""
         self._facilities.setdefault(vendor_id, [])
         self._facilities[vendor_id].append(Facility(id=facility_id, code=code, name=name))
+
+    def assign_employee_facility(self, employee_id: int, *, facility_id: int, code: str, name: str) -> None:
+        """管理端 stub：把廠區指派給員工。"""
+        self._employee_facilities.setdefault(employee_id, [])
+        self._employee_facilities[employee_id].append(Facility(id=facility_id, code=code, name=name))
 
     # --- read / vendor-self side ---
 
@@ -65,3 +73,7 @@ class VendorProfileRepository:
 
     def list_facilities(self, vendor_id: int) -> list[Facility]:
         return list(self._facilities.get(vendor_id, []))
+
+    def list_employee_facilities(self, employee_id: int) -> list[Facility]:
+        """回傳員工所屬廠區列表。空列表表示未指派（不限制可見商家）。"""
+        return list(self._employee_facilities.get(employee_id, []))

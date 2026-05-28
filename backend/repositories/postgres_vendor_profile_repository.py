@@ -149,3 +149,19 @@ class PostgresVendorProfileRepository:
             ).fetchall()
 
         return [Facility(**dict(row)) for row in rows]
+
+    def list_employee_facilities(self, employee_id: int) -> list[Facility]:
+        """回傳員工所屬廠區列表。空列表表示未指派（不限制可見商家）。"""
+        with get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT f.id, f.code, f.name
+                FROM facilities AS f
+                JOIN employee_facilities AS ef ON ef.facility_id = f.id
+                WHERE ef.employee_id = %s
+                ORDER BY f.code, f.id
+                """,
+                (employee_id,),
+            ).fetchall()
+
+        return [Facility(**dict(row)) for row in rows]
