@@ -18,7 +18,14 @@ class VendorReviewService:
         payload: VendorReviewRequest,
     ) -> VendorReviewResponse:
         self.vendor_repository.mark_application_reviewed(application_id, payload.decision)
-        self.audit_log_repository.record_vendor_review(application_id, payload.decision)
+        self.audit_log_repository.record(
+            actor_user_id=None,
+            actor_role=None,
+            action="vendor.review",
+            target_type="vendor_application",
+            target_id=application_id,
+            metadata={"decision": payload.decision},
+        )
 
         return VendorReviewResponse(
             application_id=application_id,

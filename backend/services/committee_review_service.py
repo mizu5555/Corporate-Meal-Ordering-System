@@ -45,10 +45,13 @@ class CommitteeReviewService:
             payload.decision,
             payload.reason,
         )
-        self.audit_log_repository.record_committee_review(
-            review_id,
-            payload.decision,
-            payload.reason,
+        self.audit_log_repository.record(
+            actor_user_id=None,
+            actor_role=None,
+            action="committee.review",
+            target_type="committee_review",
+            target_id=review_id,
+            metadata={"decision": payload.decision, "reason": payload.reason},
         )
 
         return CommitteeReviewResponse(
