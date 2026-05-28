@@ -6,6 +6,19 @@ from backend.repositories.postgres_audit_log_repository import PostgresAuditLogR
 pytestmark = pytest.mark.skipif(not os.getenv("DATABASE_URL"), reason="requires DATABASE_URL")
 
 
+@pytest.fixture(scope="module", autouse=True)
+def _migrated_db():
+    """Apply migrations so audit_logs (incl. the actor_role column) exists.
+
+    CI only psql-applies 001; the remaining migrations — including 010 which
+    adds actor_role — are applied here via run_migrations(), matching the
+    pattern in test_atomic_quota.py.
+    """
+    from backend.db.migrate import run_migrations
+
+    run_migrations()
+
+
 def test_record_and_list_roundtrip():
     repo = PostgresAuditLogRepository()
     repo.record(actor_user_id=1, actor_role="admin", action="vendor.review",
