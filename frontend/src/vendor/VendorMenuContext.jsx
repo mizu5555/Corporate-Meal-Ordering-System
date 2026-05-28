@@ -43,7 +43,9 @@ export function VendorMenuProvider({ children }) {
   async function uploadPhoto(id, file) {
     const result = await uploadMenuItemPhoto(id, file);
     setItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, photo_path: result.photo_path } : item)),
+      prev.map((item) =>
+        item.id === id ? { ...item, photo_path: result.photo_path, _photo_v: Date.now() } : item,
+      ),
     );
     return result;
   }

@@ -104,7 +104,7 @@ export default function VendorMenuFormPage() {
 
   // Live item — reflects photo_path changes without re-mounting
   const currentItem = isEdit ? getItem(Number(itemId)) : null;
-  const currentPhotoUrl = photoUrl(currentItem?.photo_path);
+  const currentPhotoUrl = photoUrl(currentItem?.photo_path, currentItem?._photo_v);
   const photoBusy = photoState !== "idle";
 
   return (
