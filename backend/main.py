@@ -9,6 +9,7 @@ from backend.core.config import settings
 from backend.core.errors import install_error_handler
 from backend.core.observability import RequestIDMiddleware, configure_logging
 from backend.db.migrate import run_migrations
+from backend.db.seed import run_demo_seed
 from backend.routes import (
     admin_stats,
     admin_users,
@@ -31,6 +32,7 @@ from backend.routes import (
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     run_migrations()
+    run_demo_seed()
     yield
 
 
