@@ -15,6 +15,7 @@ from backend.routes import (
     admin_vendors,
     audit_logs,
     auth,
+    billing,
     committee_reviews,
     employee_ordering,
     health,
@@ -70,6 +71,7 @@ def create_app() -> FastAPI:
     app.include_router(notifications.router)
     app.include_router(audit_logs.router)
     app.include_router(admin_stats.router)
+    app.include_router(billing.router)
 
     Instrumentator(should_instrument_requests_inprogress=True).instrument(app).expose(app)
     return app
