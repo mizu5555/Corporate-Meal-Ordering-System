@@ -120,6 +120,15 @@ function mockRandomMeal({ mealDate, vendorIds, facilityId }) {
   return candidates[Math.floor(Math.random() * candidates.length)];
 }
 
+export function getRecommendations({ facilityId, mealDate, limit } = {}) {
+  const params = new URLSearchParams();
+  if (facilityId != null) params.set("facility_id", facilityId);
+  if (mealDate) params.set("meal_date", mealDate);
+  if (limit) params.set("limit", limit);
+  const qs = params.toString();
+  return apiFetch(`/employee/recommendations${qs ? `?${qs}` : ""}`);
+}
+
 export function drawRandomMeal({ mealDate, vendorIds, facilityId }) {
   const payload = { meal_date: mealDate, ...facilityPayload(facilityId) };
   if (vendorIds != null) payload.vendor_ids = vendorIds;
