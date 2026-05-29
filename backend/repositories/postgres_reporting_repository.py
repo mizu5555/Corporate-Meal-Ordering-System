@@ -135,7 +135,9 @@ class PostgresReportingRepository:
             for r in rows
         ]
 
-    def top_items(self, start, end, limit, vendor_ids=None):
+    def top_items(
+        self, start: date, end: date, limit: int, vendor_ids: list[int] | None = None
+    ) -> list[ItemSales]:
         where = ["o.status <> 'cancelled'", "o.created_at::date BETWEEN %s AND %s", "oi.item_id IS NOT NULL"]
         values = [start, end]
         if vendor_ids is not None:

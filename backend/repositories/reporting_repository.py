@@ -173,7 +173,9 @@ class ReportingRepository:
         rows.sort(key=lambda r: r.amount_cents, reverse=True)
         return rows
 
-    def top_items(self, start, end, limit, vendor_ids=None):
+    def top_items(
+        self, start: date, end: date, limit: int, vendor_ids: list[int] | None = None
+    ) -> list[ItemSales]:
         allowed = set(vendor_ids) if vendor_ids is not None else None
         acc: dict[int, dict] = {}
         for r in self._qualifying(start, end):
