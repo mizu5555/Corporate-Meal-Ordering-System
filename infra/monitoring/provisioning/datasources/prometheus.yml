@@ -1,6 +1,17 @@
 apiVersion: 1
-datasources:
+
+# Provisioned under the meal-prefixed name (mirrors loki.yml's meal-Loki) so the
+# datasource list reads consistently. uid stays "prometheus" so rules.yml
+# (datasourceUid: prometheus) and the dashboard panels keep binding. On a fresh
+# stack the deleteDatasources entry is a harmless no-op. UI-created entries
+# (lowercase "prometheus", used by other teams for GPU monitoring) are a
+# different name — untouched.
+deleteDatasources:
   - name: Prometheus
+    orgId: 1
+
+datasources:
+  - name: meal-Prometheus
     type: prometheus
     uid: prometheus
     url: http://prometheus:9090

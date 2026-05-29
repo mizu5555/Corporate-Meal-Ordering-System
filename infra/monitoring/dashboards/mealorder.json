@@ -242,6 +242,39 @@
       ],
       "title": "Gateway latency p95 / p99",
       "type": "timeseries"
+    },
+    {
+      "type": "row",
+      "id": 103,
+      "title": "Logs (Loki)",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 45 },
+      "panels": []
+    },
+    {
+      "datasource": { "type": "loki", "uid": "meal-loki" },
+      "gridPos": { "h": 11, "w": 24, "x": 0, "y": 46 },
+      "id": 30,
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": true,
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "sortOrder": "Descending"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "meal-loki" },
+          "expr": "{service_name=\"mealorder-backend\"}",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Backend logs (all) — Loki",
+      "type": "logs"
     }
   ],
   "refresh": "30s",
@@ -313,5 +346,5 @@
   "timezone": "browser",
   "title": "Meal Ordering – HTTP Overview",
   "uid": "mealorder-http",
-  "version": 2
+  "version": 3
 }
