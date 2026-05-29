@@ -136,6 +136,17 @@ jobs:
           tags: ghcr.io/mizu5555/mealorder-${{ matrix.name }}:${{ needs.meta.outputs.image_tag }}
           cache-from: type=gha,scope=${{ matrix.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+          # Push a single self-contained image manifest per tag. With the default
+          # provenance/SBOM attestations the tag becomes an index referencing
+          # UNTAGGED child manifests; the hourly GHCR prune (Jenkinsfile.cleanup
+          # ids_untagged) then deletes those children, corrupting the tagged image
+          # into "manifest unknown" on pull (broke pr-110 / pr-117 previews).
+          provenance: false
+          sbom: false
+      - name: Verify pushed image is pullable
+        # Fail loudly if the tag did not land as a complete, pullable manifest,
+        # instead of a green build-push followed by a silent "manifest unknown".
+        run: docker buildx imagetools inspect "ghcr.io/mizu5555/mealorder-${{ matrix.name }}:${{ needs.meta.outputs.image_tag }}"
 
   promote:
     needs: integration
