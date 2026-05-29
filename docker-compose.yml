@@ -10,6 +10,7 @@ services:
     environment:
       ROOT_PATH: ${ROOT_PATH:-}
       DATABASE_URL: postgresql://${POSTGRES_USER:-meal_user}:${POSTGRES_PASSWORD:-change-me-in-local-env}@db:5432/${POSTGRES_DB:-meal_ordering}
+      SEED_DEMO_DATA: "true"
     volumes:
       - uploads:/app/uploads
     command: uvicorn backend.main:app --host 0.0.0.0 --port 8000

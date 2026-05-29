@@ -26,6 +26,7 @@ services:
       # grafana-loki-1). Push handler is queue-backed, so unreachable Loki
       # degrades gracefully to stdout.
       LOKI_URL: http://loki:3100
+      SEED_DEMO_DATA: "true"
     cap_add:
       # Needed for `py-spy record --pid 1` to attach inside the container.
       # Scoped to staging so prod stays minimal-privilege.

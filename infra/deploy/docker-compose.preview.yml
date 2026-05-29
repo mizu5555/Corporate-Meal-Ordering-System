@@ -8,6 +8,8 @@ services:
   backend:
     image: ghcr.io/mizu5555/mealorder-backend:${IMAGE_TAG}
     ports: !reset []
+    environment:
+      SEED_DEMO_DATA: "true"
     labels:
       mealorder.branch: ${BRANCH_RAW:-}
   frontend:
