@@ -1,61 +1,89 @@
 # Corporate Meal Ordering System
 
-NYCU 2026 Spring Cloud Native Development and Best Practice.
+NYCU 2026 Spring — Cloud Native Development and Best Practice.
 
-This is a cloud-native base repo for a team building a corporate meal ordering
-system. It intentionally contains the shared development environment, backend
-layering, CI, RBAC skeleton, vendor admin skeleton, committee review skeleton,
-initial database schema, and a frontend auth shell scaffold.
+A cloud-native corporate meal ordering system: employees pre-order meals,
+vendors manage their own shops, and a committee/admin oversees operations.
+Built with a layered FastAPI backend, a React + Vite frontend served through
+nginx, PostgreSQL, a Caddy HTTPS gateway, Docker Compose for local dev,
+GitHub Actions CI with images published to GHCR, Jenkins-based delivery, and a
+Prometheus / Grafana / Loki observability stack.
+
+## Features
+
+- **Employee ordering** — daily meal pre-orders with per-day quota, pickup /
+  facility routing, and meal recommendations (popular-by-sales and random).
+- **Vendor self-service** — menu CRUD, menu photos, category management, shop
+  profile, and sales history for the logged-in vendor.
+- **Admin / committee** — vendor application review, an operations dashboard
+  (orders, revenue, vendor ranking, facility distribution), monthly
+  billing/statements, multi-facility management, and an audit-log viewer.
+- **Platform** — header/JWT-based RBAC, an audit trail for state-changing
+  actions, structured JSON logging, Prometheus metrics, and alert rules.
+
+## Architecture
+
+Strict layered backend — routes never touch repositories directly:
+
+```text
+routes/  →  services/  →  repositories/  →  (in-memory or PostgreSQL)
+               ↑
+         schemas/ (Pydantic)   models/ (domain types)   core/ (config, RBAC)
+```
+
+- **RBAC** (`backend/core/rbac.py`): roles `admin`, `employee`,
+  `vendor_manager`, `committee_reviewer`. Routes guard with
+  `Depends(require_roles(...))`.
+- **Audit trail**: state-changing services record to the `audit_logs` table
+  alongside their domain repository.
+- **Repositories** ship in-memory and PostgreSQL implementations, selected by
+  configuration so tests can run without a database.
+- **Gateway**: Caddy terminates HTTPS and routes `/health`, `/docs`,
+  `/openapi.json`, and the backend API prefixes to the backend; everything else
+  to the frontend.
 
 ## Project Structure
 
 ```text
 project-root/
-├── frontend/
+├── frontend/                 # React + Vite app (nginx-served in prod)
 ├── backend/
-│   ├── core/
-│   ├── routes/
-│   ├── services/
-│   ├── models/
-│   ├── schemas/
-│   ├── repositories/
-│   ├── db/migrations/
+│   ├── core/                 # config, RBAC, security, observability
+│   ├── routes/               # FastAPI routers
+│   ├── services/             # business logic
+│   ├── repositories/         # data access (in-memory + Postgres)
+│   ├── schemas/              # Pydantic request/response models
+│   ├── models/               # domain types
+│   ├── db/migrations/        # SQL migrations (+ seeds/)
 │   ├── tests/
-│   └── main.py
-├── infra/caddy/
-├── docker-compose.yml
+│   └── main.py               # create_app()
+├── infra/
+│   ├── caddy/                # HTTPS gateway image
+│   ├── deploy/               # deploy compose overlays, router, backup
+│   └── monitoring/           # Grafana dashboards, Prometheus/Loki, alerts
+├── .github/workflows/        # GitHub Actions (CI + image publish)
+├── docker-compose.yml        # base stack
+├── docker-compose.dev.yml    # local hot-reload overlay
 ├── .env.example
-├── .github/workflows/test.yml
 ├── requirements.txt
-├── .gitignore
 └── README.md
 ```
-
-## Team Work Split
-
-- Frontend: `frontend/`
-- Backend DB: schema, migrations, persistence setup
-- Backend ordering: meal ordering routes, services, repositories
-- Backend vendor admin: vendor management and vendor review flow
-- Backend committee review: approval workflow and audit trail
 
 ## Getting Started
 
 1. Copy environment variables:
 
-```bash
-cp .env.example .env
-```
+   ```bash
+   cp .env.example .env
+   ```
 
-2. Update `.env` local secrets such as `POSTGRES_PASSWORD`.
+2. Update local secrets in `.env` (e.g. `POSTGRES_PASSWORD`, `JWT_SECRET_KEY`).
 
 3. Start the full local stack (with hot reload):
 
-```bash
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
-```
-
-**Deployment (TBD via Jenkins):** see `infra/deploy/SETUP-NOL.md` for the NOL host one-time setup and Jenkins pipeline configuration.
+   ```bash
+   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+   ```
 
 Main HTTPS entrypoint:
 
@@ -63,33 +91,25 @@ Main HTTPS entrypoint:
 - Backend health check: https://localhost/health
 - API docs: https://localhost/docs
 
-Caddy uses a local internal TLS certificate for development. Your browser may
-ask you to trust the local certificate the first time.
+Caddy uses a local internal TLS certificate for development; your browser may
+ask you to trust it the first time.
 
 4. Optional backend-only local setup:
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements.txt
+   uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
+   ```
 
-5. Run the backend locally:
+5. Optional frontend local development with Vite:
 
-```bash
-uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-6. Optional frontend local development with Vite:
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-The frontend source is a React + Vite app under `frontend/src/`. Production and
-Docker deployments still serve built static assets through `nginx`.
+   ```bash
+   cd frontend
+   npm install
+   npm run dev
+   ```
 
 ## Services
 
@@ -101,24 +121,18 @@ Docker deployments still serve built static assets through `nginx`.
 ## Database Migrations
 
 SQL migrations live in `backend/db/migrations/` and are applied by the backend
-startup hook when `DATABASE_URL` is configured. Applied filenames are tracked in
-the `schema_migrations` table.
+startup hook when `DATABASE_URL` is configured; applied filenames are tracked in
+the `schema_migrations` table. In local Docker Compose, PostgreSQL starts first
+and the backend applies pending migrations automatically. Optional demo data
+(`backend/db/seeds/`) can be enabled via `SEED_DEMO_DATA` for non-production
+environments.
 
-For local Docker Compose development, PostgreSQL is started first and the
-backend applies pending migrations automatically.
+## Observability
 
-## Backend Skeleton
-
-- `GET /health`
-- RBAC dependency skeleton: `backend/core/rbac.py`
-- Vendor review route skeleton: `backend/routes/admin_vendors.py`
-- Vendor review service skeleton: `backend/services/vendor_review_service.py`
-- Vendor repository skeleton: `backend/repositories/vendor_repository.py`
-- Committee review route skeleton: `backend/routes/committee_reviews.py`
-- Committee review service skeleton: `backend/services/committee_review_service.py`
-- Committee review repository skeleton: `backend/repositories/committee_review_repository.py`
-- Audit log repository skeleton: `backend/repositories/audit_log_repository.py`
-- Initial SQL schema: `backend/db/migrations/001_initial_schema.sql`
+- Backend exposes Prometheus metrics at `/metrics` and structured JSON logs to
+  stdout (shipped to Loki).
+- Grafana dashboards, Prometheus scrape config, Loki, and alert rules live under
+  `infra/monitoring/` and are applied to the monitoring host.
 
 ## Testing
 
@@ -126,25 +140,38 @@ backend applies pending migrations automatically.
 pytest backend/tests
 ```
 
+CI runs the unit and integration suites on every PR; container images are built
+and published only after tests pass.
+
+## CI/CD & Deployment
+
+- **CI** (GitHub Actions): on each PR, the unit and integration suites plus a
+  static-analysis gate run; on success, backend / frontend / db / gateway images
+  are built and pushed to GHCR.
+- **Delivery** (Jenkins): merges to `main` deploy to a staging environment, git
+  tags (`vX.Y.Z`) promote the corresponding image to production, and open PRs get
+  ephemeral preview stacks that are torn down on close.
+
+Host-specific deployment and Jenkins configuration are kept in a private ops
+runbook and intentionally not published here.
+
 ## Git Branch Flow
 
 1. Keep `main` stable and protected.
-2. Each teammate creates their own feature branch:
+2. Start every change from an issue, then a feature branch:
 
-```bash
-git checkout -b feature/<name>/<short-task>
-```
+   ```bash
+   git checkout -b feature/<name>/<short-task>
+   ```
 
-3. Commit small, focused changes.
-4. Open a pull request into `main`.
-5. GitHub Actions runs backend tests first.
-6. Docker image builds only run after backend tests pass.
-7. Merge only after review and passing checks.
+3. Commit small, focused changes; reference the issue (`#<n>`).
+4. Open a pull request into `main`; CI must pass and a review is required.
+5. Image builds run only after tests pass; merge after green checks + review.
 
 ## 12-Factor Notes
 
 - Config comes from environment variables.
-- Secrets belong in `.env` locally and GitHub secrets in CI, not source code.
+- Secrets live in `.env` locally and in the CI / deploy secret stores — never in
+  source code.
 - Logs are written to stdout.
-- The FastAPI app is stateless.
-- PostgreSQL is treated as an external backing service.
+- The FastAPI app is stateless; PostgreSQL is an external backing service.
