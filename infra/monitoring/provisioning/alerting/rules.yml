@@ -1,7 +1,7 @@
 # Grafana unified-alerting provisioning. Picked up automatically from
 # /etc/grafana/provisioning/alerting/ at startup. Contact points and notification
-# policy are managed in the Grafana UI (or in a separate provisioning file); these
-# rules only define WHEN to fire, not WHERE.
+# policy are defined in contact-points.yml (same directory); these rules define
+# WHEN to fire. See contact-points.yml for WHERE alerts are sent (webhook).
 #
 # All thresholds are deliberately conservative for a homework-scale stack — tune
 # after observing real traffic.

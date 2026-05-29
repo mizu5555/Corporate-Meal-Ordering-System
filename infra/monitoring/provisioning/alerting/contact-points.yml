@@ -1,0 +1,42 @@
+# Grafana unified-alerting provisioning — contact point + notification policy.
+# Picked up automatically from /etc/grafana/provisioning/alerting/ at startup.
+# Together with rules.yml (WHEN to fire), this file wires WHERE alerts go.
+#
+# TODO operator: before deploying to the NOL Grafana, replace the placeholder
+# webhook URL below with the real endpoint (Slack incoming-webhook, Discord
+# webhook relay, email-relay, or any HTTP sink that accepts Grafana webhook
+# payloads).  Set it on the host via environment variable ALERT_WEBHOOK_URL, or
+# edit the url field directly — then restart the grafana container so Grafana
+# re-reads provisioning.
+#
+# Grafana provisioning does NOT interpolate ${VAR} syntax in this file by
+# default (it is not the same as Grafana env-var expansion in dashboards).
+# The placeholder URL below is therefore a literal string that must be
+# replaced; it is intentionally unreachable (port 0) so misconfigured
+# environments fail fast rather than silently swallow alerts.
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: mealorder-default
+    receivers:
+      - uid: mealorder-webhook-recv
+        type: webhook
+        settings:
+          # TODO operator: replace with the real alert webhook URL on the NOL host.
+          # e.g. https://hooks.slack.com/services/XXX/YYY/ZZZ
+          #      https://discord.com/api/webhooks/NNN/TOKEN/slack  (Discord Slack-compat)
+          #      http://alert-relay:5001/notify  (custom relay inside preview-net)
+          url: "http://localhost:0/alerts"
+          httpMethod: POST
+        disableResolveMessage: false
+
+policies:
+  - orgId: 1
+    receiver: mealorder-default
+    group_by:
+      - alertname
+      - severity
+    group_wait: 30s
+    group_interval: 5m
+    repeat_interval: 4h

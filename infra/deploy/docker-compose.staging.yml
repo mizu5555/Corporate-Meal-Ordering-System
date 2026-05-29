@@ -6,6 +6,7 @@
 services:
   backend:
     image: ghcr.io/mizu5555/mealorder-backend:${IMAGE_TAG}
+    restart: unless-stopped
     ports: !reset []
     # Per-network aliases pin the Caddy gateway's upstream resolution. `backend`
     # remains reachable as `backend` on grafana_default (Prometheus scrape) and
@@ -27,22 +28,67 @@ services:
       # degrades gracefully to stdout.
       LOKI_URL: http://loki:3100
       SEED_DEMO_DATA: "true"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').getcode()==200 else 1)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     cap_add:
       # Needed for `py-spy record --pid 1` to attach inside the container.
       # Scoped to staging so prod stays minimal-privilege.
       - SYS_PTRACE
   frontend:
     image: ghcr.io/mizu5555/mealorder-frontend:${IMAGE_TAG}
+    restart: unless-stopped
     ports: !reset []
     environment:
       BASE_PATH: ${BASE_PATH}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/ >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
   db:
     image: ghcr.io/mizu5555/mealorder-db:${IMAGE_TAG}
+    restart: unless-stopped
     ports: !reset []
   gateway:
     image: ghcr.io/mizu5555/mealorder-gateway:${IMAGE_TAG}
+    restart: unless-stopped
     ports: !reset []
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:80/ >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     networks: [default, preview-net, grafana_default]
+
+  # DB backup sidecar — runs pg_dump daily, keeps newest 7 dumps.
+  # Volume db_backups persists dumps across stack restarts.
+  # NOTE: `down -v` (used in Jenkins reset) removes named volumes including
+  # db_backups. For staging this is acceptable; prod uses `down` (no -v).
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      PGHOST: db
+      PGUSER: ${POSTGRES_USER:-meal_user}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-change-me-in-local-env}
+      PGDATABASE: ${POSTGRES_DB:-meal_ordering}
+      BACKUP_KEEP: "7"
+      BACKUP_INTERVAL_SECONDS: "86400"
+    volumes:
+      - ./infra/deploy/backup/backup.sh:/backup.sh:ro
+      - db_backups:/backups
+    entrypoint: ["sh", "/backup.sh"]
+    depends_on:
+      - db
+
+volumes:
+  db_backups:
 
 networks:
   preview-net:
