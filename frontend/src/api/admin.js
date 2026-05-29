@@ -52,3 +52,11 @@ export function getStats({ start, end } = {}) {
   const qs = params.toString();
   return apiFetch(`/admin/stats${qs ? `?${qs}` : ""}`);
 }
+
+export function getBillingVendors({ year, month }) {
+  return apiFetch(`/admin/billing/vendors?year=${year}&month=${month}`);
+}
+
+export function billingVendorsCsvUrl({ year, month }) {
+  return `/admin/billing/vendors.csv?year=${year}&month=${month}`;
+}
