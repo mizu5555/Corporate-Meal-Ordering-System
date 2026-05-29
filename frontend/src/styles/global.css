@@ -927,7 +927,94 @@ p {
 .random-meal-result {
   min-height: 360px;
   display: grid;
+  grid-template-rows: auto 1fr;
+  align-items: start;
+}
+
+/* 熱門推薦 panel — top-aligned, normal block flow */
+.recommend-panel {
+  display: grid;
+  gap: 16px;
+  align-self: start;
+}
+
+.recommend-limit-row {
+  display: flex;
   align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* Responsive card grid for recommendation items */
+.recommend-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.recommend-card {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.55);
+  transition: transform 140ms ease, box-shadow 140ms ease;
+}
+
+.recommend-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(78, 49, 23, 0.1);
+}
+
+.recommend-card-rank {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.recommend-card-rank[data-top] {
+  color: var(--brand);
+}
+
+.recommend-card-body {
+  display: grid;
+  gap: 6px;
+}
+
+.recommend-card-name {
+  font-weight: 600;
+  font-size: 0.97rem;
+  line-height: 1.35;
+  margin: 0;
+}
+
+.recommend-card-action {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-top: 4px;
+}
+
+.recommend-card-action .primary-button,
+.recommend-card-action .ghost-button {
+  width: 100%;
+}
+
+.recommend-empty {
+  text-align: center;
+  padding: 28px 0;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+/* 隨機抽餐 draw panel — fill remaining height, center card vertically */
+.random-draw-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 300px;
 }
 
 .random-placeholder {

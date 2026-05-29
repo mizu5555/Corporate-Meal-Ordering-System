@@ -50,6 +50,7 @@ export default function RandomMealPage() {
   const [recSubmitting, setRecSubmitting] = useState(null); // item id being submitted
   const [recSubmitted, setRecSubmitted] = useState(null);   // item id successfully submitted
   const [recSubmitError, setRecSubmitError] = useState(null);
+  const [limit, setLimit] = useState(10);
 
   const selectedCount = allVendors ? vendors.length : selectedVendorIds.length;
   const mealDateInRange = mealDate >= minMealDate && mealDate <= maxMealDate;
@@ -76,7 +77,7 @@ export default function RandomMealPage() {
     setRecError(null);
     setRecSubmitted(null);
     setRecSubmitError(null);
-    getRecommendations({ facilityId: selectedFacilityId, mealDate })
+    getRecommendations({ facilityId: selectedFacilityId, mealDate, limit })
       .then((data) => {
         if (!cancelled) setRecommendations(data);
       })
@@ -90,7 +91,7 @@ export default function RandomMealPage() {
         if (!cancelled) setRecLoading(false);
       });
     return () => { cancelled = true; };
-  }, [tab, mealDate, selectedFacilityId]);
+  }, [tab, mealDate, selectedFacilityId, limit]);
 
   function toggleVendor(vendorId) {
     setSelectedVendorIds((current) =>
@@ -246,7 +247,7 @@ export default function RandomMealPage() {
         </div>
 
         {/* Tab content panel */}
-        <div className="panel random-meal-result" style={{ flexDirection: "column", alignItems: "stretch" }}>
+        <div className="panel random-meal-result">
           {/* Tab buttons */}
           <div className="range-pills" style={{ marginBottom: "16px" }}>
             <button
@@ -267,41 +268,43 @@ export default function RandomMealPage() {
 
           {/* 熱門推薦 tab */}
           {tab === "recommend" && (
-            <div>
+            <div className="recommend-panel">
+              {/* 顯示數量 selector */}
+              <div className="recommend-limit-row">
+                <span className="field-label">顯示數量</span>
+                <div className="range-pills" style={{ margin: 0 }}>
+                  {[10, 20].map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      className={`range-pill${limit === n ? " is-active" : ""}`}
+                      onClick={() => setLimit(n)}
+                    >
+                      前 {n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {recLoading && <p className="loading-state compact-state">載入推薦中…</p>}
               {recError && <p className="error-state">{recError}</p>}
-              {!recLoading && !recError && recommendations.length === 0 && (
-                <p className="panel-copy" style={{ textAlign: "center", marginTop: "24px" }}>
-                  目前沒有可推薦的餐點
-                </p>
-              )}
               {recSubmitError && <p className="error-state">{recSubmitError}</p>}
+              {!recLoading && !recError && recommendations.length === 0 && (
+                <p className="recommend-empty">目前沒有可推薦的餐點</p>
+              )}
               {!recLoading && !recError && recommendations.length > 0 && (
-                <ol style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                <div className="recommend-grid">
                   {recommendations.map((rec, index) => (
-                    <li
+                    <div
                       key={`${rec.vendor.id}-${rec.item.id}`}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "12px",
-                        padding: "12px 0",
-                        borderBottom: "1px solid var(--line)",
-                      }}
+                      className="recommend-card"
                     >
-                      <span
-                        style={{
-                          minWidth: "28px",
-                          fontWeight: 700,
-                          fontSize: "1.1rem",
-                          color: index < 3 ? "var(--brand)" : "var(--muted)",
-                        }}
-                      >
+                      <div className="recommend-card-rank" data-top={index < 3 || undefined}>
                         {index + 1}
-                      </span>
-                      <div style={{ flex: 1, minWidth: 0 }}>
+                      </div>
+                      <div className="recommend-card-body">
                         <p className="eyebrow" style={{ marginBottom: "2px" }}>{rec.vendor.name}</p>
-                        <p style={{ fontWeight: 600, margin: "0 0 4px" }}>{rec.item.name}</p>
+                        <p className="recommend-card-name">{rec.item.name}</p>
                         <div className="item-badges">
                           <span className="badge badge-quota">
                             {formatPrice(rec.item.price_cents)}
@@ -316,38 +319,39 @@ export default function RandomMealPage() {
                           </span>
                         </div>
                       </div>
-                      {recSubmitted === rec.item.id ? (
-                        <div style={{ textAlign: "center" }}>
-                          <p className="eyebrow" style={{ color: "var(--brand)", marginBottom: "4px" }}>已訂購</p>
+                      <div className="recommend-card-action">
+                        {recSubmitted === rec.item.id ? (
+                          <>
+                            <p className="eyebrow" style={{ color: "var(--brand)", marginBottom: "6px" }}>已訂購</p>
+                            <button
+                              className="ghost-button"
+                              type="button"
+                              onClick={() => navigate("/employee/orders")}
+                            >
+                              查看訂單
+                            </button>
+                          </>
+                        ) : (
                           <button
-                            className="ghost-button"
+                            className="primary-button"
                             type="button"
-                            onClick={() => navigate("/employee/orders")}
+                            onClick={() => handleRecOrder(rec)}
+                            disabled={recSubmitting === rec.item.id}
                           >
-                            查看訂單
+                            {recSubmitting === rec.item.id ? "訂購中…" : "訂購"}
                           </button>
-                        </div>
-                      ) : (
-                        <button
-                          className="primary-button"
-                          type="button"
-                          style={{ whiteSpace: "nowrap", flexShrink: 0 }}
-                          onClick={() => handleRecOrder(rec)}
-                          disabled={recSubmitting === rec.item.id}
-                        >
-                          {recSubmitting === rec.item.id ? "訂購中…" : "訂購"}
-                        </button>
-                      )}
-                    </li>
+                        )}
+                      </div>
+                    </div>
                   ))}
-                </ol>
+                </div>
               )}
             </div>
           )}
 
           {/* 隨機抽餐 tab */}
           {tab === "random" && (
-            <div>
+            <div className="random-draw-panel">
               {!draw && !drawError && (
                 <div className="random-placeholder">
                   <p className="eyebrow">Ready</p>
