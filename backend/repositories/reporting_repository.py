@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date, datetime
 
-from backend.schemas.admin_stats import DayPoint, FacilityStat, OrderSummary, VendorStat
+from backend.schemas.admin_stats import DayPoint, FacilityStat, ItemSales, OrderSummary, VendorStat
 from backend.schemas.billing import EmployeeTotal, VendorReceivable
 
 
@@ -172,6 +172,22 @@ class ReportingRepository:
         ]
         rows.sort(key=lambda r: r.amount_cents, reverse=True)
         return rows
+
+    def top_items(self, start, end, limit, vendor_ids=None):
+        allowed = set(vendor_ids) if vendor_ids is not None else None
+        acc: dict[int, dict] = {}
+        for r in self._qualifying(start, end):
+            if allowed is not None and r.vendor_id not in allowed:
+                continue
+            for item_id, qty, _unit in r.items:
+                a = acc.setdefault(item_id, {"vendor_id": r.vendor_id, "quantity_sold": 0})
+                a["quantity_sold"] += qty
+        rows = [
+            ItemSales(item_id=iid, vendor_id=a["vendor_id"], quantity_sold=a["quantity_sold"])
+            for iid, a in acc.items()
+        ]
+        rows.sort(key=lambda r: r.quantity_sold, reverse=True)
+        return rows[:limit]
 
     def employee_monthly_totals(self, year: int, month: int) -> list[EmployeeTotal]:
         acc: dict[int, dict] = {}
