@@ -6,6 +6,7 @@
 services:
   backend:
     image: ghcr.io/mizu5555/mealorder-backend:${IMAGE_TAG}
+    restart: unless-stopped
     ports: !reset []
     # See staging override for the rationale: pin Caddy gateway → backend
     # resolution to a single network alias so Docker DNS does not round-robin
@@ -19,17 +20,38 @@ services:
       APP_ENV: prod
       SERVICE_NAME: mealorder-backend
       LOKI_URL: http://loki:3100
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').getcode()==200 else 1)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
   frontend:
     image: ghcr.io/mizu5555/mealorder-frontend:${IMAGE_TAG}
+    restart: unless-stopped
     ports: !reset []
     environment:
       BASE_PATH: ${BASE_PATH}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/ >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
   db:
     image: ghcr.io/mizu5555/mealorder-db:${IMAGE_TAG}
+    restart: unless-stopped
     ports: !reset []
   gateway:
     image: ghcr.io/mizu5555/mealorder-gateway:${IMAGE_TAG}
+    restart: unless-stopped
     ports: !reset []
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:80/ >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     networks: [default, preview-net, grafana_default]
 
 networks:
