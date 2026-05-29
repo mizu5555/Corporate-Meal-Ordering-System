@@ -1,8 +1,11 @@
 from datetime import date, datetime, timezone
 
 import pytest
+from fastapi.testclient import TestClient
 
 from backend.core.errors import CodedHTTPException
+from backend.core.reporting import get_reporting_repository
+from backend.main import app
 from backend.repositories.reporting_repository import ReportingRepository
 from backend.schemas.admin_stats import (
     DashboardStats,
@@ -60,3 +63,46 @@ def test_service_rejects_inverted_range():
     with pytest.raises(CodedHTTPException) as exc:
         svc.dashboard(date(2026, 5, 31), date(2026, 5, 1))
     assert exc.value.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Route tests
+# ---------------------------------------------------------------------------
+
+client = TestClient(app)
+
+
+def _override_repo(repo):
+    app.dependency_overrides[get_reporting_repository] = lambda: repo
+
+
+def teardown_function():
+    app.dependency_overrides.clear()
+
+
+def test_stats_requires_admin_or_committee():
+    _override_repo(ReportingRepository())
+    r = client.get("/admin/stats", headers={"x-user-role": "employee"})
+    assert r.status_code == 403
+
+
+def test_stats_returns_payload_for_committee():
+    repo = ReportingRepository()
+    repo.seed_order(
+        order_id=1, vendor_id=1, vendor_name="Sunny Kitchen",
+        facility_id=1, facility_name="Fab 12A", status="delivered",
+        created_at=datetime.now(timezone.utc), items=[(10, 2, 1000)],
+    )
+    _override_repo(repo)
+    r = client.get("/admin/stats", headers={"x-user-role": "committee_reviewer"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["summary"]["order_count"] == 1
+    assert body["vendor_ranking"][0]["vendor_name"] == "Sunny Kitchen"
+
+
+def test_stats_rejects_inverted_range():
+    _override_repo(ReportingRepository())
+    r = client.get("/admin/stats?start=2026-05-31&end=2026-05-01",
+                   headers={"x-user-role": "admin"})
+    assert r.status_code == 400
