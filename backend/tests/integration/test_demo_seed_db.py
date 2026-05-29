@@ -32,4 +32,41 @@ def test_demo_seed_is_comprehensive_and_idempotent(monkeypatch):
 
     seed.run_demo_seed()  # second apply — must NOT duplicate
     assert _count(cur, "SELECT COUNT(*) AS count FROM orders") == orders_1, "not idempotent"
+
+    # ── Facility-consistency assertions ──────────────────────────────────────
+    # Every order's facility_id must be in the employee's assigned facilities.
+    # Scoped to demo vendors to avoid interference from other tests' orders.
+    employee_facility_violations = _count(cur, """
+        SELECT COUNT(*) AS count
+        FROM orders o
+        JOIN vendors v ON v.id = o.vendor_id
+        WHERE v.name IN ('Sunny Kitchen', 'Demo Noodle House', 'Demo Green Bowl')
+          AND o.facility_id IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM employee_facilities ef
+            WHERE ef.employee_id = o.employee_id
+              AND ef.facility_id = o.facility_id
+          )
+    """)
+    assert employee_facility_violations == 0, (
+        f"{employee_facility_violations} demo order(s) have a facility_id not in the employee's facilities"
+    )
+
+    # Every order's facility_id must also be in the vendor's served facilities.
+    vendor_facility_violations = _count(cur, """
+        SELECT COUNT(*) AS count
+        FROM orders o
+        JOIN vendors v ON v.id = o.vendor_id
+        WHERE v.name IN ('Sunny Kitchen', 'Demo Noodle House', 'Demo Green Bowl')
+          AND o.facility_id IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM vendor_facilities vf
+            WHERE vf.vendor_id = o.vendor_id
+              AND vf.facility_id = o.facility_id
+          )
+    """)
+    assert vendor_facility_violations == 0, (
+        f"{vendor_facility_violations} demo order(s) have a facility_id not served by the vendor"
+    )
+
     conn.close()

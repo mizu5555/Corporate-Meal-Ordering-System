@@ -92,18 +92,62 @@ END $$;
 
 -- ─────────────────────────────────────────────
 -- 5. MENU CATEGORIES + ITEMS
---    Demo Noodle House: category "Noodles", 4 items
---    Demo Green Bowl:   category "Bowls",   4 items
+--    Sunny Kitchen:     category "Lunch Boxes", 3 items
+--    Demo Noodle House: category "Noodles",     4 items
+--    Demo Green Bowl:   category "Bowls",       4 items
 -- ─────────────────────────────────────────────
 DO $$
 DECLARE
+  v_sunny_id   BIGINT;
   v_noodle_id  BIGINT;
   v_green_id   BIGINT;
+  v_cat_sunny  BIGINT;
   v_cat_noodle BIGINT;
   v_cat_green  BIGINT;
 BEGIN
+  SELECT id INTO v_sunny_id  FROM vendors WHERE name = 'Sunny Kitchen'     LIMIT 1;
   SELECT id INTO v_noodle_id FROM vendors WHERE name = 'Demo Noodle House' LIMIT 1;
   SELECT id INTO v_green_id  FROM vendors WHERE name = 'Demo Green Bowl'   LIMIT 1;
+
+  -- ── Sunny Kitchen ─────────────────────────
+  IF v_sunny_id IS NOT NULL THEN
+    INSERT INTO menu_categories (vendor_id, name, sort_order)
+    VALUES (v_sunny_id, 'Lunch Boxes', 1)
+    ON CONFLICT (vendor_id, name) DO NOTHING;
+
+    SELECT id INTO v_cat_sunny
+    FROM menu_categories WHERE vendor_id = v_sunny_id AND name = 'Lunch Boxes';
+
+    -- top-seller: Chicken Rice Box (quota 50)
+    INSERT INTO menu_items (vendor_id, category_id, name, description, price_cents, daily_quota, available)
+    SELECT v_sunny_id, v_cat_sunny,
+           'Chicken Rice Box',
+           'Grilled chicken thigh with steamed rice and seasonal vegetables',
+           8500, 50, TRUE
+    WHERE NOT EXISTS (
+      SELECT 1 FROM menu_items WHERE vendor_id = v_sunny_id AND name = 'Chicken Rice Box'
+    );
+
+    -- medium-seller: Pork Chop Box (quota 30)
+    INSERT INTO menu_items (vendor_id, category_id, name, description, price_cents, daily_quota, available)
+    SELECT v_sunny_id, v_cat_sunny,
+           'Pork Chop Box',
+           'Crispy fried pork chop with rice and pickled vegetables',
+           9000, 30, TRUE
+    WHERE NOT EXISTS (
+      SELECT 1 FROM menu_items WHERE vendor_id = v_sunny_id AND name = 'Pork Chop Box'
+    );
+
+    -- low-seller: Veggie Box (unlimited)
+    INSERT INTO menu_items (vendor_id, category_id, name, description, price_cents, daily_quota, available)
+    SELECT v_sunny_id, v_cat_sunny,
+           'Veggie Box',
+           'Seasonal stir-fried vegetables with tofu over steamed rice',
+           7500, NULL, TRUE
+    WHERE NOT EXISTS (
+      SELECT 1 FROM menu_items WHERE vendor_id = v_sunny_id AND name = 'Veggie Box'
+    );
+  END IF;
 
   -- ── Demo Noodle House ──────────────────────
   IF v_noodle_id IS NOT NULL THEN
@@ -277,23 +321,33 @@ END $$;
 --    ~20 orders spread over last 45 days (current + previous month data).
 --    Status mix: mostly delivered, a few pending, a couple cancelled.
 --    Item popularity: Beef Noodle Soup + Teriyaki Chicken Bowl are top sellers.
+--    All orders satisfy: facility_id ∈ (employee_facilities ∩ vendor_facilities).
+--      Sunny Kitchen (F12A):      emp1@F12A, emp2@F12A
+--      Demo Noodle House (F12A,F14B): emp1@F12A, emp2@F12A, emp2@F14B
+--      Demo Green Bowl (F15A):    emp3@F15A only
 -- ─────────────────────────────────────────────
 DO $$
 DECLARE
   v_emp1       BIGINT;
   v_emp2       BIGINT;
   v_emp3       BIGINT;
+  v_sunny      BIGINT;
   v_noodle     BIGINT;
   v_green      BIGINT;
   v_f12a       BIGINT;
   v_f14b       BIGINT;
   v_f15a       BIGINT;
 
-  -- menu item ids
+  -- menu item ids (Sunny Kitchen)
+  v_chicken_rice   BIGINT;
+  v_pork_chop      BIGINT;
+  v_veggie_box     BIGINT;
+  -- menu item ids (Demo Noodle House)
   v_beef_noodle    BIGINT;
   v_dan_dan        BIGINT;
   v_wonton         BIGINT;
   v_cold_sesame    BIGINT;
+  -- menu item ids (Demo Green Bowl)
   v_teriyaki       BIGINT;
   v_salmon_poke    BIGINT;
   v_quinoa         BIGINT;
@@ -314,12 +368,16 @@ BEGIN
   SELECT id INTO v_emp1   FROM users WHERE email = 'demo.employee1@corpmeal.local';
   SELECT id INTO v_emp2   FROM users WHERE email = 'demo.employee2@corpmeal.local';
   SELECT id INTO v_emp3   FROM users WHERE email = 'demo.employee3@corpmeal.local';
+  SELECT id INTO v_sunny  FROM vendors WHERE name = 'Sunny Kitchen'     LIMIT 1;
   SELECT id INTO v_noodle FROM vendors WHERE name = 'Demo Noodle House' LIMIT 1;
   SELECT id INTO v_green  FROM vendors WHERE name = 'Demo Green Bowl'   LIMIT 1;
   SELECT id INTO v_f12a   FROM facilities WHERE code = 'F12A';
   SELECT id INTO v_f14b   FROM facilities WHERE code = 'F14B';
   SELECT id INTO v_f15a   FROM facilities WHERE code = 'F15A';
 
+  SELECT id INTO v_chicken_rice FROM menu_items WHERE vendor_id = v_sunny  AND name = 'Chicken Rice Box';
+  SELECT id INTO v_pork_chop    FROM menu_items WHERE vendor_id = v_sunny  AND name = 'Pork Chop Box';
+  SELECT id INTO v_veggie_box   FROM menu_items WHERE vendor_id = v_sunny  AND name = 'Veggie Box';
   SELECT id INTO v_beef_noodle  FROM menu_items WHERE vendor_id = v_noodle AND name = 'Beef Noodle Soup';
   SELECT id INTO v_dan_dan      FROM menu_items WHERE vendor_id = v_noodle AND name = 'Dan Dan Noodles';
   SELECT id INTO v_wonton       FROM menu_items WHERE vendor_id = v_noodle AND name = 'Wonton Noodle Soup';
@@ -363,16 +421,16 @@ BEGIN
   INSERT INTO order_items (order_id, item_id, item_name, quantity, unit_price_cents, total_price_cents)
   VALUES (v_order_id, v_wonton, 'Wonton Noodle Soup', 1, 8000, 8000);
 
-  -- ── ORDER 4: employee1 @ Demo Green Bowl, 35 days ago, delivered, 2x Teriyaki ──
+  -- ── ORDER 4: employee1 @ Sunny Kitchen, 35 days ago, delivered, 2x Chicken Rice Box ──
   INSERT INTO orders (employee_id, vendor_id, facility_id, status, total_price_cents, meal_date,
                       created_at, updated_at, pickup_confirmed_at, pickup_confirmed_by_user_id)
-  VALUES (v_emp1, v_green, v_f12a, 'delivered', 19000,
+  VALUES (v_emp1, v_sunny, v_f12a, 'delivered', 17000,
           (NOW() - INTERVAL '35 days')::DATE,
           NOW() - INTERVAL '35 days', NOW() - INTERVAL '35 days',
           NOW() - INTERVAL '35 days', v_emp1)
   RETURNING id INTO v_order_id;
   INSERT INTO order_items (order_id, item_id, item_name, quantity, unit_price_cents, total_price_cents)
-  VALUES (v_order_id, v_teriyaki, 'Teriyaki Chicken Bowl', 2, 9500, 19000);
+  VALUES (v_order_id, v_chicken_rice, 'Chicken Rice Box', 2, 8500, 17000);
 
   -- ── ORDER 5: employee3 @ Demo Green Bowl, 33 days ago, delivered, 1x Salmon Poke ──
   INSERT INTO orders (employee_id, vendor_id, facility_id, status, total_price_cents, meal_date,
@@ -430,38 +488,40 @@ BEGIN
   INSERT INTO order_items (order_id, item_id, item_name, quantity, unit_price_cents, total_price_cents)
   VALUES (v_order_id, v_dan_dan, 'Dan Dan Noodles', 1, 8500, 8500);
 
-  -- ── ORDER 10: employee1 @ Demo Green Bowl, 20 days ago, delivered, 2x Teriyaki ──
+  -- ── ORDER 10: employee2 @ Sunny Kitchen, 20 days ago, delivered, 1x Pork Chop Box + 1x Chicken Rice Box ──
   INSERT INTO orders (employee_id, vendor_id, facility_id, status, total_price_cents, meal_date,
                       created_at, updated_at, pickup_confirmed_at, pickup_confirmed_by_user_id)
-  VALUES (v_emp1, v_green, v_f12a, 'delivered', 19000,
+  VALUES (v_emp2, v_sunny, v_f12a, 'delivered', 17500,
           (NOW() - INTERVAL '20 days')::DATE,
           NOW() - INTERVAL '20 days', NOW() - INTERVAL '20 days',
-          NOW() - INTERVAL '20 days', v_emp1)
+          NOW() - INTERVAL '20 days', v_emp2)
   RETURNING id INTO v_order_id;
   INSERT INTO order_items (order_id, item_id, item_name, quantity, unit_price_cents, total_price_cents)
-  VALUES (v_order_id, v_teriyaki, 'Teriyaki Chicken Bowl', 2, 9500, 19000);
+  VALUES (v_order_id, v_pork_chop,    'Pork Chop Box',    1, 9000, 9000),
+         (v_order_id, v_chicken_rice, 'Chicken Rice Box', 1, 8500, 8500);
 
-  -- ── ORDER 11: employee3 @ Demo Noodle House, 18 days ago, delivered, 1x Beef ──
+  -- ── ORDER 11: employee3 @ Demo Green Bowl, 18 days ago, delivered, 1x Teriyaki + 1x Tofu Miso ──
   INSERT INTO orders (employee_id, vendor_id, facility_id, status, total_price_cents, meal_date,
                       created_at, updated_at, pickup_confirmed_at, pickup_confirmed_by_user_id)
-  VALUES (v_emp3, v_noodle, v_f15a, 'delivered', 9000,
+  VALUES (v_emp3, v_green, v_f15a, 'delivered', 17500,
           (NOW() - INTERVAL '18 days')::DATE,
           NOW() - INTERVAL '18 days', NOW() - INTERVAL '18 days',
           NOW() - INTERVAL '18 days', v_emp3)
   RETURNING id INTO v_order_id;
   INSERT INTO order_items (order_id, item_id, item_name, quantity, unit_price_cents, total_price_cents)
-  VALUES (v_order_id, v_beef_noodle, 'Beef Noodle Soup', 1, 9000, 9000);
+  VALUES (v_order_id, v_teriyaki,  'Teriyaki Chicken Bowl', 1, 9500, 9500),
+         (v_order_id, v_tofu_miso, 'Tofu Miso Bowl',        1, 8000, 8000);
 
-  -- ── ORDER 12: employee2 @ Demo Green Bowl, 15 days ago, delivered, 1x Salmon Poke ──
+  -- ── ORDER 12: employee1 @ Sunny Kitchen, 15 days ago, delivered, 1x Pork Chop Box ──
   INSERT INTO orders (employee_id, vendor_id, facility_id, status, total_price_cents, meal_date,
                       created_at, updated_at, pickup_confirmed_at, pickup_confirmed_by_user_id)
-  VALUES (v_emp2, v_green, v_f14b, 'delivered', 13000,
+  VALUES (v_emp1, v_sunny, v_f12a, 'delivered', 9000,
           (NOW() - INTERVAL '15 days')::DATE,
           NOW() - INTERVAL '15 days', NOW() - INTERVAL '15 days',
-          NOW() - INTERVAL '15 days', v_emp2)
+          NOW() - INTERVAL '15 days', v_emp1)
   RETURNING id INTO v_order_id;
   INSERT INTO order_items (order_id, item_id, item_name, quantity, unit_price_cents, total_price_cents)
-  VALUES (v_order_id, v_salmon_poke, 'Salmon Poke Bowl', 1, 13000, 13000);
+  VALUES (v_order_id, v_pork_chop, 'Pork Chop Box', 1, 9000, 9000);
 
   -- ── ORDER 13: employee1 @ Demo Noodle House, 12 days ago, cancelled ──
   INSERT INTO orders (employee_id, vendor_id, facility_id, status, total_price_cents, meal_date,
@@ -497,39 +557,40 @@ BEGIN
   VALUES (v_order_id, v_beef_noodle,  'Beef Noodle Soup',  1, 9000, 9000),
          (v_order_id, v_cold_sesame, 'Cold Sesame Noodles', 1, 7500, 7500);
 
-  -- ── ORDER 16: employee1 @ Demo Green Bowl, 6 days ago, delivered, 1x Teriyaki + 1x Salmon Poke ──
+  -- ── ORDER 16: employee2 @ Sunny Kitchen, 6 days ago, delivered, 1x Chicken Rice Box + 1x Veggie Box ──
   INSERT INTO orders (employee_id, vendor_id, facility_id, status, total_price_cents, meal_date,
                       created_at, updated_at, pickup_confirmed_at, pickup_confirmed_by_user_id)
-  VALUES (v_emp1, v_green, v_f12a, 'delivered', 22500,
+  VALUES (v_emp2, v_sunny, v_f12a, 'delivered', 16000,
           (NOW() - INTERVAL '6 days')::DATE,
           NOW() - INTERVAL '6 days', NOW() - INTERVAL '6 days',
-          NOW() - INTERVAL '6 days', v_emp1)
+          NOW() - INTERVAL '6 days', v_emp2)
   RETURNING id INTO v_order_id;
   INSERT INTO order_items (order_id, item_id, item_name, quantity, unit_price_cents, total_price_cents)
-  VALUES (v_order_id, v_teriyaki,    'Teriyaki Chicken Bowl', 1, 9500, 9500),
-         (v_order_id, v_salmon_poke, 'Salmon Poke Bowl',      1, 13000, 13000);
+  VALUES (v_order_id, v_chicken_rice, 'Chicken Rice Box', 1, 8500, 8500),
+         (v_order_id, v_veggie_box,   'Veggie Box',       1, 7500, 7500);
 
-  -- ── ORDER 17: employee3 @ Demo Noodle House, 5 days ago, delivered, 2x Dan Dan ──
+  -- ── ORDER 17: employee3 @ Demo Green Bowl, 5 days ago, delivered, 2x Teriyaki ──
   INSERT INTO orders (employee_id, vendor_id, facility_id, status, total_price_cents, meal_date,
                       created_at, updated_at, pickup_confirmed_at, pickup_confirmed_by_user_id)
-  VALUES (v_emp3, v_noodle, v_f15a, 'delivered', 17000,
+  VALUES (v_emp3, v_green, v_f15a, 'delivered', 19000,
           (NOW() - INTERVAL '5 days')::DATE,
           NOW() - INTERVAL '5 days', NOW() - INTERVAL '5 days',
           NOW() - INTERVAL '5 days', v_emp3)
   RETURNING id INTO v_order_id;
   INSERT INTO order_items (order_id, item_id, item_name, quantity, unit_price_cents, total_price_cents)
-  VALUES (v_order_id, v_dan_dan, 'Dan Dan Noodles', 2, 8500, 17000);
+  VALUES (v_order_id, v_teriyaki, 'Teriyaki Chicken Bowl', 2, 9500, 19000);
 
-  -- ── ORDER 18: employee2 @ Demo Green Bowl, 3 days ago, delivered, 2x Quinoa ──
+  -- ── ORDER 18: employee2 @ Demo Noodle House, 3 days ago, delivered, 1x Beef Noodle + 1x Wonton ──
   INSERT INTO orders (employee_id, vendor_id, facility_id, status, total_price_cents, meal_date,
                       created_at, updated_at, pickup_confirmed_at, pickup_confirmed_by_user_id)
-  VALUES (v_emp2, v_green, v_f14b, 'delivered', 17600,
+  VALUES (v_emp2, v_noodle, v_f14b, 'delivered', 17000,
           (NOW() - INTERVAL '3 days')::DATE,
           NOW() - INTERVAL '3 days', NOW() - INTERVAL '3 days',
           NOW() - INTERVAL '3 days', v_emp2)
   RETURNING id INTO v_order_id;
   INSERT INTO order_items (order_id, item_id, item_name, quantity, unit_price_cents, total_price_cents)
-  VALUES (v_order_id, v_quinoa, 'Quinoa Veggie Bowl', 2, 8800, 17600);
+  VALUES (v_order_id, v_beef_noodle, 'Beef Noodle Soup',   1, 9000, 9000),
+         (v_order_id, v_wonton,      'Wonton Noodle Soup', 1, 8000, 8000);
 
   -- ── ORDER 19: employee1 @ Demo Noodle House, 2 days ago, pending, 1x Beef ──
   INSERT INTO orders (employee_id, vendor_id, facility_id, status, total_price_cents, meal_date,
