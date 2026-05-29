@@ -9,8 +9,8 @@ const RANGES = [
   { days: 90, label: "近 90 天" },
 ];
 
-function isoDaysAgo(n) {
-  const d = new Date();
+function isoDaysBefore(base, n) {
+  const d = new Date(base);
   d.setDate(d.getDate() - n);
   return d.toISOString().slice(0, 10);
 }
@@ -92,7 +92,8 @@ export default function AdminStatsPage() {
     let active = true;
     setLoading(true);
     setError(null);
-    getStats({ start: isoDaysAgo(rangeDays - 1), end: isoDaysAgo(0) })
+    const today = new Date();
+    getStats({ start: isoDaysBefore(today, rangeDays - 1), end: isoDaysBefore(today, 0) })
       .then((data) => {
         if (active) setStats(data);
       })
