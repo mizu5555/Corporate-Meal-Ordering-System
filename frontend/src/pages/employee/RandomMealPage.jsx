@@ -19,10 +19,10 @@ function addDaysIso(days) {
 
 function drawErrorMessage(err) {
   if (err.code === "no_random_meal_available") {
-    return "No available meals remain for the selected date and restaurants.";
+    return "所選日期與餐廳目前沒有可抽的餐點。";
   }
-  if (err.code === "validation_error") return err.message ?? "Choose a valid date and restaurant range.";
-  return "Could not draw a meal. Please try again.";
+  if (err.code === "validation_error") return err.message ?? "請選擇有效的日期與餐廳範圍。";
+  return "抽籤失敗，請再試一次。";
 }
 
 export default function RandomMealPage() {
@@ -57,8 +57,8 @@ export default function RandomMealPage() {
   const canDraw = mealDateInRange && selectedCount > 0 && !drawing && !loading;
   const remainingLabel = useMemo(() => {
     if (!draw) return null;
-    if (draw.remaining_quantity == null) return "Unlimited";
-    return `${draw.remaining_quantity} left`;
+    if (draw.remaining_quantity == null) return "不限量";
+    return `剩餘 ${draw.remaining_quantity} 份`;
   }, [draw]);
 
   useEffect(() => {
@@ -169,8 +169,8 @@ export default function RandomMealPage() {
   return (
     <div>
       <div className="page-header">
-        <FacilityScopeLabel label="Random meal facility" />
-        <p className="eyebrow">Employee / 推薦與隨機抽餐</p>
+        <FacilityScopeLabel label="隨機抽餐設施" />
+        <p className="eyebrow">員工 / 推薦與隨機抽餐</p>
         <h2>今天吃什麼？</h2>
       </div>
 
@@ -199,8 +199,8 @@ export default function RandomMealPage() {
             <>
               <div className="random-vendor-header">
                 <div>
-                  <p className="field-label">Restaurants</p>
-                  <p className="panel-copy">{selectedCount} selected</p>
+                  <p className="field-label">餐廳</p>
+                  <p className="panel-copy">已選 {selectedCount} 間</p>
                 </div>
                 <label className="toggle-row">
                   <input
@@ -212,12 +212,12 @@ export default function RandomMealPage() {
                       setSubmitted(false);
                     }}
                   />
-                  <span>All restaurants</span>
+                  <span>全部餐廳</span>
                 </label>
               </div>
 
-              {loading && <p className="loading-state compact-state">Loading restaurants...</p>}
-              {error && <p className="error-state">Could not load restaurants.</p>}
+              {loading && <p className="loading-state compact-state">載入餐廳中…</p>}
+              {error && <p className="error-state">無法載入餐廳。</p>}
 
               {!loading && !error && !allVendors && (
                 <div className="vendor-check-list">
@@ -240,7 +240,7 @@ export default function RandomMealPage() {
                 onClick={handleDraw}
                 disabled={!canDraw}
               >
-                {drawing ? "Drawing..." : draw ? "Draw again" : "Draw a meal"}
+                {drawing ? "抽籤中…" : draw ? "重新抽" : "抽一份"}
               </button>
             </>
           )}
@@ -354,9 +354,9 @@ export default function RandomMealPage() {
             <div className="random-draw-panel">
               {!draw && !drawError && (
                 <div className="random-placeholder">
-                  <p className="eyebrow">Ready</p>
-                  <h3>Pick a date and restaurant range.</h3>
-                  <p className="panel-copy">The result will be selected completely at random from meals that still have quota left.</p>
+                  <p className="eyebrow">準備就緒</p>
+                  <h3>選擇日期與餐廳範圍。</h3>
+                  <p className="panel-copy">系統會從仍有額度的餐點中完全隨機抽出一份。</p>
                 </div>
               )}
 
@@ -371,7 +371,7 @@ export default function RandomMealPage() {
                     <p className="panel-copy">{draw.item.description}</p>
                   )}
                   <div className="item-badges">
-                    <span className="badge badge-available">Available</span>
+                    <span className="badge badge-available">可供選擇</span>
                     <span className="badge badge-quota">
                       {remainingLabel ?? quotaLabel(draw.item.daily_quota)}
                     </span>
@@ -379,13 +379,13 @@ export default function RandomMealPage() {
 
                   {submitted ? (
                     <div className="success-state">
-                      <p>Order sent for {mealDate}.</p>
+                      <p>已加入訂單（{mealDate}）。</p>
                       <button
                         className="ghost-button"
                         type="button"
                         onClick={() => navigate("/employee/orders")}
                       >
-                        View orders
+                        查看訂單
                       </button>
                     </div>
                   ) : (
@@ -396,7 +396,7 @@ export default function RandomMealPage() {
                         onClick={handleDraw}
                         disabled={drawing || submitting}
                       >
-                        Draw again
+                        重新抽
                       </button>
                       <button
                         className="primary-button"
@@ -404,7 +404,7 @@ export default function RandomMealPage() {
                         onClick={handleConfirm}
                         disabled={submitting}
                       >
-                        {submitting ? "Sending..." : "Choose this meal"}
+                        {submitting ? "送出中…" : "選這份"}
                       </button>
                     </div>
                   )}
