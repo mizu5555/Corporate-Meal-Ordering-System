@@ -4,6 +4,7 @@ import AppShell from "../layout/AppShell";
 import { roleHomePath } from "../layout/navigation";
 import AdminAuditPage from "../pages/admin/AdminAuditPage";
 import AdminHomePage from "../pages/admin/AdminHomePage";
+import AdminStatsPage from "../pages/admin/AdminStatsPage";
 import AdminPermissionsPage from "../pages/admin/AdminPermissionsPage";
 import AdminVendorReviewDetailPage from "../pages/admin/AdminVendorReviewDetailPage";
 import AdminVendorReviewListPage from "../pages/admin/AdminVendorReviewListPage";
@@ -98,6 +99,7 @@ export function AppRouter() {
             <Route element={<AdminVendorReviewDetailPage />} path="/admin/vendors/:applicationId" />
             <Route element={<AdminPermissionsPage />} path="/admin/permissions" />
             <Route element={<AdminAuditPage />} path="/admin/audit" />
+            <Route element={<AdminStatsPage />} path="/admin/stats" />
           </Route>
 
           <Route

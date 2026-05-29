@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+
 export default function AdminHomePage() {
   return (
     <section className="dashboard-grid">
@@ -15,9 +17,9 @@ export default function AdminHomePage() {
         </p>
       </article>
       <article className="panel">
-        <h3>Next branch</h3>
+        <h3>Operations dashboard</h3>
         <p className="panel-copy">
-          `feat/admin-vendor-review` is the most direct follow-up task.
+          <Link to="/admin/stats">View ordering statistics</Link>
         </p>
       </article>
     </section>

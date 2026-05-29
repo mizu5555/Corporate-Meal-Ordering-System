@@ -10,6 +10,7 @@ from backend.core.errors import install_error_handler
 from backend.core.observability import RequestIDMiddleware, configure_logging
 from backend.db.migrate import run_migrations
 from backend.routes import (
+    admin_stats,
     admin_users,
     admin_vendors,
     audit_logs,
@@ -68,6 +69,7 @@ def create_app() -> FastAPI:
     app.include_router(employee_ordering.router)
     app.include_router(notifications.router)
     app.include_router(audit_logs.router)
+    app.include_router(admin_stats.router)
 
     Instrumentator(should_instrument_requests_inprogress=True).instrument(app).expose(app)
     return app
