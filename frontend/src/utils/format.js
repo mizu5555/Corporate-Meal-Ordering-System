@@ -4,6 +4,13 @@ export function formatPrice(cents) {
   return `NT$ ${Number.isInteger(amount) ? amount : amount.toFixed(1)}`;
 }
 
+// Money totals (revenue / receivables): always a currency amount, never "免費".
+// Zero is a real total (NT$ 0), not a free menu item.
+export function formatMoney(cents) {
+  const amount = cents / 100;
+  return `NT$ ${Number.isInteger(amount) ? amount : amount.toFixed(1)}`;
+}
+
 export function quotaLabel(dailyQuota) {
   if (dailyQuota === null || dailyQuota === undefined) return null;
   if (dailyQuota === 0) return "今日售完";

@@ -4,8 +4,14 @@ from datetime import date
 
 from backend.db.connection import get_connection
 from backend.schemas.admin_stats import DayPoint, FacilityStat, OrderSummary, VendorStat
+from backend.schemas.billing import EmployeeTotal, VendorReceivable
 
 _WINDOW = "o.status <> 'cancelled' AND o.created_at::date BETWEEN %s AND %s"
+
+_MONTH = (
+    "o.status = 'delivered' AND o.meal_date IS NOT NULL "
+    "AND EXTRACT(YEAR FROM o.meal_date) = %s AND EXTRACT(MONTH FROM o.meal_date) = %s"
+)
 
 
 class PostgresReportingRepository:
@@ -99,5 +105,55 @@ class PostgresReportingRepository:
             ).fetchall()
         return [
             DayPoint(day=r["day"], order_count=int(r["order_count"]), revenue_cents=int(r["revenue_cents"]))
+            for r in rows
+        ]
+
+    def vendor_monthly_receivables(self, year: int, month: int) -> list[VendorReceivable]:
+        with get_connection() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT o.vendor_id, v.name AS vendor_name, v.owner_user_id,
+                       COUNT(DISTINCT o.id) AS order_count,
+                       COALESCE(SUM(oi.quantity), 0) AS quantity,
+                       COALESCE(SUM(oi.total_price_cents), 0) AS amount_cents
+                FROM orders o
+                JOIN order_items oi ON oi.order_id = o.id
+                JOIN vendors v ON v.id = o.vendor_id
+                WHERE {_MONTH}
+                GROUP BY o.vendor_id, v.name, v.owner_user_id
+                ORDER BY amount_cents DESC
+                """,
+                [year, month],
+            ).fetchall()
+        return [
+            VendorReceivable(
+                vendor_id=int(r["vendor_id"]), vendor_name=r["vendor_name"],
+                owner_user_id=int(r["owner_user_id"]) if r["owner_user_id"] is not None else None,
+                order_count=int(r["order_count"]), quantity=int(r["quantity"]),
+                amount_cents=int(r["amount_cents"]),
+            )
+            for r in rows
+        ]
+
+    def employee_monthly_totals(self, year: int, month: int) -> list[EmployeeTotal]:
+        with get_connection() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT o.employee_id, u.display_name AS employee_name,
+                       COALESCE(SUM(oi.total_price_cents), 0) AS amount_cents
+                FROM orders o
+                JOIN order_items oi ON oi.order_id = o.id
+                JOIN users u ON u.id = o.employee_id
+                WHERE {_MONTH}
+                GROUP BY o.employee_id, u.display_name
+                ORDER BY amount_cents DESC
+                """,
+                [year, month],
+            ).fetchall()
+        return [
+            EmployeeTotal(
+                employee_id=int(r["employee_id"]), employee_name=r["employee_name"],
+                amount_cents=int(r["amount_cents"]),
+            )
             for r in rows
         ]

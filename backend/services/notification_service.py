@@ -50,3 +50,31 @@ class NotificationService:
                 "meal_date": order.meal_date.isoformat() if order.meal_date else None,
             },
         )
+
+    def create_billing_statement_ready(
+        self,
+        *,
+        recipient_user_id: int,
+        year: int,
+        month: int,
+        amount_cents: int,
+    ) -> Notification:
+        return self._repository.create(
+            recipient_user_id=recipient_user_id,
+            type="billing.statement_ready",
+            payload={"year": year, "month": month, "amount_cents": amount_cents},
+        )
+
+    def create_payroll_deduction_posted(
+        self,
+        *,
+        recipient_user_id: int,
+        year: int,
+        month: int,
+        amount_cents: int,
+    ) -> Notification:
+        return self._repository.create(
+            recipient_user_id=recipient_user_id,
+            type="payroll.deduction_posted",
+            payload={"year": year, "month": month, "amount_cents": amount_cents},
+        )

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { getStats } from "../../api/admin";
-import { formatPrice } from "../../utils/format";
+import { formatMoney } from "../../utils/format";
 
 const RANGES = [
   { days: 7, label: "近 7 天" },
@@ -156,7 +156,7 @@ export default function AdminStatsPage() {
             </div>
             <div className="stat-card">
               <span>營收</span>
-              <strong>{formatPrice(totalRevenue)}</strong>
+              <strong>{formatMoney(totalRevenue)}</strong>
             </div>
             <div className="stat-card">
               <span>餐點數</span>
@@ -191,7 +191,7 @@ export default function AdminStatsPage() {
                     <td>{v.vendor_name}</td>
                     <td>{v.order_count}</td>
                     <td>{v.quantity}</td>
-                    <td>{formatPrice(v.revenue_cents)}</td>
+                    <td>{formatMoney(v.revenue_cents)}</td>
                     <td>{sharePct(v.revenue_cents, totalRevenue)}</td>
                   </tr>
                 ))}
