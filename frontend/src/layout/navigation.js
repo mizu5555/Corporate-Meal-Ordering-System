@@ -21,6 +21,7 @@ export const navigationByRole = {
   admin: [
     { label: "統計儀表板", to: "/admin/stats" },
     { label: "商家審核", to: "/admin/vendors" },
+    { label: "廠區管理", to: "/admin/facilities" },
     { label: "權限管理", to: "/admin/permissions" },
     { label: "稽核紀錄", to: "/admin/audit" },
     { label: "月度結帳", to: "/admin/billing" },
