@@ -5,6 +5,7 @@ import random
 from datetime import date, timedelta
 
 from backend.core.errors import CodedHTTPException
+from backend.core.reporting import get_reporting_repository
 from backend.core.order_failure_codes import ITEM_UNAVAILABLE, QUOTA_EXHAUSTED
 from backend.repositories.audit_log_repository import AuditLogRepository
 from backend.repositories.employee_selection_repository import EmployeeSelectionRepository, OrderItemSnapshot
@@ -23,6 +24,7 @@ from backend.schemas.employee import (
     PickupLabelItem,
     RandomMealDraw,
     RandomMealDrawRequest,
+    RecommendedItem,
 )
 from backend.schemas.vendor_self import Facility, MenuItem as VendorMenuItem
 
@@ -36,11 +38,13 @@ class EmployeeOrderingService:
         menu_item_repository: MenuItemRepository,
         selection_repository: EmployeeSelectionRepository,
         audit_log_repository: AuditLogRepository | None = None,
+        reporting_repository=None,
     ) -> None:
         self.vendor_repository = vendor_repository
         self.menu_item_repository = menu_item_repository
         self.selection_repository = selection_repository
         self.audit_log_repository = audit_log_repository or AuditLogRepository()
+        self.reporting_repository = reporting_repository or get_reporting_repository()
 
     def list_vendors(
         self,
@@ -215,6 +219,92 @@ class EmployeeOrderingService:
             item=self._menu_item_to_schema(item),
             remaining_quantity=remaining,
         )
+
+    def recommend(
+        self,
+        *,
+        employee_id: int | None = None,
+        facility_id: int | None = None,
+        meal_date: date | None = None,
+        limit: int = 8,
+    ) -> list[RecommendedItem]:
+        target_date = meal_date or date.today()
+
+        # Build visible approved vendor schemas (reuse same pattern as draw_random_meal)
+        all_approved = self.vendor_repository.list(status="approved")
+        if employee_id is not None:
+            visible = self._filter_vendors_by_facility(
+                [self._vendor_to_schema(v) for v in all_approved],
+                employee_id,
+                facility_id=facility_id,
+            )
+        else:
+            visible = [self._vendor_to_schema(v) for v in all_approved]
+
+        if not visible:
+            return []
+
+        visible_ids = [v.id for v in visible]
+        vendor_by_id = {v.id: v for v in visible}
+
+        used = self.selection_repository.item_quantities_for_date(
+            meal_date=target_date,
+            vendor_ids=visible_ids,
+        )
+
+        # Build item_by_id: {item_id: (vendor_id, raw_item)}
+        item_by_id: dict[int, tuple[int, object]] = {}
+        for vid in visible_ids:
+            for it in self.menu_item_repository.list(vendor_id=vid, available=True):
+                item_by_id[it.id] = (vid, it)
+
+        # Sales window: past 30 days up to today
+        end = date.today()
+        start = end - timedelta(days=29)
+        ranked = self.reporting_repository.top_items(
+            start, end, limit=limit * 3, vendor_ids=visible_ids
+        )
+
+        results: list[RecommendedItem] = []
+        for sale in ranked:
+            if len(results) >= limit:
+                break
+            entry = item_by_id.get(sale.item_id)
+            if entry is None:
+                continue
+            vid, it = entry
+            remaining = self._remaining_quantity(it, used.get(it.id, 0))
+            if remaining is not None and remaining <= 0:
+                continue
+            results.append(
+                RecommendedItem(
+                    vendor=vendor_by_id[vid],
+                    item=self._menu_item_to_schema(it),
+                    quantity_sold=sale.quantity_sold,
+                    remaining_quantity=remaining,
+                    from_sales=True,
+                )
+            )
+
+        # Fallback: if no sales data, return available items
+        if not results:
+            for it_id, (vid, it) in item_by_id.items():
+                if len(results) >= limit:
+                    break
+                remaining = self._remaining_quantity(it, used.get(it.id, 0))
+                if remaining is not None and remaining <= 0:
+                    continue
+                results.append(
+                    RecommendedItem(
+                        vendor=vendor_by_id[vid],
+                        item=self._menu_item_to_schema(it),
+                        quantity_sold=0,
+                        remaining_quantity=remaining,
+                        from_sales=False,
+                    )
+                )
+
+        return results
 
     def list_my_orders(self, employee_id: int) -> list[EmployeeOrder]:
         return self.selection_repository.list_orders(employee_id=employee_id)

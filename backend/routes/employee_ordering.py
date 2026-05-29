@@ -1,6 +1,7 @@
 """Employee-facing vendor browsing, menu browsing, and meal selection APIs."""
 from __future__ import annotations
 
+from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, Response, status
@@ -27,6 +28,7 @@ from backend.schemas.employee import (
     PickupLabel,
     RandomMealDraw,
     RandomMealDrawRequest,
+    RecommendedItem,
 )
 from backend.schemas.vendor_self import Facility
 from backend.services.employee_ordering_service import EmployeeOrderingService
@@ -96,6 +98,17 @@ def list_my_facilities(
     service: Annotated[EmployeeOrderingService, Depends(get_employee_ordering_service)],
 ) -> list[Facility]:
     return service.list_employee_facilities(employee_id)
+
+
+@router.get("/recommendations", response_model=list[RecommendedItem])
+def list_recommendations(
+    employee_id: Annotated[int, Depends(require_employee)],
+    service: Annotated[EmployeeOrderingService, Depends(get_employee_ordering_service)],
+    facility_id: int | None = None,
+    meal_date: date | None = None,
+    limit: Annotated[int, Query(ge=1, le=50)] = 8,
+) -> list[RecommendedItem]:
+    return service.recommend(employee_id=employee_id, facility_id=facility_id, meal_date=meal_date, limit=limit)
 
 
 @router.post("/random-meals/draw", response_model=RandomMealDraw)

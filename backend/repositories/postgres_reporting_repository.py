@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 
 from backend.db.connection import get_connection
-from backend.schemas.admin_stats import DayPoint, FacilityStat, OrderSummary, VendorStat
+from backend.schemas.admin_stats import DayPoint, FacilityStat, ItemSales, OrderSummary, VendorStat
 from backend.schemas.billing import EmployeeTotal, VendorReceivable
 
 _WINDOW = "o.status <> 'cancelled' AND o.created_at::date BETWEEN %s AND %s"
@@ -132,6 +132,35 @@ class PostgresReportingRepository:
                 order_count=int(r["order_count"]), quantity=int(r["quantity"]),
                 amount_cents=int(r["amount_cents"]),
             )
+            for r in rows
+        ]
+
+    def top_items(
+        self, start: date, end: date, limit: int, vendor_ids: list[int] | None = None
+    ) -> list[ItemSales]:
+        where = ["o.status <> 'cancelled'", "o.created_at::date BETWEEN %s AND %s", "oi.item_id IS NOT NULL"]
+        values = [start, end]
+        if vendor_ids is not None:
+            where.append("o.vendor_id = ANY(%s)")
+            values.append(list(vendor_ids))
+        values.append(limit)
+        with get_connection() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT oi.item_id, MIN(o.vendor_id) AS vendor_id,
+                       COALESCE(SUM(oi.quantity), 0) AS quantity_sold
+                FROM orders o
+                JOIN order_items oi ON oi.order_id = o.id
+                WHERE {" AND ".join(where)}
+                GROUP BY oi.item_id
+                ORDER BY quantity_sold DESC
+                LIMIT %s
+                """,
+                values,
+            ).fetchall()
+        return [
+            ItemSales(item_id=int(r["item_id"]), vendor_id=int(r["vendor_id"]),
+                      quantity_sold=int(r["quantity_sold"]))
             for r in rows
         ]
 

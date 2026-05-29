@@ -136,3 +136,11 @@ class RandomMealDraw(BaseModel):
     vendor: EmployeeVendor
     item: EmployeeMenuItem
     remaining_quantity: int | None = None
+
+
+class RecommendedItem(BaseModel):
+    vendor: EmployeeVendor
+    item: EmployeeMenuItem
+    quantity_sold: int
+    remaining_quantity: int | None = None
+    from_sales: bool = True

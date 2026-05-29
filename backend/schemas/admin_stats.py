@@ -33,6 +33,12 @@ class DayPoint(BaseModel):
     revenue_cents: int
 
 
+class ItemSales(BaseModel):
+    item_id: int
+    vendor_id: int
+    quantity_sold: int
+
+
 class DashboardStats(BaseModel):
     start: date
     end: date
