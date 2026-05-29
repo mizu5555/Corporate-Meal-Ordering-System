@@ -1,5 +1,66 @@
 # NOL One-Time Setup for TBD Deployment
 
+## Database backup & restore
+
+### How it works
+
+A `backup` sidecar container (image `postgres:16-alpine`) runs alongside the `db`
+service in **staging and prod** stacks. It executes `pg_dump` once per day (every
+86400 seconds), compresses the output with gzip, and writes it to the `db_backups`
+named Docker volume mounted at `/backups` inside the container.
+
+Dump filenames follow the pattern `mealorder-YYYYMMDD-HHMMSS.sql.gz`.
+
+**Retention**: after each successful dump, the script automatically deletes all but
+the **newest 7** files (`BACKUP_KEEP=7`). This bounds the volume to at most 7
+compressed snapshots; no manual pruning is required.
+
+**Failure behaviour**: if `pg_dump` exits non-zero, the script logs an error and
+exits non-zero (so Docker/`restart: unless-stopped` will restart the container and
+retry). It does _not_ silently continue.
+
+> **Staging note**: `Jenkinsfile.staging` runs `down -v` on each redeploy which
+> removes all named volumes including `db_backups`. This is intentional for staging
+> (clean slate per deploy). Prod uses `down` (no `-v`), so backups survive deploys.
+
+### Listing current dumps
+
+```bash
+# staging
+docker compose -p mealorder-staging exec backup ls -1t /backups
+
+# prod
+docker compose -p mealorder-prod exec backup ls -1t /backups
+```
+
+### Triggering an on-demand backup immediately
+
+```bash
+# One-shot backup without waiting for the next scheduled run
+docker compose -p mealorder-prod exec backup sh -c 'BACKUP_ONCE=1 sh /backup.sh'
+```
+
+### Restoring a dump
+
+```bash
+# 1. Choose a dump file (list first):
+docker compose -p mealorder-prod exec backup ls -1t /backups
+# Example output:
+#   mealorder-20260529-030000.sql.gz
+#   mealorder-20260528-030000.sql.gz
+
+# 2. Restore — pipe through gunzip into psql inside the db container:
+DUMP=mealorder-20260529-030000.sql.gz
+docker compose -p mealorder-prod exec -T backup cat /backups/${DUMP} \
+  | docker compose -p mealorder-prod exec -T db \
+      sh -c 'gunzip -c | psql -U $POSTGRES_USER -d $POSTGRES_DB'
+```
+
+> The `-T` flag disables pseudo-TTY allocation so binary data flows cleanly through
+> the pipe. Replace `-p mealorder-prod` with `-p mealorder-staging` for staging.
+
+---
+
 All steps run **on the NOL host (A 機)** as a user with docker permission and access to NPM (nginx proxy manager).
 Re-running any block is safe (idempotent) unless explicitly noted.
 
