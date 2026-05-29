@@ -19,9 +19,10 @@ export const navigationByRole = {
     { label: "Revenue", to: "/vendor/revenue" },
   ],
   admin: [
-    { label: "Dashboard", to: "/admin" },
-    { label: "Vendor Reviews", to: "/admin/vendors" },
-    { label: "Permissions", to: "/admin/permissions" },
-    { label: "Audit Logs", to: "/admin/audit" },
+    { label: "統計儀表板", to: "/admin/stats" },
+    { label: "商家審核", to: "/admin/vendors" },
+    { label: "權限管理", to: "/admin/permissions" },
+    { label: "稽核紀錄", to: "/admin/audit" },
+    { label: "月度結帳", to: "/admin/billing" },
   ],
 };

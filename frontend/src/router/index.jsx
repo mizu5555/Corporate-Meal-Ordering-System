@@ -4,7 +4,6 @@ import AppShell from "../layout/AppShell";
 import { roleHomePath } from "../layout/navigation";
 import AdminAuditPage from "../pages/admin/AdminAuditPage";
 import AdminBillingPage from "../pages/admin/AdminBillingPage";
-import AdminHomePage from "../pages/admin/AdminHomePage";
 import AdminStatsPage from "../pages/admin/AdminStatsPage";
 import AdminPermissionsPage from "../pages/admin/AdminPermissionsPage";
 import AdminVendorReviewDetailPage from "../pages/admin/AdminVendorReviewDetailPage";
@@ -95,7 +94,7 @@ export function AppRouter() {
           </Route>
 
           <Route element={<RoleRoute allowedRoles={["admin"]} />}>
-            <Route element={<AdminHomePage />} path="/admin" />
+            <Route element={<Navigate replace to="/admin/stats" />} path="/admin" />
             <Route element={<AdminVendorReviewListPage />} path="/admin/vendors" />
             <Route element={<AdminVendorReviewDetailPage />} path="/admin/vendors/:applicationId" />
             <Route element={<AdminPermissionsPage />} path="/admin/permissions" />

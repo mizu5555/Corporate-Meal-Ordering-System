@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 import { getBillingVendors } from "../../api/admin";
 import { readStoredSession } from "../../auth/authStorage";
-import { formatPrice } from "../../utils/format";
+import { formatMoney } from "../../utils/format";
 
 const now = new Date();
 
@@ -134,7 +134,7 @@ export default function AdminBillingPage() {
                   <td>{r.vendor_name}</td>
                   <td>{r.order_count}</td>
                   <td>{r.quantity}</td>
-                  <td>{formatPrice(r.amount_cents)}</td>
+                  <td>{formatMoney(r.amount_cents)}</td>
                 </tr>
               ))}
               {rows.length === 0 && (
