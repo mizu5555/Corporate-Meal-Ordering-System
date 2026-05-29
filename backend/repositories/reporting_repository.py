@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 
 from backend.schemas.admin_stats import DayPoint, FacilityStat, OrderSummary, VendorStat
+from backend.schemas.billing import EmployeeTotal, VendorReceivable
 
 
 @dataclass
@@ -23,6 +24,10 @@ class _OrderRow:
     created_at: datetime
     # items: list of (item_id, quantity, unit_price_cents)
     items: list[tuple[int, int, int]] = field(default_factory=list)
+    employee_id: int | None = None
+    employee_name: str | None = None
+    meal_date: date | None = None
+    owner_user_id: int | None = None
 
 
 class ReportingRepository:
@@ -40,6 +45,10 @@ class ReportingRepository:
         status: str,
         created_at: datetime,
         items: list[tuple[int, int, int]],
+        employee_id: int | None = None,
+        employee_name: str | None = None,
+        meal_date: date | None = None,
+        owner_user_id: int | None = None,
     ) -> None:
         self._orders.append(
             _OrderRow(
@@ -51,6 +60,10 @@ class ReportingRepository:
                 status=status,
                 created_at=created_at,
                 items=items,
+                employee_id=employee_id,
+                employee_name=employee_name,
+                meal_date=meal_date,
+                owner_user_id=owner_user_id,
             )
         )
 
@@ -123,3 +136,55 @@ class ReportingRepository:
             DayPoint(day=day, order_count=a["order_count"], revenue_cents=a["revenue_cents"])
             for day, a in sorted(acc.items())
         ]
+
+    def _delivered_in_month(self, year: int, month: int) -> list[_OrderRow]:
+        return [
+            r
+            for r in self._orders
+            if r.status == "delivered"
+            and r.meal_date is not None
+            and r.meal_date.year == year
+            and r.meal_date.month == month
+        ]
+
+    def vendor_monthly_receivables(self, year: int, month: int) -> list[VendorReceivable]:
+        acc: dict[int, dict] = {}
+        for r in self._delivered_in_month(year, month):
+            a = acc.setdefault(
+                r.vendor_id,
+                {
+                    "vendor_name": r.vendor_name,
+                    "owner_user_id": r.owner_user_id,
+                    "order_count": 0,
+                    "quantity": 0,
+                    "amount_cents": 0,
+                },
+            )
+            a["order_count"] += 1
+            a["quantity"] += self._row_quantity(r)
+            a["amount_cents"] += self._row_revenue(r)
+        rows = [
+            VendorReceivable(
+                vendor_id=vid, vendor_name=a["vendor_name"], owner_user_id=a["owner_user_id"],
+                order_count=a["order_count"], quantity=a["quantity"], amount_cents=a["amount_cents"],
+            )
+            for vid, a in acc.items()
+        ]
+        rows.sort(key=lambda r: r.amount_cents, reverse=True)
+        return rows
+
+    def employee_monthly_totals(self, year: int, month: int) -> list[EmployeeTotal]:
+        acc: dict[int, dict] = {}
+        for r in self._delivered_in_month(year, month):
+            if r.employee_id is None:
+                continue
+            a = acc.setdefault(
+                r.employee_id, {"employee_name": r.employee_name, "amount_cents": 0}
+            )
+            a["amount_cents"] += self._row_revenue(r)
+        rows = [
+            EmployeeTotal(employee_id=eid, employee_name=a["employee_name"], amount_cents=a["amount_cents"])
+            for eid, a in acc.items()
+        ]
+        rows.sort(key=lambda r: r.amount_cents, reverse=True)
+        return rows
