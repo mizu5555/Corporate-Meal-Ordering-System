@@ -3,6 +3,7 @@ import { useAuth } from "../auth/AuthContext";
 import AppShell from "../layout/AppShell";
 import { roleHomePath } from "../layout/navigation";
 import AdminAuditPage from "../pages/admin/AdminAuditPage";
+import AdminFacilitiesPage from "../pages/admin/AdminFacilitiesPage";
 import AdminBillingPage from "../pages/admin/AdminBillingPage";
 import AdminStatsPage from "../pages/admin/AdminStatsPage";
 import AdminPermissionsPage from "../pages/admin/AdminPermissionsPage";
@@ -101,6 +102,7 @@ export function AppRouter() {
             <Route element={<AdminAuditPage />} path="/admin/audit" />
             <Route element={<AdminStatsPage />} path="/admin/stats" />
             <Route element={<AdminBillingPage />} path="/admin/billing" />
+            <Route element={<AdminFacilitiesPage />} path="/admin/facilities" />
           </Route>
 
           <Route

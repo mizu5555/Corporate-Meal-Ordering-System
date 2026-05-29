@@ -56,3 +56,27 @@ export function getStats({ start, end } = {}) {
 export function getBillingVendors({ year, month }) {
   return apiFetch(`/admin/billing/vendors?year=${year}&month=${month}`);
 }
+
+export function getFacilities() {
+  return apiFetch("/admin/facilities");
+}
+
+export function createFacility({ code, name }) {
+  return apiFetch("/admin/facilities", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code, name }),
+  });
+}
+
+export function getVendorFacilities(vendorId) {
+  return apiFetch(`/admin/vendors/${vendorId}/facilities`);
+}
+
+export function setVendorFacilities(vendorId, facilityIds) {
+  return apiFetch(`/admin/vendors/${vendorId}/facilities`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ facility_ids: facilityIds }),
+  });
+}
