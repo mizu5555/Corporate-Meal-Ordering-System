@@ -44,3 +44,11 @@ export function reviewVendorApplication(applicationId, { decision, reason }) {
     body: JSON.stringify({ decision, reason: reason || null }),
   });
 }
+
+export function getStats({ start, end } = {}) {
+  const params = new URLSearchParams();
+  if (start) params.set("start", start);
+  if (end) params.set("end", end);
+  const qs = params.toString();
+  return apiFetch(`/admin/stats${qs ? `?${qs}` : ""}`);
+}
