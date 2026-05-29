@@ -1006,35 +1006,105 @@ p {
   line-height: 1.1;
 }
 
-.stat-bar-row {
+/* Date-range presets on the stats dashboard */
+.range-pills {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 8px;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
 }
 
-.stat-bar-label {
-  flex: 0 0 120px;
+.range-pill {
+  border: 1px solid var(--line);
+  background: var(--surface-strong);
   color: var(--muted);
-  font-size: 0.88rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 
-.stat-bar-track {
-  flex: 1 1 0;
-  height: 14px;
-  border-radius: 999px;
+.range-pill:hover {
+  border-color: var(--brand);
+  color: var(--brand);
+}
+
+.range-pill.is-active {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: var(--surface-strong);
+}
+
+.range-pill.is-active:hover {
+  color: var(--surface-strong);
+}
+
+.range-pill:focus-visible,
+.pw-toggle:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+/* Daily-orders column chart (inline SVG) */
+.col-chart {
+  width: 100%;
+  height: auto;
+  max-height: 220px;
+  display: block;
+  margin-top: 6px;
+}
+
+.col-chart-val {
+  fill: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.col-chart-lab {
+  fill: var(--muted);
+  font-size: 10px;
+}
+
+.table-empty {
+  text-align: center;
+  color: var(--muted);
+  padding: 18px 12px;
+}
+
+/* Password field with a show/hide toggle */
+.pw-field {
+  position: relative;
+  display: block;
+}
+
+.pw-field .form-input {
+  width: 100%;
+  padding-right: 44px;
+}
+
+.pw-toggle {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 8px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.pw-toggle:hover {
+  color: var(--brand);
   background: var(--line);
-  overflow: hidden;
-}
-
-.stat-bar-fill {
-  height: 100%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, var(--brand) 0%, #d77431 100%);
-  /* width is set inline by the component */
 }
 
 .data-table {
