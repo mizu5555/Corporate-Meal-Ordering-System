@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { confirmPickup, getMyOrder, updateOrderStatus } from "../../api/vendor";
+import { getMyOrder, updateOrderStatus } from "../../api/vendor";
 import { formatPrice } from "../../utils/format";
 
 const STATUS_LABEL = {
@@ -89,19 +89,6 @@ export default function VendorOrderDetailPage() {
       setOrder(updated);
     } catch (err) {
       setActionError(err.message ?? "操作失敗");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function handleConfirmPickup() {
-    setSubmitting(true);
-    setActionError(null);
-    try {
-      const updated = await confirmPickup(orderId);
-      setOrder(updated);
-    } catch (err) {
-      setActionError(err.message ?? "領餐確認失敗");
     } finally {
       setSubmitting(false);
     }
@@ -258,7 +245,7 @@ export default function VendorOrderDetailPage() {
           </div>
 
           {/* 操作按鈕 */}
-          {(actions.length > 0 || order.status === "ready") && (
+          {actions.length > 0 && (
             <div className="panel">
               <p className="eyebrow" style={{ marginBottom: 14 }}>操作</p>
 
@@ -289,26 +276,17 @@ export default function VendorOrderDetailPage() {
                     {action.label}
                   </button>
                 ))}
-                {order.status === "ready" && (
-                  <button
-                    type="button"
-                    disabled={submitting}
-                    onClick={handleConfirmPickup}
-                    style={{
-                      padding: "10px 0",
-                      borderRadius: "var(--radius-md)",
-                      fontWeight: 700,
-                      fontSize: 14,
-                      cursor: submitting ? "not-allowed" : "pointer",
-                      opacity: submitting ? 0.7 : 1,
-                      transition: "opacity 140ms ease",
-                      ...ACTION_STYLE.confirm,
-                    }}
-                  >
-                    {submitting ? "確認中..." : "確認員工已領餐"}
-                  </button>
-                )}
               </div>
+            </div>
+          )}
+
+          {/* 領餐須由員工出示識別證，於「掃碼 / 編號取餐」頁完成（#132 A：出示即同意）。 */}
+          {order.status === "ready" && (
+            <div className="panel">
+              <p className="eyebrow" style={{ marginBottom: 10 }}>領餐</p>
+              <p style={{ margin: 0, fontSize: 13, color: "var(--muted)", lineHeight: 1.6 }}>
+                此訂單已可取餐。請至「掃碼 / 編號取餐」頁，由員工出示識別證（QR 或員工編號）後完成領餐確認。
+              </p>
             </div>
           )}
         </div>
