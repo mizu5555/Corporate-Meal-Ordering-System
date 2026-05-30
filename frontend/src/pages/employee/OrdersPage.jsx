@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { deleteMyOrder, updateMyOrder } from "../../api/employee";
+import { useEffect, useState } from "react";
+import { deleteMyOrder, getMyBilling, updateMyOrder } from "../../api/employee";
 import FacilityScopeLabel from "../../facility/FacilityScopeLabel";
 import { useMyOrders } from "../../hooks/useMyOrders";
 import { formatPrice } from "../../utils/format";
@@ -40,14 +40,39 @@ function draftFromOrder(order) {
   return Object.fromEntries(order.items.map((item) => [item.id, item.quantity]));
 }
 
+function currentPeriod() {
+  const now = new Date();
+  return { year: now.getFullYear(), month: now.getMonth() + 1 };
+}
+
 export default function OrdersPage() {
   const { orders, setOrders, loading, error } = useMyOrders();
+  const [billing, setBilling] = useState(null);
+  const [billingError, setBillingError] = useState(false);
   const [editingOrderId, setEditingOrderId] = useState(null);
   const [draftQuantities, setDraftQuantities] = useState({});
   const [busyOrderId, setBusyOrderId] = useState(null);
   const [actionError, setActionError] = useState(null);
 
   const visibleOrders = orders.filter((order) => order.status !== "cancelled");
+
+  useEffect(() => {
+    let alive = true;
+    const period = currentPeriod();
+    getMyBilling(period)
+      .then((data) => {
+        if (alive) {
+          setBilling(data);
+          setBillingError(false);
+        }
+      })
+      .catch(() => {
+        if (alive) setBillingError(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   function startEditing(order) {
     setEditingOrderId(order.id);
@@ -101,6 +126,18 @@ export default function OrdersPage() {
       </div>
 
       {loading && <p className="loading-state">載入訂單中...</p>}
+
+      <div className="panel" style={{ padding: "14px 18px", marginBottom: 20 }}>
+        <p style={{ margin: 0, color: "var(--muted)", fontSize: 13 }}>本月應扣</p>
+        <p style={{ margin: "4px 0 0", fontWeight: 800, fontSize: 22 }}>
+          {billingError ? "暫時無法取得" : formatPrice(billing?.amount_cents ?? 0)}
+        </p>
+        {!billingError && (
+          <p style={{ margin: "4px 0 0", color: "var(--muted)", fontSize: 12 }}>
+            {billing?.order_count ?? 0} 筆已完成訂單
+          </p>
+        )}
+      </div>
 
       {error && <p className="error-state">無法載入訂單，請稍後再試。</p>}
       {actionError && <p className="error-state" style={{ marginBottom: 20 }}>{actionError}</p>}
