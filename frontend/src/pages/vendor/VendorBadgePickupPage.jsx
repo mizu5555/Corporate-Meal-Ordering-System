@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getOrdersByBadge, confirmPickup } from "../../api/vendor";
 
 const STATUS_LABELS = {
@@ -14,11 +14,11 @@ function formatItems(items) {
   return (items ?? []).map((item) => `${item.name} x${item.quantity}`).join("、");
 }
 
-// Vendor quick-pickup view: enter (or, future enhancement, scan) an employee
-// badge number, look up that employee's ready orders for this shop, and confirm
-// pickup one by one. Manual entry is the primary path; a camera QR scan is a
-// future enhancement (would use getUserMedia + a barcode-detector polyfill) and
-// is intentionally omitted here to keep the feature dependency-light.
+// Vendor quick-pickup view: enter — or optionally scan — an employee badge
+// number, look up that employee's ready orders for this shop, and confirm
+// pickup one by one. Manual entry is the default/primary path; the camera QR
+// scan is an opt-in extra built on the native BarcodeDetector API (Chromium),
+// with graceful fallback to manual entry when it is unavailable.
 export function VendorBadgePickupPage() {
   const [input, setInput] = useState("");
   const [badgeCode, setBadgeCode] = useState(null);
@@ -28,9 +28,24 @@ export function VendorBadgePickupPage() {
   const [status, setStatus] = useState(null); // "empty" | "not_found" | null
   const [error, setError] = useState(null);
 
-  async function handleLookup(event) {
-    event.preventDefault();
-    const code = input.trim();
+  // Scanning is opt-in; the page opens in manual-input mode.
+  const [scanning, setScanning] = useState(false);
+  const [scanMsg, setScanMsg] = useState(null);
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
+  const rafRef = useRef(null);
+  const detectorRef = useRef(null);
+
+  // Native, dependency-free QR engine. If absent we fall back to manual input.
+  const scanSupported =
+    typeof window !== "undefined" &&
+    "BarcodeDetector" in window &&
+    typeof navigator !== "undefined" &&
+    navigator.mediaDevices &&
+    typeof navigator.mediaDevices.getUserMedia === "function";
+
+  const runLookup = useCallback(async (rawCode) => {
+    const code = (rawCode ?? "").trim();
     if (!code) return;
     setLoading(true);
     setError(null);
@@ -51,7 +66,71 @@ export function VendorBadgePickupPage() {
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  async function handleLookup(event) {
+    event.preventDefault();
+    await runLookup(input);
   }
+
+  const stopScan = useCallback(() => {
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) videoRef.current.srcObject = null;
+    detectorRef.current = null;
+    setScanning(false);
+  }, []);
+
+  async function startScan() {
+    setScanMsg(null);
+    setError(null);
+    if (!scanSupported) {
+      setScanMsg("此瀏覽器不支援掃描，請手動輸入");
+      return;
+    }
+    try {
+      detectorRef.current = new window.BarcodeDetector({ formats: ["qr_code"] });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" },
+      });
+      streamRef.current = stream;
+      setScanning(true);
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play().catch(() => {});
+      }
+      const tick = async () => {
+        if (!detectorRef.current || !videoRef.current) return;
+        try {
+          const codes = await detectorRef.current.detect(videoRef.current);
+          if (codes && codes.length > 0 && codes[0].rawValue) {
+            const value = codes[0].rawValue.trim();
+            setInput(value);
+            stopScan();
+            await runLookup(value);
+            return;
+          }
+        } catch {
+          // transient decode errors: keep scanning
+        }
+        rafRef.current = requestAnimationFrame(tick);
+      };
+      rafRef.current = requestAnimationFrame(tick);
+    } catch {
+      // permission denied / no camera / detector failure -> graceful fallback
+      stopScan();
+      setScanMsg("此瀏覽器不支援掃描，請手動輸入");
+    }
+  }
+
+  // Always release the camera when the component unmounts.
+  useEffect(() => stopScan, [stopScan]);
 
   async function handleConfirm(orderId) {
     setWorking(orderId);
@@ -92,7 +171,30 @@ export function VendorBadgePickupPage() {
         <button className="button-primary" disabled={loading || !input.trim()} type="submit">
           {loading ? "查詢中..." : "查詢"}
         </button>
+        {scanning ? (
+          <button className="button-secondary" onClick={stopScan} type="button">
+            停止掃描
+          </button>
+        ) : (
+          <button className="button-secondary" onClick={startScan} type="button">
+            掃描 QR
+          </button>
+        )}
       </form>
+
+      {scanMsg ? <p className="panel-copy">{scanMsg}</p> : null}
+
+      {scanning ? (
+        <div style={{ marginTop: "0.75rem" }}>
+          <video
+            ref={videoRef}
+            muted
+            playsInline
+            style={{ width: "100%", maxWidth: 320, borderRadius: 8, background: "#000" }}
+          />
+          <p className="panel-copy">將員工工牌 QR 對準鏡頭，辨識後自動查詢。</p>
+        </div>
+      ) : null}
 
       {error ? <p className="form-error">{error}</p> : null}
 
