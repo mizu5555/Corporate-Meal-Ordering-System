@@ -9,3 +9,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_users_badge_code
 
 -- Sequence backs auto-assignment at registration time (atomic, no MAX(...)+1 race).
 CREATE SEQUENCE IF NOT EXISTS employee_badge_seq START 1;
+
+-- Backfill the base seed employee with a stable badge (idempotent).
+UPDATE users SET badge_code = 'EMP-0001'
+WHERE email = 'employee@corpmeal.local' AND badge_code IS NULL;

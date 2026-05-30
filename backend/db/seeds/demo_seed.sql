@@ -281,6 +281,15 @@ VALUES (
 )
 ON CONFLICT (email) DO NOTHING;
 
+-- Badge backfill for demo employees (idempotent). Mixed CJK/Western names show
+-- vendor-facing name masking works for both.
+UPDATE users SET display_name = '王小明', badge_code = 'EMP-0002'
+WHERE email = 'demo.employee1@corpmeal.local';
+UPDATE users SET display_name = 'John Smith', badge_code = 'EMP-0003'
+WHERE email = 'demo.employee2@corpmeal.local';
+UPDATE users SET display_name = '李大華', badge_code = 'EMP-0004'
+WHERE email = 'demo.employee3@corpmeal.local';
+
 -- ─────────────────────────────────────────────
 -- 7. EMPLOYEE FACILITIES
 --    employee1 → F12A
@@ -613,3 +622,33 @@ BEGIN
   VALUES (v_order_id, v_teriyaki, 'Teriyaki Chicken Bowl', 1, 9500, 9500);
 
 END $$;
+
+-- ─────────────────────────────────────────────
+-- 9. READY ORDERS FOR BADGE QUICK PICKUP
+--    One 'ready' order per demo employee so the by-badge pickup lookup is
+--    demonstrable. employee1 & employee2 at Demo Noodle House; employee3 at
+--    Demo Green Bowl (proves cross-store isolation in a badge lookup).
+--    facility_id chosen from employee_facilities ∩ vendor_facilities:
+--      emp1 @ Demo Noodle House → F12A
+--      emp2 @ Demo Noodle House → F12A
+--      emp3 @ Demo Green Bowl   → F15A
+--    Distinct pickup_code suffixes keep them safe under the partial UNIQUE
+--    index on orders.pickup_code. Idempotent via ON CONFLICT DO NOTHING.
+-- ─────────────────────────────────────────────
+INSERT INTO orders (employee_id, vendor_id, facility_id, status, total_price_cents, meal_date, pickup_code)
+SELECT u.id, v.id, f.id, 'ready', 1200, CURRENT_DATE, to_char(CURRENT_DATE, 'MMDD') || '-E002'
+FROM users u, vendors v, facilities f
+WHERE u.email = 'demo.employee1@corpmeal.local' AND v.name = 'Demo Noodle House' AND f.code = 'F12A'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO orders (employee_id, vendor_id, facility_id, status, total_price_cents, meal_date, pickup_code)
+SELECT u.id, v.id, f.id, 'ready', 900, CURRENT_DATE, to_char(CURRENT_DATE, 'MMDD') || '-E003'
+FROM users u, vendors v, facilities f
+WHERE u.email = 'demo.employee2@corpmeal.local' AND v.name = 'Demo Noodle House' AND f.code = 'F12A'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO orders (employee_id, vendor_id, facility_id, status, total_price_cents, meal_date, pickup_code)
+SELECT u.id, v.id, f.id, 'ready', 1500, CURRENT_DATE, to_char(CURRENT_DATE, 'MMDD') || '-E004'
+FROM users u, vendors v, facilities f
+WHERE u.email = 'demo.employee3@corpmeal.local' AND v.name = 'Demo Green Bowl' AND f.code = 'F15A'
+ON CONFLICT DO NOTHING;
