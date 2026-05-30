@@ -80,7 +80,8 @@ def test_submit_application_returns_created_detail(client, repo):
     assert repo.get_my_application(42) is not None
 
 
-def test_submit_application_conflicts_when_one_already_exists(client, repo):
+@pytest.mark.usefixtures("repo")
+def test_submit_application_conflicts_when_one_already_exists(client):
     first = client.post(
         "/vendor/applications", headers=_VM_HEADERS, json={"vendor_name": "First"}
     )
@@ -92,20 +93,23 @@ def test_submit_application_conflicts_when_one_already_exists(client, repo):
     assert "application_already_exists" in second.text
 
 
-def test_get_my_application_returns_submitted_one(client, repo):
+@pytest.mark.usefixtures("repo")
+def test_get_my_application_returns_submitted_one(client):
     client.post("/vendor/applications", headers=_VM_HEADERS, json={"vendor_name": "Mine"})
     resp = client.get("/vendor/applications/me", headers=_VM_HEADERS)
     assert resp.status_code == 200
     assert resp.json()["vendor_name"] == "Mine"
 
 
-def test_get_my_application_returns_null_when_none(client, repo):
+@pytest.mark.usefixtures("repo")
+def test_get_my_application_returns_null_when_none(client):
     resp = client.get("/vendor/applications/me", headers=_VM_HEADERS)
     assert resp.status_code == 200
     assert resp.json() is None
 
 
-def test_submit_application_requires_vendor_manager_role(client, repo):
+@pytest.mark.usefixtures("repo")
+def test_submit_application_requires_vendor_manager_role(client):
     resp = client.post(
         "/vendor/applications",
         headers={"x-user-role": "employee", "x-user-id": "42"},
@@ -114,7 +118,8 @@ def test_submit_application_requires_vendor_manager_role(client, repo):
     assert resp.status_code == 403
 
 
-def test_submit_application_requires_user_id_header(client, repo):
+@pytest.mark.usefixtures("repo")
+def test_submit_application_requires_user_id_header(client):
     resp = client.post(
         "/vendor/applications",
         headers={"x-user-role": "vendor_manager"},
