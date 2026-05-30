@@ -155,6 +155,41 @@ and published only after tests pass.
 Host-specific deployment and Jenkins configuration are kept in a private ops
 runbook and intentionally not published here.
 
+## Database Backups
+
+The staging and production stacks run a `pg_dump` backup sidecar
+(`infra/deploy/backup/backup.sh`, wired into the staging/prod compose overlays).
+It writes a daily compressed snapshot of the database and keeps the most recent
+few, so the data survives a lost container or volume.
+
+- **Schedule / retention** — one dump every `BACKUP_INTERVAL_SECONDS` (default
+  `86400`, i.e. daily), keeping the newest `BACKUP_KEEP` (default `7`) files named
+  `mealorder-YYYYMMDD-HHMMSS.sql.gz`. Dumps live in the `db_backups` named volume,
+  which persists across stack restarts.
+- **On-demand backup**:
+
+  ```bash
+  docker compose -p <stack> exec backup sh -c 'BACKUP_ONCE=1 sh /backup.sh'
+  ```
+
+- **List available dumps**:
+
+  ```bash
+  docker compose -p <stack> exec backup ls -1t /backups
+  ```
+
+- **Restore a dump**:
+
+  ```bash
+  DUMP=mealorder-YYYYMMDD-HHMMSS.sql.gz
+  docker compose -p <stack> exec -T backup cat /backups/${DUMP} \
+    | docker compose -p <stack> exec -T db \
+        sh -c 'gunzip -c | psql -U $POSTGRES_USER -d $POSTGRES_DB'
+  ```
+
+`<stack>` is the compose project name of the target environment. Detailed,
+host-specific restore steps live in the private ops runbook.
+
 ## Git Branch Flow
 
 1. Keep `main` stable and protected.

@@ -176,9 +176,12 @@ jobs:
       - name: Trigger Jenkins staging and verify build started
         run: |
           set -euo pipefail
+          # Trigger via Build Token Root Plugin (/buildByToken) so the build fires
+          # without user auth. Jenkins runs behind SSO, which redirects API-token
+          # Basic auth on /job/.../buildWithParameters to a login page; the build
+          # token authenticates the trigger on its own.
           QUEUE=$(curl -fsS -D - -o /dev/null -X POST \
-            "${{ secrets.JENKINS_URL }}/job/Meal-Ordering-Project/job/meal-deploy-staging/buildWithParameters?IMAGE_TAG=${{ needs.meta.outputs.image_tag }}&token=${{ secrets.JENKINS_STAGING_TOKEN }}" \
-            --user "${{ secrets.JENKINS_USER }}:${{ secrets.JENKINS_API_TOKEN }}" \
+            "${{ secrets.JENKINS_URL }}/buildByToken/buildWithParameters?job=Meal-Ordering-Project/meal-deploy-staging&IMAGE_TAG=${{ needs.meta.outputs.image_tag }}&token=${{ secrets.JENKINS_STAGING_TOKEN }}" \
             | tr -d '\r' | awk 'tolower($1)=="location:"{print $2}')
           if [ -z "$QUEUE" ]; then echo "::error::Jenkins did not return a queue item (build not queued)"; exit 1; fi
           echo "Queued: $QUEUE"
@@ -203,9 +206,12 @@ jobs:
         run: |
           set -euo pipefail
           PR_BRANCH_ENC=$(python3 -c "import urllib.parse,os;print(urllib.parse.quote(os.environ['PR_BRANCH'],safe=''))")
+          # Trigger via Build Token Root Plugin (/buildByToken) so the build fires
+          # without user auth. Jenkins runs behind SSO, which redirects API-token
+          # Basic auth on /job/.../buildWithParameters to a login page; the build
+          # token authenticates the trigger on its own.
           QUEUE=$(curl -fsS -D - -o /dev/null -X POST \
-            "${{ secrets.JENKINS_URL }}/job/Meal-Ordering-Project/job/meal-deploy-preview/buildWithParameters?IMAGE_TAG=${{ needs.meta.outputs.image_tag }}&PR_NUMBER=${{ github.event.number }}&PR_BRANCH=${PR_BRANCH_ENC}&token=${{ secrets.JENKINS_PREVIEW_TOKEN }}" \
-            --user "${{ secrets.JENKINS_USER }}:${{ secrets.JENKINS_API_TOKEN }}" \
+            "${{ secrets.JENKINS_URL }}/buildByToken/buildWithParameters?job=Meal-Ordering-Project/meal-deploy-preview&IMAGE_TAG=${{ needs.meta.outputs.image_tag }}&PR_NUMBER=${{ github.event.number }}&PR_BRANCH=${PR_BRANCH_ENC}&token=${{ secrets.JENKINS_PREVIEW_TOKEN }}" \
             | tr -d '\r' | awk 'tolower($1)=="location:"{print $2}')
           if [ -z "$QUEUE" ]; then echo "::error::Jenkins did not return a queue item (build not queued)"; exit 1; fi
           echo "Queued: $QUEUE"
@@ -227,9 +233,12 @@ jobs:
       - name: Trigger Jenkins prod and verify build started
         run: |
           set -euo pipefail
+          # Trigger via Build Token Root Plugin (/buildByToken) so the build fires
+          # without user auth. Jenkins runs behind SSO, which redirects API-token
+          # Basic auth on /job/.../buildWithParameters to a login page; the build
+          # token authenticates the trigger on its own.
           QUEUE=$(curl -fsS -D - -o /dev/null -X POST \
-            "${{ secrets.JENKINS_URL }}/job/Meal-Ordering-Project/job/meal-deploy-prod/buildWithParameters?IMAGE_TAG=${{ github.ref_name }}&token=${{ secrets.JENKINS_PROD_TOKEN }}" \
-            --user "${{ secrets.JENKINS_USER }}:${{ secrets.JENKINS_API_TOKEN }}" \
+            "${{ secrets.JENKINS_URL }}/buildByToken/buildWithParameters?job=Meal-Ordering-Project/meal-deploy-prod&IMAGE_TAG=${{ github.ref_name }}&token=${{ secrets.JENKINS_PROD_TOKEN }}" \
             | tr -d '\r' | awk 'tolower($1)=="location:"{print $2}')
           if [ -z "$QUEUE" ]; then echo "::error::Jenkins did not return a queue item (build not queued)"; exit 1; fi
           echo "Queued: $QUEUE"
