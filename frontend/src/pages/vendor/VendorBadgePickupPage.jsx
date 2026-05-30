@@ -154,29 +154,51 @@ export function VendorBadgePickupPage() {
         video: { facingMode: "environment" },
       });
       streamRef.current = stream;
+      // The <video> only mounts once scanning is true, so wiring srcObject +
+      // play + the decode loop is deferred to the effect below (running it here
+      // synchronously would hit a not-yet-mounted videoRef → black video).
       setScanning(true);
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play().catch(() => {});
-      }
-      const tick = async () => {
-        if (!streamRef.current || !videoRef.current) return;
-        const value = await decodeFrame();
-        if (value) {
-          setInput(value);
-          stopScan();
-          await runLookup(value);
-          return;
-        }
-        rafRef.current = requestAnimationFrame(tick);
-      };
-      rafRef.current = requestAnimationFrame(tick);
     } catch {
       // permission denied / no camera -> graceful fallback to manual input
       stopScan();
       setScanMsg("此瀏覽器不支援掃描，請手動輸入");
     }
   }
+
+  // Attach the stream and start decoding only after the <video> is mounted
+  // (scanning === true). Doing it here — not synchronously in startScan — is what
+  // fixes the black-video bug where srcObject was set on a not-yet-rendered element.
+  useEffect(() => {
+    if (!scanning) return undefined;
+    const video = videoRef.current;
+    const stream = streamRef.current;
+    if (!video || !stream) return undefined;
+
+    let cancelled = false;
+    video.srcObject = stream;
+    video.play().catch(() => {});
+
+    const tick = async () => {
+      if (cancelled || !streamRef.current) return;
+      const value = await decodeFrame();
+      if (value) {
+        setInput(value);
+        stopScan();
+        await runLookup(value);
+        return;
+      }
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+
+    return () => {
+      cancelled = true;
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    };
+  }, [scanning, decodeFrame, runLookup, stopScan]);
 
   // Always release the camera when the component unmounts.
   useEffect(() => stopScan, [stopScan]);
