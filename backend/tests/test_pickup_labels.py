@@ -83,6 +83,11 @@ def test_vendor_can_view_digital_pickup_label() -> None:
     assert body["facility_names"] == ["Fab 12A"]
     assert body["items"] == [{"item_name": "Rice Bowl", "quantity": 2}]
     assert body["total_quantity"] == 2
+    # minimal disclosure: no internal uid, no employee identity on vendor label
+    assert "employee_id" not in body
+    assert "source_employee_id" not in body
+    assert body.get("employee_badge_code") is None
+    assert body.get("masked_name") is None
 
 
 def test_vendor_label_list_filters_by_date_and_status() -> None:

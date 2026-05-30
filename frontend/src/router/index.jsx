@@ -9,6 +9,7 @@ import AdminStatsPage from "../pages/admin/AdminStatsPage";
 import AdminPermissionsPage from "../pages/admin/AdminPermissionsPage";
 import AdminVendorReviewDetailPage from "../pages/admin/AdminVendorReviewDetailPage";
 import AdminVendorReviewListPage from "../pages/admin/AdminVendorReviewListPage";
+import BadgePage from "../pages/employee/BadgePage";
 import CartPage from "../pages/employee/CartPage";
 import EmployeeHomePage from "../pages/employee/EmployeeHomePage";
 import MenuListPage from "../pages/employee/MenuListPage";
@@ -20,6 +21,7 @@ import LoginPage from "../pages/LoginPage";
 import RegisterPage from "../pages/RegisterPage";
 import NotFoundPage from "../pages/NotFoundPage";
 import VendorApplyPage from "../pages/vendor/VendorApplyPage";
+import VendorBadgePickupPage from "../pages/vendor/VendorBadgePickupPage";
 import VendorHomePage from "../pages/vendor/VendorHomePage";
 import VendorMenuFormPage from "../pages/vendor/VendorMenuFormPage";
 import VendorMenuListPage from "../pages/vendor/VendorMenuListPage";
@@ -75,6 +77,7 @@ export function AppRouter() {
             <Route element={<RandomMealPage />} path="/employee/random-meal" />
             <Route element={<CartPage />} path="/employee/cart" />
             <Route element={<OrdersPage />} path="/employee/orders" />
+            <Route element={<BadgePage />} path="/employee/badge" />
           </Route>
 
           <Route element={<RoleRoute allowedRoles={["vendor_manager"]} />}>
@@ -87,6 +90,7 @@ export function AppRouter() {
                   <Route element={<VendorMenuFormPage />} path="menu/new" />
                   <Route element={<VendorMenuFormPage />} path="menu/:itemId/edit" />
                   <Route element={<VendorOrdersPage />} path="orders" />
+                  <Route element={<VendorBadgePickupPage />} path="pickup" />
                   <Route element={<VendorOrderDetailPage />} path="orders/:orderId" />
                   <Route element={<VendorRevenuePage />} path="revenue" />
                 </Route>

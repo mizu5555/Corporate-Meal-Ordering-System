@@ -510,7 +510,7 @@ class EmployeeOrderingService:
         return PickupLabel(
             order_id=order.id,
             pickup_code=order.pickup_code,
-            employee_id=order.employee_id,
+            source_employee_id=order.employee_id,
             vendor_id=order.vendor_id,
             vendor_name=vendor.name if vendor else f"Vendor #{order.vendor_id}",
             meal_date=order.meal_date,

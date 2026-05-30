@@ -209,7 +209,6 @@ export default function VendorOrderDetailPage() {
             <p className="eyebrow" style={{ marginBottom: 14 }}>訂單資訊</p>
             <InfoRow label="訂單編號" value={`#${order.id}`} />
             <InfoRow label="取餐碼" value={order.pickup_code ?? "-"} />
-            <InfoRow label="員工" value={`員工 #${order.employee_id}`} />
             {order.meal_date && <InfoRow label="用餐日期" value={order.meal_date} />}
             <InfoRow
               label="建立時間"
@@ -248,7 +247,6 @@ export default function VendorOrderDetailPage() {
               <div style={{ display: "grid", gap: 8, marginTop: 16 }}>
                 <InfoRow label="用餐日期" value={order.meal_date ?? "今日"} />
                 <InfoRow label="總份數" value={`${totalQuantity} 份`} />
-                <InfoRow label="員工" value={`#${order.employee_id}`} />
               </div>
             </div>
 

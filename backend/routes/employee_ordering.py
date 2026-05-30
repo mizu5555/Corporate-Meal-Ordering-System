@@ -9,7 +9,10 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Query, Response, status
 from backend.core.audit import get_audit_log_repository
 from backend.core.config import settings
 from backend.core.employee_identity import require_employee
+from backend.core.errors import CodedHTTPException
+from backend.core.user_directory import get_user_repository
 from backend.core.vendor_identity import get_vendor_profile_repository
+from backend.repositories.user_repository import UserRepository
 from backend.repositories.audit_log_repository import AuditLogRepository
 from backend.repositories.employee_selection_repository import EmployeeSelectionRepository
 from backend.repositories.menu_item_repository import MenuItemRepository
@@ -30,6 +33,7 @@ from backend.schemas.employee import (
     RandomMealDrawRequest,
     RecommendedItem,
 )
+from backend.schemas.badge import EmployeeBadge
 from backend.schemas.vendor_self import Facility
 from backend.services.employee_ordering_service import EmployeeOrderingService
 from backend.services.notification_service import NotificationService
@@ -98,6 +102,21 @@ def list_my_facilities(
     service: Annotated[EmployeeOrderingService, Depends(get_employee_ordering_service)],
 ) -> list[Facility]:
     return service.list_employee_facilities(employee_id)
+
+
+@router.get("/me/badge", response_model=EmployeeBadge)
+def get_my_badge(
+    employee_id: Annotated[int, Depends(require_employee)],
+    user_repo: Annotated[UserRepository, Depends(get_user_repository)],
+) -> EmployeeBadge:
+    user = user_repo.get_by_id(employee_id)
+    if user is None or not user.badge_code:
+        raise CodedHTTPException(
+            status_code=404,
+            code="badge_not_assigned",
+            detail="no employee badge assigned to this account",
+        )
+    return EmployeeBadge(badge_code=user.badge_code, display_name=user.display_name)
 
 
 @router.get("/recommendations", response_model=list[RecommendedItem])

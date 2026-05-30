@@ -55,6 +55,13 @@ export function submitSelection(vendorId, { itemId, quantity, mealDate, facility
   });
 }
 
+// Employee's own badge for the quick-pickup QR view. No mock fallback: a real
+// badge is required to render a meaningful QR, and a 404 (badge_not_assigned)
+// must surface to the page so it can show the "尚未配發員工編號" empty state.
+export function getMyBadge() {
+  return apiFetch("/employee/me/badge");
+}
+
 export function getMySelections() {
   return withMockFallback(() => apiFetch("/employee/me/selections"), []);
 }

@@ -9,6 +9,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Header, Query
 from backend.core.audit import get_audit_log_repository
 from backend.core.errors import CodedHTTPException
 from backend.core.rbac import get_current_user_id
+from backend.core.user_directory import get_user_repository
 from backend.core.vendor_identity import get_vendor_profile_repository, require_approved_vendor
 from backend.repositories.audit_log_repository import AuditLogRepository
 from backend.repositories.employee_selection_repository import EmployeeSelectionRepository
@@ -26,8 +27,9 @@ def get_vendor_order_service(
     selection_repo: Annotated[EmployeeSelectionRepository, Depends(get_employee_selection_repository)],
     vendor_repo: Annotated[VendorProfileRepository, Depends(get_vendor_profile_repository)],
     audit_repo: Annotated[AuditLogRepository, Depends(get_audit_log_repository)],
+    user_repo: Annotated[object, Depends(get_user_repository)],
 ) -> VendorOrderService:
-    return VendorOrderService(selection_repo, vendor_repo, audit_repo)
+    return VendorOrderService(selection_repo, vendor_repo, audit_repo, user_repo=user_repo)
 
 
 def optional_header_user_id(x_user_id: Annotated[str | None, Header()] = None) -> int | None:
@@ -77,6 +79,16 @@ def get_vendor_pickup_label(
     return service.get_pickup_label(vendor_id, order_id)
 
 
+@router.get("/by-badge/{badge_code}", response_model=list[EmployeeOrder])
+def list_orders_by_badge(
+    badge_code: str,
+    vendor_id: Annotated[int, Depends(require_approved_vendor)],
+    service: Annotated[VendorOrderService, Depends(get_vendor_order_service)],
+    meal_date: Annotated[date | None, Query()] = None,
+) -> list[EmployeeOrder]:
+    return service.list_ready_orders_by_badge(vendor_id, badge_code, meal_date=meal_date)
+
+
 @router.get("/{order_id}", response_model=EmployeeOrder)
 def get_vendor_order(
     order_id: int,
@@ -110,6 +122,13 @@ def update_vendor_order_status(
     service: Annotated[VendorOrderService, Depends(get_vendor_order_service)],
     notification_service: Annotated[NotificationService, Depends(get_notification_service)],
 ) -> EmployeeOrder:
+    # Resolve the notification recipient from the identity-bearing order BEFORE
+    # de-identification: update_status returns a de-identified order (employee_id
+    # is None), which cannot be used as the notification recipient.
+    raw_order = service.get_raw_order(vendor_id, order_id)
     order = service.update_status(vendor_id, order_id, payload.status, actor_user_id=actor_user_id)
-    background_tasks.add_task(notification_service.create_order_status_updated, order)
+    background_tasks.add_task(
+        notification_service.create_order_status_updated,
+        raw_order.model_copy(update={"status": order.status}),
+    )
     return order

@@ -89,7 +89,9 @@ class EmployeeOrderItem(BaseModel):
 
 class EmployeeOrder(BaseModel):
     id: int
-    employee_id: int
+    employee_id: int | None = None
+    employee_badge_code: str | None = None
+    masked_name: str | None = None
     vendor_id: int
     facility_id: int | None = None
     meal_date: date | None = None
@@ -112,7 +114,10 @@ class PickupLabelItem(BaseModel):
 class PickupLabel(BaseModel):
     order_id: int
     pickup_code: str | None = None
-    employee_id: int
+    employee_badge_code: str | None = None
+    masked_name: str | None = None
+    # internal only: repos set this; the service clears it. Never serialized.
+    source_employee_id: int | None = Field(default=None, exclude=True)
     vendor_id: int
     vendor_name: str
     meal_date: date | None = None

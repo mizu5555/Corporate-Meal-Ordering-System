@@ -10,12 +10,14 @@ export const navigationByRole = {
     { label: "Browse Meals", to: "/employee/menu" },
     { label: "Random Meal", to: "/employee/random-meal" },
     { label: "Current Orders", to: "/employee/orders" },
+    { label: "My Badge", to: "/employee/badge" },
     { label: "Notifications", to: "/notifications" },
   ],
   vendor_manager: [
     { label: "Dashboard", to: "/vendor" },
     { label: "Menu Management", to: "/vendor/menu" },
     { label: "Orders", to: "/vendor/orders" },
+    { label: "Badge Pickup", to: "/vendor/pickup" },
     { label: "Revenue", to: "/vendor/revenue" },
   ],
   admin: [

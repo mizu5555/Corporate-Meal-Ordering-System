@@ -290,6 +290,36 @@ class PostgresEmployeeSelectionRepository:
             ).fetchall()
             return [self._hydrate_order(conn, row) for row in order_rows]
 
+    def list_orders_by_employee_for_vendor(
+        self,
+        *,
+        vendor_id: int,
+        employee_id: int,
+        status: str | None = None,
+        meal_date: date | None = None,
+    ) -> list[EmployeeOrder]:
+        where = ["vendor_id = %s", "employee_id = %s"]
+        values: list[object] = [vendor_id, employee_id]
+        if status is not None:
+            where.append("status = %s")
+            values.append(status)
+        if meal_date is not None:
+            where.append("meal_date = %s")
+            values.append(meal_date)
+        with get_connection() as conn:
+            order_rows = conn.execute(
+                f"""
+                SELECT id, employee_id, vendor_id, facility_id, meal_date, status,
+                       total_price_cents, pickup_code, pickup_confirmed_at,
+                       pickup_confirmed_by_user_id, created_at, updated_at, cancelled_at
+                FROM orders
+                WHERE {" AND ".join(where)}
+                ORDER BY id
+                """,
+                values,
+            ).fetchall()
+            return [self._hydrate_order(conn, row) for row in order_rows]
+
     def get_order_for_vendor(self, *, vendor_id: int, order_id: int) -> EmployeeOrder | None:
         with get_connection() as conn:
             row = conn.execute(
