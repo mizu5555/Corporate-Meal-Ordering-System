@@ -1,41 +1,34 @@
 import { useEffect, useRef } from "react";
-import { generateQrMatrix } from "../utils/qrcode";
+import QRCode from "qrcode";
 
-// Paints a QR matrix for `value` onto a canvas using the vendored generator.
-// `size` is the rendered pixel size; a quiet-zone border is added per spec so
-// scanners reliably detect the code.
+// Renders a standards-compliant, scannable QR for `value` onto a canvas using
+// the `qrcode` npm library (bundled by Vite, so it works offline). `size` is the
+// rendered pixel width; a 2-module quiet zone and ECC level M keep it reliably
+// readable by phone cameras and normal scanners.
 export function QrCode({ value, size = 220 }) {
   const canvasRef = useRef(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !value) return;
-    let matrix;
-    try {
-      matrix = generateQrMatrix(value);
-    } catch {
-      // Leave canvas blank on failure; the page still shows the badge number.
+    if (!canvas) return;
+    if (!value) {
+      // Nothing to encode yet: clear any previous render, render nothing.
+      const ctx = canvas.getContext("2d");
+      if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
       return;
     }
-    const quiet = 4;
-    const modules = matrix.length;
-    const total = modules + quiet * 2;
-    const scale = Math.max(1, Math.floor(size / total));
-    const pixel = scale * total;
-    canvas.width = pixel;
-    canvas.height = pixel;
-
-    const ctx = canvas.getContext("2d");
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, pixel, pixel);
-    ctx.fillStyle = "#0f172a";
-    for (let r = 0; r < modules; r += 1) {
-      for (let c = 0; c < modules; c += 1) {
-        if (matrix[r][c]) {
-          ctx.fillRect((c + quiet) * scale, (r + quiet) * scale, scale, scale);
+    QRCode.toCanvas(
+      canvas,
+      String(value),
+      { width: size, margin: 2, errorCorrectionLevel: "M" },
+      (err) => {
+        // Leave canvas blank on failure; the page still shows the badge number.
+        if (err) {
+          // eslint-disable-next-line no-console
+          console.error("QR render failed", err);
         }
-      }
-    }
+      },
+    );
   }, [value, size]);
 
   return <canvas aria-label={`QR code for ${value}`} ref={canvasRef} role="img" />;

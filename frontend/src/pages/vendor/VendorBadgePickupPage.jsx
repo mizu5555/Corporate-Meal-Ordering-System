@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import jsQR from "jsqr";
 import { getOrdersByBadge, confirmPickup } from "../../api/vendor";
 
 const STATUS_LABELS = {
@@ -17,8 +18,10 @@ function formatItems(items) {
 // Vendor quick-pickup view: enter — or optionally scan — an employee badge
 // number, look up that employee's ready orders for this shop, and confirm
 // pickup one by one. Manual entry is the default/primary path; the camera QR
-// scan is an opt-in extra built on the native BarcodeDetector API (Chromium),
-// with graceful fallback to manual entry when it is unavailable.
+// scan is an opt-in extra. It prefers the native BarcodeDetector API (Chromium)
+// for speed and falls back to the bundled jsQR decoder on browsers that lack it
+// (notably iOS Safari), so scanning works cross-browser. Only when there is no
+// camera at all do we fall back to manual-input-only.
 export function VendorBadgePickupPage() {
   const [input, setInput] = useState("");
   const [badgeCode, setBadgeCode] = useState(null);
@@ -35,11 +38,12 @@ export function VendorBadgePickupPage() {
   const streamRef = useRef(null);
   const rafRef = useRef(null);
   const detectorRef = useRef(null);
+  const canvasRef = useRef(null); // offscreen canvas for the jsQR fallback path
 
-  // Native, dependency-free QR engine. If absent we fall back to manual input.
-  const scanSupported =
-    typeof window !== "undefined" &&
-    "BarcodeDetector" in window &&
+  // Scanning needs a camera. If there's no camera at all we fall back to
+  // manual-input-only. The decoding engine itself can be either the native
+  // BarcodeDetector (preferred) or the bundled jsQR (fallback for iOS etc.).
+  const cameraSupported =
     typeof navigator !== "undefined" &&
     navigator.mediaDevices &&
     typeof navigator.mediaDevices.getUserMedia === "function";
@@ -84,18 +88,68 @@ export function VendorBadgePickupPage() {
     }
     if (videoRef.current) videoRef.current.srcObject = null;
     detectorRef.current = null;
+    canvasRef.current = null;
     setScanning(false);
+  }, []);
+
+  // Decode the current video frame with the native BarcodeDetector when present,
+  // otherwise with jsQR over the raw pixels. Returns the decoded string or null.
+  const decodeFrame = useCallback(async () => {
+    const video = videoRef.current;
+    if (!video) return null;
+
+    // Preferred fast path: native BarcodeDetector (Chromium / Android).
+    if (detectorRef.current) {
+      try {
+        const codes = await detectorRef.current.detect(video);
+        if (codes && codes.length > 0 && codes[0].rawValue) {
+          return codes[0].rawValue.trim();
+        }
+      } catch {
+        // transient decode errors: keep scanning
+      }
+      return null;
+    }
+
+    // Fallback path: draw the frame to an offscreen canvas and run jsQR
+    // (works on iOS Safari and anywhere BarcodeDetector is missing).
+    const width = video.videoWidth;
+    const height = video.videoHeight;
+    if (!width || !height) return null;
+    let canvas = canvasRef.current;
+    if (!canvas) {
+      canvas = document.createElement("canvas");
+      canvasRef.current = canvas;
+    }
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return null;
+    ctx.drawImage(video, 0, 0, width, height);
+    let imageData;
+    try {
+      imageData = ctx.getImageData(0, 0, width, height);
+    } catch {
+      return null;
+    }
+    const result = jsQR(imageData.data, width, height, { inversionAttempts: "dontInvert" });
+    return result && result.data ? result.data.trim() : null;
   }, []);
 
   async function startScan() {
     setScanMsg(null);
     setError(null);
-    if (!scanSupported) {
+    if (!cameraSupported) {
       setScanMsg("此瀏覽器不支援掃描，請手動輸入");
       return;
     }
     try {
-      detectorRef.current = new window.BarcodeDetector({ formats: ["qr_code"] });
+      // Use the native detector if available; otherwise jsQR handles decoding.
+      if (typeof window !== "undefined" && "BarcodeDetector" in window) {
+        detectorRef.current = new window.BarcodeDetector({ formats: ["qr_code"] });
+      } else {
+        detectorRef.current = null;
+      }
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment" },
       });
@@ -106,24 +160,19 @@ export function VendorBadgePickupPage() {
         await videoRef.current.play().catch(() => {});
       }
       const tick = async () => {
-        if (!detectorRef.current || !videoRef.current) return;
-        try {
-          const codes = await detectorRef.current.detect(videoRef.current);
-          if (codes && codes.length > 0 && codes[0].rawValue) {
-            const value = codes[0].rawValue.trim();
-            setInput(value);
-            stopScan();
-            await runLookup(value);
-            return;
-          }
-        } catch {
-          // transient decode errors: keep scanning
+        if (!streamRef.current || !videoRef.current) return;
+        const value = await decodeFrame();
+        if (value) {
+          setInput(value);
+          stopScan();
+          await runLookup(value);
+          return;
         }
         rafRef.current = requestAnimationFrame(tick);
       };
       rafRef.current = requestAnimationFrame(tick);
     } catch {
-      // permission denied / no camera / detector failure -> graceful fallback
+      // permission denied / no camera -> graceful fallback to manual input
       stopScan();
       setScanMsg("此瀏覽器不支援掃描，請手動輸入");
     }
