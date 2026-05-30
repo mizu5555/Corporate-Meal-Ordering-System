@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     api_port: int = 8000
     cors_origins: list[str] = ["https://localhost", "http://localhost:3000"]
     database_url: str = ""
+    seed_demo_data: bool = False
     jwt_secret_key: str = _INSECURE_DEFAULT_SECRET
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 480

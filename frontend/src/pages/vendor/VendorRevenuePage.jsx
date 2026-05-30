@@ -44,7 +44,7 @@ export default function VendorRevenuePage() {
     <div>
       <div className="page-header">
         <FacilityScopeLabel label="Revenue facility" />
-        <p className="eyebrow">Vendor · Revenue</p>
+        <p className="eyebrow">商家 · 營收</p>
         <h2>收益總覽</h2>
       </div>
 

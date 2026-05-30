@@ -1,16 +1,15 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timezone
 
 from fastapi.testclient import TestClient
 
+from backend.core.reporting import get_reporting_repository
 from backend.core.vendor_identity import get_vendor_profile_repository
 from backend.main import app
-from backend.repositories.employee_selection_repository import EmployeeSelectionRepository, OrderItemSnapshot
 from backend.repositories.reporting_repository import ReportingRepository
 from backend.repositories.vendor_profile_repository import VendorProfileRepository, VendorRecord
-from backend.routes.billing import get_reporting_repository
-from backend.routes.employee_ordering import get_employee_selection_repository
+from backend.schemas.billing import EmployeeTotal, MonthlyStatement, VendorReceivable
 
 
 def _seed_vendor_repo() -> VendorProfileRepository:
@@ -20,11 +19,9 @@ def _seed_vendor_repo() -> VendorProfileRepository:
     return repo
 
 
-def _client(selection_repo: EmployeeSelectionRepository) -> TestClient:
-    vendor_repo = _seed_vendor_repo()
-    app.dependency_overrides[get_vendor_profile_repository] = lambda: vendor_repo
-    app.dependency_overrides[get_employee_selection_repository] = lambda: selection_repo
-    app.dependency_overrides[get_reporting_repository] = lambda: ReportingRepository(selection_repo, vendor_repo)
+def _client(repo: ReportingRepository) -> TestClient:
+    app.dependency_overrides[get_reporting_repository] = lambda: repo
+    app.dependency_overrides[get_vendor_profile_repository] = _seed_vendor_repo
     return TestClient(app)
 
 
@@ -41,29 +38,29 @@ def _admin_headers(role: str = "committee_reviewer") -> dict[str, str]:
 
 
 def _order(
-    repo: EmployeeSelectionRepository,
+    repo: ReportingRepository,
     *,
+    order_id: int,
     employee_id: int,
     vendor_id: int,
+    vendor_name: str,
     meal_date: date,
     amount_cents: int,
     status: str = "delivered",
 ) -> None:
-    order = repo.create_order(
-        employee_id=employee_id,
+    repo.seed_order(
+        order_id=order_id,
         vendor_id=vendor_id,
+        vendor_name=vendor_name,
+        facility_id=1,
+        facility_name="HQ",
+        status=status,
+        created_at=datetime(meal_date.year, meal_date.month, meal_date.day, tzinfo=timezone.utc),
+        items=[(1, 1, amount_cents)],
+        employee_id=employee_id,
+        employee_name=f"Employee {employee_id}",
         meal_date=meal_date,
-        items=[
-            OrderItemSnapshot(
-                item_id=1,
-                item_name="Bento",
-                quantity=1,
-                unit_price_cents=amount_cents,
-            )
-        ],
     )
-    if status != "pending":
-        repo.update_order_status(vendor_id=vendor_id, order_id=order.id, new_status=status)
 
 
 def teardown_function() -> None:
@@ -71,11 +68,11 @@ def teardown_function() -> None:
 
 
 def test_employee_billing_returns_only_callers_delivered_total() -> None:
-    repo = EmployeeSelectionRepository()
-    _order(repo, employee_id=100, vendor_id=1, meal_date=date(2026, 5, 3), amount_cents=12000)
-    _order(repo, employee_id=100, vendor_id=1, meal_date=date(2026, 5, 4), amount_cents=9000, status="pending")
-    _order(repo, employee_id=200, vendor_id=1, meal_date=date(2026, 5, 5), amount_cents=45000)
-    _order(repo, employee_id=100, vendor_id=1, meal_date=date(2026, 4, 30), amount_cents=33000)
+    repo = ReportingRepository()
+    _order(repo, order_id=1, employee_id=100, vendor_id=1, vendor_name="Alice Bento", meal_date=date(2026, 5, 3), amount_cents=12000)
+    _order(repo, order_id=2, employee_id=100, vendor_id=1, vendor_name="Alice Bento", meal_date=date(2026, 5, 4), amount_cents=9000, status="pending")
+    _order(repo, order_id=3, employee_id=200, vendor_id=1, vendor_name="Alice Bento", meal_date=date(2026, 5, 5), amount_cents=45000)
+    _order(repo, order_id=4, employee_id=100, vendor_id=1, vendor_name="Alice Bento", meal_date=date(2026, 4, 30), amount_cents=33000)
 
     resp = _client(repo).get("/employee/me/billing?year=2026&month=5", headers=_employee_headers(100))
 
@@ -84,7 +81,7 @@ def test_employee_billing_returns_only_callers_delivered_total() -> None:
 
 
 def test_employee_billing_requires_employee_role() -> None:
-    resp = _client(EmployeeSelectionRepository()).get(
+    resp = _client(ReportingRepository()).get(
         "/employee/me/billing?year=2026&month=5",
         headers={"x-user-role": "vendor_manager", "x-vendor-id": "1"},
     )
@@ -93,11 +90,11 @@ def test_employee_billing_requires_employee_role() -> None:
 
 
 def test_vendor_billing_returns_only_own_delivered_receivable() -> None:
-    repo = EmployeeSelectionRepository()
-    _order(repo, employee_id=100, vendor_id=1, meal_date=date(2026, 5, 3), amount_cents=12000)
-    _order(repo, employee_id=101, vendor_id=1, meal_date=date(2026, 5, 4), amount_cents=8000)
-    _order(repo, employee_id=102, vendor_id=2, meal_date=date(2026, 5, 4), amount_cents=99000)
-    _order(repo, employee_id=100, vendor_id=1, meal_date=date(2026, 5, 5), amount_cents=5000, status="cancelled")
+    repo = ReportingRepository()
+    _order(repo, order_id=1, employee_id=100, vendor_id=1, vendor_name="Alice Bento", meal_date=date(2026, 5, 3), amount_cents=12000)
+    _order(repo, order_id=2, employee_id=101, vendor_id=1, vendor_name="Alice Bento", meal_date=date(2026, 5, 4), amount_cents=8000)
+    _order(repo, order_id=3, employee_id=102, vendor_id=2, vendor_name="Bob Noodles", meal_date=date(2026, 5, 4), amount_cents=99000)
+    _order(repo, order_id=4, employee_id=100, vendor_id=1, vendor_name="Alice Bento", meal_date=date(2026, 5, 5), amount_cents=5000, status="cancelled")
 
     resp = _client(repo).get("/vendor/me/billing?year=2026&month=5", headers=_vendor_headers(1))
 
@@ -106,7 +103,7 @@ def test_vendor_billing_returns_only_own_delivered_receivable() -> None:
 
 
 def test_vendor_billing_empty_month_returns_zero_summary() -> None:
-    resp = _client(EmployeeSelectionRepository()).get(
+    resp = _client(ReportingRepository()).get(
         "/vendor/me/billing?year=2026&month=5",
         headers=_vendor_headers(1),
     )
@@ -116,9 +113,9 @@ def test_vendor_billing_empty_month_returns_zero_summary() -> None:
 
 
 def test_payroll_csv_is_keyed_by_employee_badge_code() -> None:
-    repo = EmployeeSelectionRepository()
-    _order(repo, employee_id=100, vendor_id=1, meal_date=date(2026, 5, 3), amount_cents=12000)
-    _order(repo, employee_id=101, vendor_id=2, meal_date=date(2026, 5, 4), amount_cents=23000)
+    repo = ReportingRepository()
+    _order(repo, order_id=1, employee_id=100, vendor_id=1, vendor_name="Alice Bento", meal_date=date(2026, 5, 3), amount_cents=12000)
+    _order(repo, order_id=2, employee_id=101, vendor_id=2, vendor_name="Bob Noodles", meal_date=date(2026, 5, 4), amount_cents=23000)
 
     resp = _client(repo).get("/admin/billing/payroll.csv?year=2026&month=5", headers=_admin_headers())
 
@@ -127,17 +124,17 @@ def test_payroll_csv_is_keyed_by_employee_badge_code() -> None:
     assert 'filename="payroll-deductions-2026-05.csv"' in resp.headers["content-disposition"]
     assert resp.text.splitlines() == [
         "employee_number,period,amount",
-        "EMP-0100,2026-05,12000",
         "EMP-0101,2026-05,23000",
+        "EMP-0100,2026-05,12000",
     ]
 
 
 def test_reconciliation_employee_deductions_equal_vendor_receivables() -> None:
-    repo = EmployeeSelectionRepository()
-    _order(repo, employee_id=100, vendor_id=1, meal_date=date(2026, 5, 3), amount_cents=12000)
-    _order(repo, employee_id=100, vendor_id=2, meal_date=date(2026, 5, 4), amount_cents=8000)
-    _order(repo, employee_id=101, vendor_id=1, meal_date=date(2026, 5, 4), amount_cents=23000)
-    _order(repo, employee_id=101, vendor_id=2, meal_date=date(2026, 5, 5), amount_cents=5000, status="pending")
+    repo = ReportingRepository()
+    _order(repo, order_id=1, employee_id=100, vendor_id=1, vendor_name="Alice Bento", meal_date=date(2026, 5, 3), amount_cents=12000)
+    _order(repo, order_id=2, employee_id=100, vendor_id=2, vendor_name="Bob Noodles", meal_date=date(2026, 5, 4), amount_cents=8000)
+    _order(repo, order_id=3, employee_id=101, vendor_id=1, vendor_name="Alice Bento", meal_date=date(2026, 5, 4), amount_cents=23000)
+    _order(repo, order_id=4, employee_id=101, vendor_id=2, vendor_name="Bob Noodles", meal_date=date(2026, 5, 5), amount_cents=5000, status="pending")
 
     client = _client(repo)
     payroll = client.get("/admin/billing/payroll?year=2026&month=5", headers=_admin_headers()).json()
@@ -148,9 +145,31 @@ def test_reconciliation_employee_deductions_equal_vendor_receivables() -> None:
 
 
 def test_admin_billing_requires_admin_or_committee_role() -> None:
-    resp = _client(EmployeeSelectionRepository()).get(
+    resp = _client(ReportingRepository()).get(
         "/admin/billing/payroll?year=2026&month=5",
         headers=_employee_headers(100),
     )
 
     assert resp.status_code == 403
+
+
+def test_billing_schema_shapes() -> None:
+    stmt = MonthlyStatement(
+        year=2026,
+        month=5,
+        generated_at=datetime(2026, 6, 1, tzinfo=timezone.utc),
+        vendors=[
+            VendorReceivable(
+                vendor_id=1,
+                vendor_name="Sunny Kitchen",
+                owner_user_id=7,
+                order_count=2,
+                quantity=3,
+                amount_cents=1500,
+            )
+        ],
+        employees=[EmployeeTotal(employee_id=42, employee_name="Amy", amount_cents=900)],
+    )
+    assert stmt.vendors[0].owner_user_id == 7
+    assert stmt.employees[0].amount_cents == 900
+    assert stmt.month == 5

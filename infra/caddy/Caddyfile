@@ -17,6 +17,22 @@
 	request_header -x-user-id
 	request_header -x-vendor-id
 
+	# SPA client routes (/employee/*, /vendor/*, /admin/*, /committee/*) share
+	# prefixes with the API. A full-page browser navigation (refresh / deep link /
+	# direct URL) must receive index.html so React Router can handle it; otherwise
+	# it falls through to the API below and the backend 404s (#89). Browser
+	# document requests send `Accept: text/html`; XHR/fetch from the app send
+	# `Accept: */*`, so only navigations are routed to the SPA here. Real backend
+	# surfaces (/health, /docs, /openapi.json, /uploads, /metrics) are excluded so
+	# they keep working even when opened in a browser tab.
+	@spa_nav {
+		header Accept *text/html*
+		not path /health /docs* /openapi.json /uploads/* /metrics
+	}
+	handle @spa_nav {
+		reverse_proxy frontend:80
+	}
+
 	handle /auth/* {
 		reverse_proxy api:8000
 	}
@@ -51,8 +67,13 @@
 
 	handle_path /uploads/* {
 		root * /srv/uploads
+		# Only cache responses that actually serve a file. Without the file
+		# matcher the header would also apply to 404s, which the browser caches
+		# for an hour — so a photo requested before upload stays "missing" even
+		# after it exists (#66).
+		@exists file
+		header @exists Cache-Control "public, max-age=3600"
 		file_server
-		header Cache-Control "public, max-age=3600"
 	}
 
 	# /metrics is explicitly blocked on the public listeners. Backend metrics

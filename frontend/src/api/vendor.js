@@ -48,6 +48,19 @@ export function updateOrderStatus(orderId, status) {
   });
 }
 
+// Look up a badge's ready orders for the vendor's own shop (quick-pickup flow).
+// No mock fallback: errors (404 badge_not_found) must reach the page so it can
+// distinguish "查無此員工編號" from "no ready orders" ([]).
+export function getOrdersByBadge(badgeCode) {
+  return apiFetch(`/vendor/me/orders/by-badge/${encodeURIComponent(badgeCode)}`);
+}
+
+export function confirmPickup(orderId) {
+  return apiFetch(`/vendor/me/orders/${orderId}/pickup-confirm`, {
+    method: "POST",
+  });
+}
+
 export function createMenuItem(data) {
   return apiFetch("/vendor/me/menu", {
     method: "POST",

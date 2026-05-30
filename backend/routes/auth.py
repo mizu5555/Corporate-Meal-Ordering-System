@@ -7,7 +7,10 @@ from backend.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-_DUMMY_HASH = "$2b$12$lHiK1mHe6SpHhZxArGe4GekOeUH9iRv6lXc25aM5kCu0HaJhni2uq"
+# Constant-time placeholder so verify_password always runs even when the account
+# does not exist, keeping login latency uniform (mitigates username enumeration).
+# Computed at import so no bcrypt hash literal lives in the source.
+_DUMMY_HASH = hash_password("timing-attack-placeholder")
 
 
 def _fetch_user(email: str) -> dict | None:
@@ -91,11 +94,14 @@ def register(payload: RegisterRequest) -> TokenResponse:
 
         row = conn.execute(
             """
-            INSERT INTO users (email, display_name, role_id, password_hash)
-            SELECT %s, %s, r.id, %s
+            INSERT INTO users (email, display_name, role_id, password_hash, badge_code)
+            SELECT %s, %s, r.id, %s,
+                   CASE WHEN r.name = 'employee'
+                        THEN 'EMP-' || LPAD(nextval('employee_badge_seq')::text, 4, '0')
+                        ELSE NULL END
             FROM roles r
             WHERE r.name = %s
-            RETURNING id
+            RETURNING id, badge_code
             """,
             (payload.email, payload.display_name, hash_password(payload.password), payload.role),
         ).fetchone()
@@ -108,4 +114,5 @@ def register(payload: RegisterRequest) -> TokenResponse:
         role=user["role"],
         display_name=user["display_name"],
         vendor_id=None,
+        badge_code=row["badge_code"],
     )

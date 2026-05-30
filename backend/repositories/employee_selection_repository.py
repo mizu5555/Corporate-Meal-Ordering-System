@@ -24,6 +24,9 @@ class _OrderRecord:
     facility_id: int | None
     meal_date: date | None
     status: OrderStatus
+    pickup_code: str
+    pickup_confirmed_at: datetime | None
+    pickup_confirmed_by_user_id: int | None
     created_at: datetime
     updated_at: datetime
     cancelled_at: datetime | None
@@ -85,13 +88,17 @@ class EmployeeSelectionRepository:
         facility_id: int | None = None,
     ) -> EmployeeOrder:
         now = datetime.now(timezone.utc)
+        order_id = next(self._order_id_seq)
         order = _OrderRecord(
-            id=next(self._order_id_seq),
+            id=order_id,
             employee_id=employee_id,
             vendor_id=vendor_id,
             facility_id=facility_id,
             meal_date=meal_date,
             status="pending",
+            pickup_code=_make_pickup_code(order_id, meal_date),
+            pickup_confirmed_at=None,
+            pickup_confirmed_by_user_id=None,
             created_at=now,
             updated_at=now,
             cancelled_at=None,
@@ -137,6 +144,9 @@ class EmployeeSelectionRepository:
             facility_id=order.facility_id,
             meal_date=order.meal_date,
             status="cancelled",
+            pickup_code=order.pickup_code,
+            pickup_confirmed_at=order.pickup_confirmed_at,
+            pickup_confirmed_by_user_id=order.pickup_confirmed_by_user_id,
             created_at=order.created_at,
             updated_at=now,
             cancelled_at=now,
@@ -164,6 +174,9 @@ class EmployeeSelectionRepository:
             facility_id=facility_id,
             meal_date=meal_date,
             status=order.status,
+            pickup_code=order.pickup_code,
+            pickup_confirmed_at=order.pickup_confirmed_at,
+            pickup_confirmed_by_user_id=order.pickup_confirmed_by_user_id,
             created_at=order.created_at,
             updated_at=now,
             cancelled_at=order.cancelled_at,
@@ -228,6 +241,26 @@ class EmployeeSelectionRepository:
         rows.sort(key=lambda r: r.id)
         return [self._order_to_schema(r) for r in rows]
 
+    def list_orders_by_employee_for_vendor(
+        self,
+        *,
+        vendor_id: int,
+        employee_id: int,
+        status: str | None = None,
+        meal_date: date | None = None,
+    ) -> list[EmployeeOrder]:
+        result = []
+        for record in self._orders.values():
+            if record.vendor_id != vendor_id or record.employee_id != employee_id:
+                continue
+            if status is not None and record.status != status:
+                continue
+            if meal_date is not None and record.meal_date != meal_date:
+                continue
+            result.append(self._order_to_schema(record))
+        result.sort(key=lambda o: o.id)
+        return result
+
     def get_order_for_vendor(self, *, vendor_id: int, order_id: int) -> EmployeeOrder | None:
         order = self._orders.get(order_id)
         if order is None or order.vendor_id != vendor_id:
@@ -240,6 +273,9 @@ class EmployeeSelectionRepository:
             return None
         now = datetime.now(timezone.utc)
         cancelled_at = now if new_status == "cancelled" else order.cancelled_at
+        pickup_confirmed_at = order.pickup_confirmed_at
+        if new_status == "delivered" and pickup_confirmed_at is None:
+            pickup_confirmed_at = now
         self._orders[order_id] = _OrderRecord(
             id=order.id,
             employee_id=order.employee_id,
@@ -247,9 +283,41 @@ class EmployeeSelectionRepository:
             facility_id=order.facility_id,
             meal_date=order.meal_date,
             status=new_status,
+            pickup_code=order.pickup_code,
+            pickup_confirmed_at=pickup_confirmed_at,
+            pickup_confirmed_by_user_id=order.pickup_confirmed_by_user_id,
             created_at=order.created_at,
             updated_at=now,
             cancelled_at=cancelled_at,
+        )
+        return self._order_to_schema(self._orders[order_id])
+
+    def confirm_pickup(
+        self,
+        *,
+        vendor_id: int,
+        order_id: int,
+        confirmer_user_id: int | None = None,
+    ) -> EmployeeOrder | None:
+        order = self._orders.get(order_id)
+        if order is None or order.vendor_id != vendor_id:
+            return None
+        now = datetime.now(timezone.utc)
+        self._orders[order_id] = _OrderRecord(
+            id=order.id,
+            employee_id=order.employee_id,
+            vendor_id=order.vendor_id,
+            facility_id=order.facility_id,
+            meal_date=order.meal_date,
+            status="delivered",
+            pickup_code=order.pickup_code,
+            pickup_confirmed_at=order.pickup_confirmed_at or now,
+            pickup_confirmed_by_user_id=order.pickup_confirmed_by_user_id
+            if order.pickup_confirmed_by_user_id is not None
+            else confirmer_user_id,
+            created_at=order.created_at,
+            updated_at=now,
+            cancelled_at=order.cancelled_at,
         )
         return self._order_to_schema(self._orders[order_id])
 
@@ -295,6 +363,9 @@ class EmployeeSelectionRepository:
             status=order.status,
             items=schema_items,
             total_price_cents=sum(item.total_price_cents for item in schema_items),
+            pickup_code=order.pickup_code,
+            pickup_confirmed_at=order.pickup_confirmed_at,
+            pickup_confirmed_by_user_id=order.pickup_confirmed_by_user_id,
             created_at=order.created_at,
             updated_at=order.updated_at,
             cancelled_at=order.cancelled_at,
@@ -305,3 +376,9 @@ class EmployeeSelectionRepository:
         items = [r for r in self._items.values() if r.order_id == order_id]
         items.sort(key=lambda r: r.id)
         return [_selection_to_schema(order, item) for item in items]
+
+
+def _make_pickup_code(order_id: int, meal_date: date | None) -> str:
+    if meal_date is None:
+        return f"P-{order_id:04d}"
+    return f"{meal_date:%m%d}-{order_id:04d}"

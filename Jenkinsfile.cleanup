@@ -2,9 +2,10 @@ pipeline {
   agent any
   options { timeout(time: 10, unit: 'MINUTES'); timestamps() }
 
-  // Hourly defensive sweep. PR preview is disabled, so this should normally
-  // be a no-op; it exists to clean stray mealorder-pr-* projects if previews
-  // are ever re-enabled.
+  // Hourly maintenance: self-heal the shared preview router, sweep preview
+  // stacks whose PR has closed, and prune GHCR images. PR previews are active,
+  // so this is load-bearing — it keeps stray stacks and old images from piling
+  // up while never deleting anything still in use by an open PR.
   triggers {
     cron('H * * * *')
   }
@@ -28,10 +29,86 @@ pipeline {
 
     stage('Hourly sweep') {
       steps {
-        withCredentials([usernamePassword(credentialsId: 'github-token-eason', usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN')]) {
+        withCredentials([usernamePassword(credentialsId: 'github-token', usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN')]) {
           sh '''
             set -euo pipefail
             bash scripts/sweep-stale-stacks.sh
+          '''
+        }
+      }
+    }
+
+    stage('Prune GHCR images') {
+      // Retention per package (mealorder-{backend,frontend,db,gateway}):
+      //   - pr-*  : keep every image whose PR is still OPEN; delete pr-<N>
+      //     only once PR #N is closed/merged (its preview stack is gone too).
+      //     Keying on recency instead broke open-PR previews (#111): an older
+      //     but still-open PR's images got pruned -> manifest unknown -> 502.
+      //   - sha-* : keep newest KEEP_SHA
+      //   - v*    : keep all (releases) — never touched
+      //   - untagged: deleted (orphaned manifests from overwritten tags; safe
+      //     while images are single-arch — revisit if the build goes multi-arch).
+      // Deletes need the token to have `delete:packages` AND admin on the package
+      // (the packages are owned by the `mizu5555` user). If a delete fails the
+      // stage exits non-zero so the failure is visible, not silently swallowed.
+      steps {
+        withCredentials([usernamePassword(credentialsId: 'github-token', usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN')]) {
+          sh '''
+            set -euo pipefail
+            OWNER=mizu5555
+            REPO=Corporate-Meal-Ordering-System
+            KEEP_SHA=5
+            FAILED=0
+
+            # PR numbers that are still OPEN — their preview images must never be
+            # pruned. If this API call errors, set -e aborts before any deletion
+            # (so a transient failure can't wipe every pr-* image).
+            OPEN_PRS=$(gh pr list -R "${OWNER}/${REPO}" --state open --limit 200 \
+                         --json number --jq 'map(.number|tostring)|join(" ")')
+
+            ids_untagged() {
+              echo "$1" | jq -r '.[] | select((.metadata.container.tags // []) | length == 0) | .id'
+            }
+            ids_old_for_prefix() {  # $1=versions json  $2=tag prefix  $3=keep newest
+              echo "$1" | jq -r --arg pre "$2" --argjson keep "$3" '
+                [ .[] | select((.metadata.container.tags // []) | any(startswith($pre))) ]
+                | sort_by(.created_at) | reverse | .[$keep:] | .[].id'
+            }
+            ids_closed_pr() {  # $1=versions json  $2=space-separated open PR numbers
+              # A pr-* version is deletable only when ALL of its pr-<N> tags map to
+              # CLOSED PRs; if any tag is for an open PR the version is kept.
+              echo "$1" | jq -r --arg open "$2" '
+                ($open | split(" ") | map(select(length > 0))) as $openlist
+                | .[]
+                | select((.metadata.container.tags // []) | any(startswith("pr-")))
+                | select(
+                    (.metadata.container.tags // [])
+                    | map(select(startswith("pr-")) | ltrimstr("pr-"))
+                    | all(. as $n | ($openlist | index($n)) == null)
+                  )
+                | .id'
+            }
+
+            for svc in backend frontend db gateway; do
+              PKG="mealorder-${svc}"
+              ALL=$(gh api --paginate "/users/${OWNER}/packages/container/${PKG}/versions")
+              for VID in $(ids_untagged "$ALL") \
+                         $(ids_closed_pr "$ALL" "$OPEN_PRS") \
+                         $(ids_old_for_prefix "$ALL" "sha-" "$KEEP_SHA"); do
+                [ -z "$VID" ] && continue
+                if gh api -X DELETE "/users/${OWNER}/packages/container/${PKG}/versions/${VID}"; then
+                  echo "deleted ${PKG} version=${VID}"
+                else
+                  echo "WARNING: failed to delete ${PKG} version=${VID} — token needs delete:packages + admin on the package" >&2
+                  FAILED=$((FAILED + 1))
+                fi
+              done
+            done
+
+            if [ "$FAILED" -gt 0 ]; then
+              echo "GHCR prune: ${FAILED} deletion(s) failed; see WARNING lines above." >&2
+              exit 1
+            fi
           '''
         }
       }

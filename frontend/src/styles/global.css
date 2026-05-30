@@ -484,6 +484,12 @@ p {
   color: #fff7eb;
 }
 
+/* Keep the selected pill's text light on hover — otherwise .filter-pill:hover
+   turns it brand-orange on the orange background and it becomes unreadable. */
+.filter-pill-active:hover {
+  color: #fff7eb;
+}
+
 /* Menu item grid */
 .menu-grid {
   display: grid;
@@ -921,7 +927,94 @@ p {
 .random-meal-result {
   min-height: 360px;
   display: grid;
+  grid-template-rows: auto 1fr;
+  align-items: start;
+}
+
+/* 熱門推薦 panel — top-aligned, normal block flow */
+.recommend-panel {
+  display: grid;
+  gap: 16px;
+  align-self: start;
+}
+
+.recommend-limit-row {
+  display: flex;
   align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* Responsive card grid for recommendation items */
+.recommend-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.recommend-card {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.55);
+  transition: transform 140ms ease, box-shadow 140ms ease;
+}
+
+.recommend-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(78, 49, 23, 0.1);
+}
+
+.recommend-card-rank {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.recommend-card-rank[data-top] {
+  color: var(--brand);
+}
+
+.recommend-card-body {
+  display: grid;
+  gap: 6px;
+}
+
+.recommend-card-name {
+  font-weight: 600;
+  font-size: 0.97rem;
+  line-height: 1.35;
+  margin: 0;
+}
+
+.recommend-card-action {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-top: 4px;
+}
+
+.recommend-card-action .primary-button,
+.recommend-card-action .ghost-button {
+  width: 100%;
+}
+
+.recommend-empty {
+  text-align: center;
+  padding: 28px 0;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+/* 隨機抽餐 draw panel — fill remaining height, center card vertically */
+.random-draw-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 300px;
 }
 
 .random-placeholder {
@@ -963,6 +1056,163 @@ p {
   background: rgba(47, 125, 74, 0.1);
   color: var(--success);
   font-weight: 700;
+}
+
+/* ============================================================
+   Admin stats dashboard  (feat/analytics/order-aggregation-monitoring)
+   ============================================================ */
+
+.stat-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.stat-card {
+  display: grid;
+  gap: 4px;
+  flex: 1 1 140px;
+  padding: 16px 20px;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid var(--line);
+}
+
+.stat-card span {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.stat-card strong {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--text);
+  line-height: 1.1;
+}
+
+/* Date-range presets on the stats dashboard */
+.range-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.range-pill {
+  border: 1px solid var(--line);
+  background: var(--surface-strong);
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.range-pill:hover {
+  border-color: var(--brand);
+  color: var(--brand);
+}
+
+.range-pill.is-active {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: var(--surface-strong);
+}
+
+.range-pill.is-active:hover {
+  color: var(--surface-strong);
+}
+
+.range-pill:focus-visible,
+.pw-toggle:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+/* Daily-orders column chart (inline SVG) */
+.col-chart {
+  width: 100%;
+  height: auto;
+  max-height: 220px;
+  display: block;
+  margin-top: 6px;
+}
+
+.col-chart-val {
+  fill: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.col-chart-lab {
+  fill: var(--muted);
+  font-size: 10px;
+}
+
+.table-empty {
+  text-align: center;
+  color: var(--muted);
+  padding: 18px 12px;
+}
+
+/* Password field with a show/hide toggle */
+.pw-field {
+  position: relative;
+  display: block;
+}
+
+.pw-field .form-input {
+  width: 100%;
+  padding-right: 44px;
+}
+
+.pw-toggle {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 8px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.pw-toggle:hover {
+  color: var(--brand);
+  background: var(--line);
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.data-table th,
+.data-table td {
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+}
+
+.data-table th {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 @media (max-width: 1080px) {

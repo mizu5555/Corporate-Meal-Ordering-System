@@ -25,6 +25,14 @@ export function getVendorApplications(status = null) {
   return apiFetch(`/admin/vendors/applications${qs}`);
 }
 
+export function getAuditLogs({ limit = 50, offset = 0, action } = {}) {
+  const params = new URLSearchParams();
+  params.set("limit", String(limit));
+  params.set("offset", String(offset));
+  if (action) params.set("action", action);
+  return apiFetch(`/admin/audit-logs?${params.toString()}`);
+}
+
 export function getVendorApplication(applicationId) {
   return apiFetch(`/admin/vendors/applications/${applicationId}`);
 }
@@ -34,5 +42,41 @@ export function reviewVendorApplication(applicationId, { decision, reason }) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ decision, reason: reason || null }),
+  });
+}
+
+export function getStats({ start, end } = {}) {
+  const params = new URLSearchParams();
+  if (start) params.set("start", start);
+  if (end) params.set("end", end);
+  const qs = params.toString();
+  return apiFetch(`/admin/stats${qs ? `?${qs}` : ""}`);
+}
+
+export function getBillingVendors({ year, month }) {
+  return apiFetch(`/admin/billing/vendors?year=${year}&month=${month}`);
+}
+
+export function getFacilities() {
+  return apiFetch("/admin/facilities");
+}
+
+export function createFacility({ code, name }) {
+  return apiFetch("/admin/facilities", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code, name }),
+  });
+}
+
+export function getVendorFacilities(vendorId) {
+  return apiFetch(`/admin/vendors/${vendorId}/facilities`);
+}
+
+export function setVendorFacilities(vendorId, facilityIds) {
+  return apiFetch(`/admin/vendors/${vendorId}/facilities`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ facility_ids: facilityIds }),
   });
 }

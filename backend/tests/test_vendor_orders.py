@@ -3,9 +3,11 @@ from fastapi.testclient import TestClient
 
 from backend.core.vendor_identity import get_vendor_profile_repository
 from backend.main import app
+from backend.repositories.audit_log_repository import AuditLogRepository
 from backend.repositories.employee_selection_repository import EmployeeSelectionRepository
 from backend.repositories.vendor_profile_repository import VendorProfileRepository, VendorRecord
 from backend.routes.employee_ordering import get_employee_selection_repository
+from backend.services.vendor_order_service import VendorOrderService
 
 
 def _seed_vendor_repo() -> VendorProfileRepository:
@@ -49,7 +51,9 @@ def test_list_returns_orders_for_own_vendor() -> None:
     body = resp.json()
     assert len(body) == 1
     assert body[0]["vendor_id"] == 1
-    assert body[0]["employee_id"] == 10
+    assert body[0].get("employee_id") is None
+    assert body[0].get("employee_badge_code") is None
+    assert body[0].get("masked_name") is None
     assert "items" in body[0]
     assert "status" in body[0]
 
@@ -86,7 +90,9 @@ def test_list_filters_orders_by_facility() -> None:
     body = resp.json()
     assert len(body) == 1
     assert body[0]["facility_id"] == 10
-    assert body[0]["employee_id"] == 10
+    assert body[0].get("employee_id") is None
+    assert body[0].get("employee_badge_code") is None
+    assert body[0].get("masked_name") is None
 
 
 def test_list_rejects_unserved_facility_filter() -> None:
@@ -119,7 +125,9 @@ def test_get_order_returns_full_order() -> None:
     assert resp.status_code == 200
     body = resp.json()
     assert body["id"] == order.id
-    assert body["employee_id"] == 10
+    assert body.get("employee_id") is None
+    assert body.get("employee_badge_code") is None
+    assert body.get("masked_name") is None
     assert body["status"] == "pending"
 
 
@@ -155,7 +163,13 @@ def test_patch_status_pending_to_confirmed() -> None:
         json={"status": "confirmed"},
     )
     assert resp.status_code == 200
-    assert resp.json()["status"] == "confirmed"
+    body = resp.json()
+    assert body["status"] == "confirmed"
+    # regression: the PATCH status response must be de-identified like every
+    # other vendor path (no internal employee uid / badge / masked name leak).
+    assert body.get("employee_id") is None
+    assert body.get("employee_badge_code") is None
+    assert body.get("masked_name") is None
 
 
 def test_patch_status_pending_to_cancelled() -> None:
@@ -217,6 +231,25 @@ def test_patch_status_rejects_transition_from_terminal_state() -> None:
     )
     assert resp.status_code == 409
     assert resp.json()["code"] == "invalid_status_transition"
+
+
+def test_update_status_records_audit_entry() -> None:
+    vendor_repo = _seed_vendor_repo()
+    selection_repo = EmployeeSelectionRepository()
+    audit_repo = AuditLogRepository()
+    order = selection_repo.create_order(employee_id=10, vendor_id=1, items=[], meal_date=None)
+
+    service = VendorOrderService(selection_repo, vendor_repo, audit_repo)
+    service.update_status(1, order.id, "confirmed", actor_user_id=500)
+
+    entries = audit_repo.list(action="order.status_update")
+    assert len(entries) == 1
+    entry = entries[0]
+    assert entry.target_type == "order"
+    assert entry.target_id == order.id
+    assert entry.actor_user_id == 500
+    assert entry.actor_role == "vendor_manager"
+    assert entry.metadata == {"from": "pending", "to": "confirmed"}
 
 
 def test_patch_status_404_for_other_vendors_order() -> None:

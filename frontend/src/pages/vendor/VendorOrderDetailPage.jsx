@@ -28,7 +28,6 @@ const NEXT_ACTIONS = {
   ],
   confirmed: [{ status: "preparing", label: "開始備餐", variant: "primary" }],
   preparing: [{ status: "ready", label: "備餐完成", variant: "primary" }],
-  ready: [{ status: "delivered", label: "標記已送達", variant: "primary" }],
 };
 
 const ACTION_STYLE = {
@@ -100,6 +99,7 @@ export default function VendorOrderDetailPage() {
   if (!order) return null;
 
   const actions = NEXT_ACTIONS[order.status] ?? [];
+  const totalQuantity = order.items.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
     <div>
@@ -195,7 +195,7 @@ export default function VendorOrderDetailPage() {
           <div className="panel">
             <p className="eyebrow" style={{ marginBottom: 14 }}>訂單資訊</p>
             <InfoRow label="訂單編號" value={`#${order.id}`} />
-            <InfoRow label="員工" value={`員工 #${order.employee_id}`} />
+            <InfoRow label="取餐碼" value={order.pickup_code ?? "-"} />
             {order.meal_date && <InfoRow label="用餐日期" value={order.meal_date} />}
             <InfoRow
               label="建立時間"
@@ -213,6 +213,35 @@ export default function VendorOrderDetailPage() {
               </p>
               <StatusBadge status={order.status} />
             </div>
+          </div>
+
+          <div className="panel">
+            <p className="eyebrow" style={{ marginBottom: 14 }}>數位配送標籤</p>
+            <div
+              style={{
+                border: "1px solid var(--line)",
+                borderRadius: "var(--radius-md)",
+                padding: 16,
+                background: "var(--surface-strong)",
+              }}
+            >
+              <p style={{ margin: "0 0 4px", color: "var(--muted)", fontSize: 12, fontWeight: 700 }}>
+                PICKUP CODE
+              </p>
+              <p style={{ margin: 0, fontSize: 28, fontWeight: 800 }}>
+                {order.pickup_code ?? "-"}
+              </p>
+              <div style={{ display: "grid", gap: 8, marginTop: 16 }}>
+                <InfoRow label="用餐日期" value={order.meal_date ?? "今日"} />
+                <InfoRow label="總份數" value={`${totalQuantity} 份`} />
+              </div>
+            </div>
+
+            {order.pickup_confirmed_at && (
+              <p className="success-state" style={{ marginTop: 12 }}>
+                已於 {new Date(order.pickup_confirmed_at).toLocaleString("zh-TW")} 完成領餐確認。
+              </p>
+            )}
           </div>
 
           {/* 操作按鈕 */}
@@ -248,6 +277,16 @@ export default function VendorOrderDetailPage() {
                   </button>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* 領餐須由員工出示識別證，於「掃碼 / 編號取餐」頁完成（#132 A：出示即同意）。 */}
+          {order.status === "ready" && (
+            <div className="panel">
+              <p className="eyebrow" style={{ marginBottom: 10 }}>領餐</p>
+              <p style={{ margin: 0, fontSize: 13, color: "var(--muted)", lineHeight: 1.6 }}>
+                此訂單已可取餐。請至「掃碼 / 編號取餐」頁，由員工出示識別證（QR 或員工編號）後完成領餐確認。
+              </p>
             </div>
           )}
         </div>

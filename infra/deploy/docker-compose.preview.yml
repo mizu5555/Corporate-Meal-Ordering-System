@@ -6,20 +6,50 @@
 #   sweep can map a stack back to a PR via the GitHub API.
 services:
   backend:
+    image: ghcr.io/mizu5555/mealorder-backend:${IMAGE_TAG}
+    restart: unless-stopped
     ports: !reset []
+    environment:
+      SEED_DEMO_DATA: "true"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').getcode()==200 else 1)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     labels:
       mealorder.branch: ${BRANCH_RAW:-}
   frontend:
+    image: ghcr.io/mizu5555/mealorder-frontend:${IMAGE_TAG}
+    restart: unless-stopped
     ports: !reset []
+    environment:
+      BASE_PATH: ${BASE_PATH}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/ >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     labels:
       mealorder.branch: ${BRANCH_RAW:-}
   db:
+    image: ghcr.io/mizu5555/mealorder-db:${IMAGE_TAG}
+    restart: unless-stopped
     ports: !reset []
     labels:
       mealorder.branch: ${BRANCH_RAW:-}
   gateway:
+    image: ghcr.io/mizu5555/mealorder-gateway:${IMAGE_TAG}
+    restart: unless-stopped
     ports: !reset []
     container_name: mealorder-${SLUG:-default}-gateway
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:80/ >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     networks: [default, preview-net]
     labels:
       mealorder.branch: ${BRANCH_RAW:-}

@@ -25,6 +25,9 @@ class CommitteeReviewService:
         self,
         review_id: int,
         payload: CommitteeReviewRequest,
+        *,
+        actor_user_id: int | None = None,
+        actor_role: str | None = None,
     ) -> CommitteeReviewResponse:
         review = self.committee_review_repository.get(review_id)
         if review is None:
@@ -45,10 +48,13 @@ class CommitteeReviewService:
             payload.decision,
             payload.reason,
         )
-        self.audit_log_repository.record_committee_review(
-            review_id,
-            payload.decision,
-            payload.reason,
+        self.audit_log_repository.record(
+            actor_user_id=actor_user_id,
+            actor_role=actor_role,
+            action="committee.review",
+            target_type="committee_review",
+            target_id=review_id,
+            metadata={"decision": payload.decision, "reason": payload.reason},
         )
 
         return CommitteeReviewResponse(

@@ -28,11 +28,13 @@ export const MOCK_VENDORS = [
   },
 ];
 
+// The general vendor selections list carries NO employee identity (de-identified):
+// employee_id / employee_name are intentionally omitted. Employee identity only
+// surfaces on the dedicated by-badge quick-pickup lookup (a separate live call),
+// which returns masked_name + badge_code — not modelled in this mock.
 export const MOCK_VENDOR_SELECTIONS = [
   {
     id: 1,
-    employee_id: 1,
-    employee_name: "Ting Lin",
     vendor_id: 1,
     item_id: 101,
     item_name: "雞腿飯",
@@ -43,8 +45,6 @@ export const MOCK_VENDOR_SELECTIONS = [
   },
   {
     id: 2,
-    employee_id: 2,
-    employee_name: "Alex Chen",
     vendor_id: 1,
     item_id: 102,
     item_name: "排骨飯",
@@ -55,8 +55,6 @@ export const MOCK_VENDOR_SELECTIONS = [
   },
   {
     id: 3,
-    employee_id: 3,
-    employee_name: "Wei Zhang",
     vendor_id: 1,
     item_id: 101,
     item_name: "雞腿飯",
@@ -67,8 +65,6 @@ export const MOCK_VENDOR_SELECTIONS = [
   },
   {
     id: 4,
-    employee_id: 4,
-    employee_name: "Mei Wang",
     vendor_id: 1,
     item_id: 103,
     item_name: "素食套餐",

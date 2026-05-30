@@ -1,6 +1,10 @@
 pipeline {
   agent any
 
+  parameters {
+    string(name: 'IMAGE_TAG', defaultValue: '', description: 'GHCR version tag to deploy, e.g. v1.2.3')
+  }
+
   options {
     disableConcurrentBuilds()
     timeout(time: 20, unit: 'MINUTES')
@@ -8,21 +12,21 @@ pipeline {
   }
 
   environment {
-    COMPOSE_PROJECT_NAME     = 'mealorder-prod'
-    ROOT_PATH                = '/meal'
-    GATEWAY_CONTAINER_NAME   = 'mealorder-prod-gateway'
-    PUBLIC_HEALTH_URL        = "${env.PUBLIC_HEALTH_URL ?: 'https://nol.cs.nycu.edu.tw/meal/health'}"
+    COMPOSE_PROJECT_NAME   = 'mealorder-prod'
+    ROOT_PATH              = '/meal'
+    BASE_PATH              = '/meal/'
+    GATEWAY_CONTAINER_NAME = 'mealorder-prod-gateway'
+    PUBLIC_HEALTH_URL      = "${env.PUBLIC_HEALTH_URL ?: 'https://nol.cs.nycu.edu.tw/meal/health'}"
   }
 
   stages {
-    stage('Validate tag') {
+    stage('Validate params') {
       steps {
         script {
-          def tag = env.TAG_NAME
-          if (!tag || !(tag ==~ /^v\d+\.\d+\.\d+$/)) {
-            error("Prod pipeline must be triggered by a semver tag matching ^v\\d+\\.\\d+\\.\\d+\$. Got: branch=${env.BRANCH_NAME} tag=${tag}")
+          if (!(params.IMAGE_TAG ==~ /^v\d+\.\d+\.\d+$/)) {
+            error("IMAGE_TAG must be a semver tag matching ^v\\d+\\.\\d+\\.\\d+\$. Got: '${params.IMAGE_TAG}'")
           }
-          echo "Deploying tag ${tag} to production"
+          echo "Deploying ${params.IMAGE_TAG} to production"
         }
       }
     }
@@ -31,46 +35,33 @@ pipeline {
       steps { checkout scm }
     }
 
-    stage('Verify commit') {
+    stage('GHCR login & pull') {
       steps {
-        sh '''
-          set -eu
-          BUILT=$(git rev-parse HEAD)
-          TAG_SHA=$(git ls-remote origin "refs/tags/${TAG_NAME}^{}" | awk '{print $1}')
-          if [ -z "$TAG_SHA" ]; then
-            TAG_SHA=$(git ls-remote origin "refs/tags/${TAG_NAME}" | awk '{print $1}')
-          fi
-          echo "Built  SHA: $BUILT"
-          echo "Tag ${TAG_NAME} -> $TAG_SHA"
-          git log -1 --pretty=format:'subject: %s%nauthor : %an <%ae>%ndate   : %ad' --date=iso
-          echo
-          if [ "$BUILT" != "$TAG_SHA" ]; then
-            echo "WARNING: built SHA does not match tag ${TAG_NAME} on origin"
-          fi
-        '''
+        withCredentials([usernamePassword(credentialsId: 'github-token', usernameVariable: 'GHCR_USER', passwordVariable: 'GHCR_TOKEN')]) {
+          sh '''
+            set -euo pipefail
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            docker network inspect preview-net >/dev/null 2>&1 || docker network create preview-net
+            IMAGE_TAG="${IMAGE_TAG}" \
+            ROOT_PATH="$ROOT_PATH" BASE_PATH="$BASE_PATH" \
+            GATEWAY_CONTAINER_NAME="$GATEWAY_CONTAINER_NAME" \
+              docker compose -p "$COMPOSE_PROJECT_NAME" \
+                -f docker-compose.yml -f infra/deploy/docker-compose.prod.yml pull
+          '''
+        }
       }
     }
 
-    stage('Build and deploy prod') {
+    stage('Deploy prod') {
       steps {
         sh '''
           set -euo pipefail
-          docker network inspect preview-net >/dev/null 2>&1 \
-            || docker network create preview-net
-          ROOT_PATH="$ROOT_PATH" \
-          BASE_PATH="${ROOT_PATH}/" \
+          IMAGE_TAG="${IMAGE_TAG}" \
+          ROOT_PATH="$ROOT_PATH" BASE_PATH="$BASE_PATH" \
           GATEWAY_CONTAINER_NAME="$GATEWAY_CONTAINER_NAME" \
             docker compose -p "$COMPOSE_PROJECT_NAME" \
-            -f docker-compose.yml \
-            -f infra/deploy/docker-compose.prod.yml \
-            build
-          ROOT_PATH="$ROOT_PATH" \
-          BASE_PATH="${ROOT_PATH}/" \
-          GATEWAY_CONTAINER_NAME="$GATEWAY_CONTAINER_NAME" \
-            docker compose -p "$COMPOSE_PROJECT_NAME" \
-            -f docker-compose.yml \
-            -f infra/deploy/docker-compose.prod.yml \
-            up -d
+              -f docker-compose.yml -f infra/deploy/docker-compose.prod.yml \
+              up -d
         '''
       }
     }
@@ -80,13 +71,10 @@ pipeline {
         sh '''
           set -euo pipefail
           for i in $(seq 1 30); do
-            if curl -fsS "$PUBLIC_HEALTH_URL" >/dev/null; then
-              echo "prod /health OK for ${TAG_NAME}"
-              exit 0
-            fi
+            if curl -fsS "$PUBLIC_HEALTH_URL" >/dev/null; then echo "prod /health OK for ${IMAGE_TAG}"; exit 0; fi
             sleep 2
           done
-          echo "prod /health failed after 60s for ${TAG_NAME}" >&2
+          echo "prod /health failed after 60s for ${IMAGE_TAG}" >&2
           docker compose -p "$COMPOSE_PROJECT_NAME" logs --tail=200 >&2 || true
           exit 1
         '''
@@ -94,7 +82,5 @@ pipeline {
     }
   }
 
-  post {
-    always { cleanWs() }
-  }
+  post { always { cleanWs() } }
 }

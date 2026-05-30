@@ -105,7 +105,7 @@ export default function VendorOrdersPage() {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "56px 120px 1fr 110px 100px 36px",
+                gridTemplateColumns: "56px 120px 110px 1fr 110px 100px 36px",
                 padding: "10px 20px",
                 borderBottom: "1px solid var(--line)",
                 color: "var(--muted)",
@@ -117,6 +117,7 @@ export default function VendorOrdersPage() {
             >
               <span>#</span>
               <span>來源</span>
+              <span>取餐碼</span>
               <span>品項</span>
               <span style={{ textAlign: "right" }}>合計</span>
               <span style={{ textAlign: "right" }}>狀態</span>
@@ -130,7 +131,7 @@ export default function VendorOrdersPage() {
                 onClick={() => navigate(`/vendor/orders/${order.id}`)}
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "56px 120px 1fr 110px 100px 36px",
+                  gridTemplateColumns: "56px 120px 110px 1fr 110px 100px 36px",
                   alignItems: "center",
                   width: "100%",
                   padding: "14px 20px",
@@ -145,8 +146,8 @@ export default function VendorOrdersPage() {
                 onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
               >
                 <p style={{ margin: 0, fontSize: 12, color: "var(--muted)" }}>#{order.id}</p>
-                <p style={{ margin: 0, fontSize: 13, color: "var(--muted)" }}>
-                  員工 #{order.employee_id}
+                <p style={{ margin: 0, fontWeight: 700, fontSize: 13 }}>
+                  {order.pickup_code ?? "-"}
                 </p>
                 <p style={{ margin: 0, fontWeight: 500, fontSize: 14 }}>
                   {itemsSummary(order.items)}

@@ -1,13 +1,19 @@
 """Employee-facing vendor browsing, menu browsing, and meal selection APIs."""
 from __future__ import annotations
 
+from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, Response, status
 
+from backend.core.audit import get_audit_log_repository
 from backend.core.config import settings
 from backend.core.employee_identity import require_employee
+from backend.core.errors import CodedHTTPException
+from backend.core.user_directory import get_user_repository
 from backend.core.vendor_identity import get_vendor_profile_repository
+from backend.repositories.user_repository import UserRepository
+from backend.repositories.audit_log_repository import AuditLogRepository
 from backend.repositories.employee_selection_repository import EmployeeSelectionRepository
 from backend.repositories.menu_item_repository import MenuItemRepository
 from backend.repositories.postgres_employee_selection_repository import PostgresEmployeeSelectionRepository
@@ -22,9 +28,12 @@ from backend.schemas.employee import (
     EmployeeVendor,
     MealSelection,
     MealSelectionCreate,
+    PickupLabel,
     RandomMealDraw,
     RandomMealDrawRequest,
+    RecommendedItem,
 )
+from backend.schemas.badge import EmployeeBadge
 from backend.schemas.vendor_self import Facility
 from backend.services.employee_ordering_service import EmployeeOrderingService
 from backend.services.notification_service import NotificationService
@@ -45,8 +54,9 @@ def get_employee_ordering_service(
     vendor_repo: Annotated[VendorProfileRepository, Depends(get_vendor_profile_repository)],
     item_repo: Annotated[MenuItemRepository, Depends(get_menu_item_repository)],
     selection_repo: Annotated[EmployeeSelectionRepository, Depends(get_employee_selection_repository)],
+    audit_repo: Annotated[AuditLogRepository, Depends(get_audit_log_repository)],
 ) -> EmployeeOrderingService:
-    return EmployeeOrderingService(vendor_repo, item_repo, selection_repo)
+    return EmployeeOrderingService(vendor_repo, item_repo, selection_repo, audit_repo)
 
 
 @router.get("/vendors", response_model=list[EmployeeVendor])
@@ -94,6 +104,32 @@ def list_my_facilities(
     return service.list_employee_facilities(employee_id)
 
 
+@router.get("/me/badge", response_model=EmployeeBadge)
+def get_my_badge(
+    employee_id: Annotated[int, Depends(require_employee)],
+    user_repo: Annotated[UserRepository, Depends(get_user_repository)],
+) -> EmployeeBadge:
+    user = user_repo.get_by_id(employee_id)
+    if user is None or not user.badge_code:
+        raise CodedHTTPException(
+            status_code=404,
+            code="badge_not_assigned",
+            detail="no employee badge assigned to this account",
+        )
+    return EmployeeBadge(badge_code=user.badge_code, display_name=user.display_name)
+
+
+@router.get("/recommendations", response_model=list[RecommendedItem])
+def list_recommendations(
+    employee_id: Annotated[int, Depends(require_employee)],
+    service: Annotated[EmployeeOrderingService, Depends(get_employee_ordering_service)],
+    facility_id: int | None = None,
+    meal_date: date | None = None,
+    limit: Annotated[int, Query(ge=1, le=50)] = 8,
+) -> list[RecommendedItem]:
+    return service.recommend(employee_id=employee_id, facility_id=facility_id, meal_date=meal_date, limit=limit)
+
+
 @router.post("/random-meals/draw", response_model=RandomMealDraw)
 def draw_random_meal(
     payload: RandomMealDrawRequest,
@@ -126,7 +162,7 @@ def create_order(
     service: Annotated[EmployeeOrderingService, Depends(get_employee_ordering_service)],
     notification_service: Annotated[NotificationService, Depends(get_notification_service)],
 ) -> EmployeeOrder:
-    order = service.create_order(employee_id, vendor_id, payload)
+    order = service.create_order(employee_id, vendor_id, payload, actor_user_id=employee_id)
     background_tasks.add_task(notification_service.create_order_placed, order)
     return order
 
@@ -154,6 +190,15 @@ def get_my_order(
     service: Annotated[EmployeeOrderingService, Depends(get_employee_ordering_service)],
 ) -> EmployeeOrder:
     return service.get_my_order(employee_id, order_id)
+
+
+@router.get("/me/orders/{order_id}/pickup-label", response_model=PickupLabel)
+def get_my_pickup_label(
+    order_id: int,
+    employee_id: Annotated[int, Depends(require_employee)],
+    service: Annotated[EmployeeOrderingService, Depends(get_employee_ordering_service)],
+) -> PickupLabel:
+    return service.get_my_pickup_label(employee_id, order_id)
 
 
 @router.put("/me/orders/{order_id}", response_model=EmployeeOrder)

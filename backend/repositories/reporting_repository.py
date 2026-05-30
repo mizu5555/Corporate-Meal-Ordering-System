@@ -1,89 +1,228 @@
+"""In-memory reporting/aggregation repository.
+
+Process-local skeleton + substitutable fake for tests. The Postgres-backed
+implementation (PostgresReportingRepository) mirrors these method contracts.
+Aggregations exclude cancelled orders and filter on created_at date (inclusive).
+"""
 from __future__ import annotations
 
-from datetime import date
+from dataclasses import dataclass, field
+from datetime import date, datetime
 
-from backend.repositories.employee_selection_repository import EmployeeSelectionRepository
-from backend.repositories.vendor_profile_repository import VendorProfileRepository
+from backend.schemas.admin_stats import DayPoint, FacilityStat, ItemSales, OrderSummary, VendorStat
 from backend.schemas.billing import EmployeeTotal, VendorReceivable
-
-
-def month_bounds(year: int, month: int) -> tuple[date, date]:
-    start = date(year, month, 1)
-    if month == 12:
-        return start, date(year + 1, 1, 1)
-    return start, date(year, month + 1, 1)
 
 
 def default_badge_code(employee_id: int) -> str:
     return f"EMP-{employee_id:04d}"
 
 
+@dataclass
+class _OrderRow:
+    order_id: int
+    vendor_id: int
+    vendor_name: str
+    facility_id: int | None
+    facility_name: str | None
+    status: str
+    created_at: datetime
+    # items: list of (item_id, quantity, unit_price_cents)
+    items: list[tuple[int, int, int]] = field(default_factory=list)
+    employee_id: int | None = None
+    employee_name: str | None = None
+    meal_date: date | None = None
+    owner_user_id: int | None = None
+    employee_badge_code: str | None = None
+
+
 class ReportingRepository:
-    def __init__(
+    def __init__(self) -> None:
+        self._orders: list[_OrderRow] = []
+
+    def seed_order(
         self,
-        selection_repo: EmployeeSelectionRepository,
-        vendor_repo: VendorProfileRepository,
+        *,
+        order_id: int,
+        vendor_id: int,
+        vendor_name: str,
+        facility_id: int | None,
+        facility_name: str | None,
+        status: str,
+        created_at: datetime,
+        items: list[tuple[int, int, int]],
+        employee_id: int | None = None,
+        employee_name: str | None = None,
+        meal_date: date | None = None,
+        owner_user_id: int | None = None,
+        employee_badge_code: str | None = None,
     ) -> None:
-        self._selection_repo = selection_repo
-        self._vendor_repo = vendor_repo
+        self._orders.append(
+            _OrderRow(
+                order_id=order_id,
+                vendor_id=vendor_id,
+                vendor_name=vendor_name,
+                facility_id=facility_id,
+                facility_name=facility_name,
+                status=status,
+                created_at=created_at,
+                items=items,
+                employee_id=employee_id,
+                employee_name=employee_name,
+                meal_date=meal_date,
+                owner_user_id=owner_user_id,
+                employee_badge_code=employee_badge_code,
+            )
+        )
+
+    def _in_window(self, row: _OrderRow, start: date, end: date) -> bool:
+        return row.status != "cancelled" and start <= row.created_at.date() <= end
+
+    def _qualifying(self, start: date, end: date) -> list[_OrderRow]:
+        return [r for r in self._orders if self._in_window(r, start, end)]
+
+    @staticmethod
+    def _row_quantity(row: _OrderRow) -> int:
+        return sum(qty for _item_id, qty, _total in row.items)
+
+    @staticmethod
+    def _row_revenue(row: _OrderRow) -> int:
+        return sum(qty * unit_price for _item_id, qty, unit_price in row.items)
+
+    def order_summary(self, start: date, end: date) -> OrderSummary:
+        rows = self._qualifying(start, end)
+        return OrderSummary(
+            order_count=len(rows),
+            total_revenue_cents=sum(self._row_revenue(r) for r in rows),
+            total_quantity=sum(self._row_quantity(r) for r in rows),
+            active_vendor_count=len({r.vendor_id for r in rows}),
+        )
+
+    def vendor_ranking(self, start: date, end: date, limit: int) -> list[VendorStat]:
+        acc: dict[int, dict] = {}
+        for r in self._qualifying(start, end):
+            a = acc.setdefault(
+                r.vendor_id,
+                {"vendor_name": r.vendor_name, "order_count": 0, "quantity": 0, "revenue_cents": 0},
+            )
+            a["order_count"] += 1
+            a["quantity"] += self._row_quantity(r)
+            a["revenue_cents"] += self._row_revenue(r)
+        stats = [
+            VendorStat(vendor_id=vid, vendor_name=a["vendor_name"], order_count=a["order_count"],
+                       quantity=a["quantity"], revenue_cents=a["revenue_cents"])
+            for vid, a in acc.items()
+        ]
+        stats.sort(key=lambda s: s.revenue_cents, reverse=True)
+        return stats[:limit]
+
+    def facility_distribution(self, start: date, end: date) -> list[FacilityStat]:
+        acc: dict[int | None, dict] = {}
+        for r in self._qualifying(start, end):
+            a = acc.setdefault(
+                r.facility_id,
+                {"facility_name": r.facility_name, "order_count": 0, "quantity": 0},
+            )
+            a["order_count"] += 1
+            a["quantity"] += self._row_quantity(r)
+        stats = [
+            FacilityStat(facility_id=fid, facility_name=a["facility_name"],
+                         order_count=a["order_count"], quantity=a["quantity"])
+            for fid, a in acc.items()
+        ]
+        stats.sort(key=lambda s: s.quantity, reverse=True)
+        return stats
+
+    def daily_trend(self, start: date, end: date) -> list[DayPoint]:
+        acc: dict[date, dict] = {}
+        for r in self._qualifying(start, end):
+            day = r.created_at.date()
+            a = acc.setdefault(day, {"order_count": 0, "revenue_cents": 0})
+            a["order_count"] += 1
+            a["revenue_cents"] += self._row_revenue(r)
+        return [
+            DayPoint(day=day, order_count=a["order_count"], revenue_cents=a["revenue_cents"])
+            for day, a in sorted(acc.items())
+        ]
+
+    def _delivered_in_month(self, year: int, month: int) -> list[_OrderRow]:
+        return [
+            r
+            for r in self._orders
+            if r.status == "delivered"
+            and r.meal_date is not None
+            and r.meal_date.year == year
+            and r.meal_date.month == month
+        ]
 
     def vendor_monthly_receivables(self, year: int, month: int) -> list[VendorReceivable]:
-        start, end = month_bounds(year, month)
-        totals: dict[int, dict[str, int]] = {}
-
-        for order in self._selection_repo._orders.values():
-            if order.status != "delivered" or order.meal_date is None:
-                continue
-            if not (start <= order.meal_date < end):
-                continue
-            amount = sum(
-                item.quantity * item.unit_price_cents
-                for item in self._selection_repo._items.values()
-                if item.order_id == order.id
+        acc: dict[int, dict] = {}
+        for r in self._delivered_in_month(year, month):
+            a = acc.setdefault(
+                r.vendor_id,
+                {
+                    "vendor_name": r.vendor_name,
+                    "owner_user_id": r.owner_user_id,
+                    "order_count": 0,
+                    "quantity": 0,
+                    "amount_cents": 0,
+                },
             )
-            entry = totals.setdefault(order.vendor_id, {"amount_cents": 0, "order_count": 0})
-            entry["amount_cents"] += amount
-            entry["order_count"] += 1
-
-        rows: list[VendorReceivable] = []
-        for vendor_id, total in totals.items():
-            vendor = self._vendor_repo.get(vendor_id)
-            rows.append(
-                VendorReceivable(
-                    vendor_id=vendor_id,
-                    vendor_name=vendor.name if vendor is not None else f"Vendor {vendor_id}",
-                    amount_cents=total["amount_cents"],
-                    order_count=total["order_count"],
-                )
+            a["order_count"] += 1
+            a["quantity"] += self._row_quantity(r)
+            a["amount_cents"] += self._row_revenue(r)
+        rows = [
+            VendorReceivable(
+                vendor_id=vid, vendor_name=a["vendor_name"], owner_user_id=a["owner_user_id"],
+                order_count=a["order_count"], quantity=a["quantity"], amount_cents=a["amount_cents"],
             )
-        return sorted(rows, key=lambda row: row.vendor_id)
+            for vid, a in acc.items()
+        ]
+        rows.sort(key=lambda r: r.amount_cents, reverse=True)
+        return rows
+
+    def top_items(
+        self, start: date, end: date, limit: int, vendor_ids: list[int] | None = None
+    ) -> list[ItemSales]:
+        allowed = set(vendor_ids) if vendor_ids is not None else None
+        acc: dict[int, dict] = {}
+        for r in self._qualifying(start, end):
+            if allowed is not None and r.vendor_id not in allowed:
+                continue
+            for item_id, qty, _unit in r.items:
+                a = acc.setdefault(item_id, {"vendor_id": r.vendor_id, "quantity_sold": 0})
+                a["quantity_sold"] += qty
+        rows = [
+            ItemSales(item_id=iid, vendor_id=a["vendor_id"], quantity_sold=a["quantity_sold"])
+            for iid, a in acc.items()
+        ]
+        rows.sort(key=lambda r: r.quantity_sold, reverse=True)
+        return rows[:limit]
 
     def employee_monthly_totals(self, year: int, month: int) -> list[EmployeeTotal]:
-        start, end = month_bounds(year, month)
-        totals: dict[int, dict[str, int]] = {}
-
-        for order in self._selection_repo._orders.values():
-            if order.status != "delivered" or order.meal_date is None:
+        acc: dict[int, dict] = {}
+        for r in self._delivered_in_month(year, month):
+            if r.employee_id is None:
                 continue
-            if not (start <= order.meal_date < end):
-                continue
-            amount = sum(
-                item.quantity * item.unit_price_cents
-                for item in self._selection_repo._items.values()
-                if item.order_id == order.id
+            a = acc.setdefault(
+                r.employee_id,
+                {
+                    "employee_name": r.employee_name,
+                    "badge_code": r.employee_badge_code,
+                    "order_count": 0,
+                    "amount_cents": 0,
+                },
             )
-            entry = totals.setdefault(order.employee_id, {"amount_cents": 0, "order_count": 0})
-            entry["amount_cents"] += amount
-            entry["order_count"] += 1
-
+            a["order_count"] += 1
+            a["amount_cents"] += self._row_revenue(r)
         rows = [
             EmployeeTotal(
-                employee_id=employee_id,
-                employee_name=f"Employee {employee_id}",
-                badge_code=default_badge_code(employee_id),
-                amount_cents=total["amount_cents"],
-                order_count=total["order_count"],
+                employee_id=eid,
+                employee_name=a["employee_name"],
+                badge_code=a["badge_code"] or default_badge_code(eid),
+                amount_cents=a["amount_cents"],
+                order_count=a["order_count"],
             )
-            for employee_id, total in totals.items()
+            for eid, a in acc.items()
         ]
-        return sorted(rows, key=lambda row: row.employee_id)
+        rows.sort(key=lambda r: r.amount_cents, reverse=True)
+        return rows

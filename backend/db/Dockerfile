@@ -1,3 +1,4 @@
 FROM postgres:16-alpine
-# Only top-level .sql files run as init scripts; the draft/ subdir is intentionally skipped.
-COPY backend/db/migrations/*.sql /docker-entrypoint-initdb.d/
+# Migrations are applied exclusively by the app at startup via run_migrations()
+# (tracked in schema_migrations). The initdb path was removed so migrations are
+# never applied twice on a fresh volume (see #49).

@@ -5,21 +5,18 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Response
 
-from backend.core.config import settings
 from backend.core.employee_identity import require_employee
-from backend.core.rbac import require_roles
-from backend.core.vendor_identity import get_vendor_profile_repository, require_approved_vendor
-from backend.repositories.employee_selection_repository import EmployeeSelectionRepository
-from backend.repositories.postgres_reporting_repository import PostgresReportingRepository
-from backend.repositories.reporting_repository import ReportingRepository
-from backend.repositories.vendor_profile_repository import VendorProfileRepository
-from backend.routes.employee_ordering import get_employee_selection_repository
-from backend.schemas.billing import EmployeeTotal, MonthlyBillingSummary, VendorReceivable
+from backend.core.rbac import get_current_user_id, get_current_user_role, require_roles
+from backend.core.reporting import get_reporting_repository
+from backend.core.vendor_identity import require_approved_vendor
+from backend.schemas.billing import MonthlyBillingSummary, MonthlyStatement, VendorReceivable
 from backend.services.billing_service import BillingService
 
 router = APIRouter(tags=["billing"])
 
-_postgres_reporting_repo = PostgresReportingRepository()
+
+def _service(repo) -> BillingService:
+    return BillingService(reporting_repository=repo)
 
 
 def _period(year: int | None, month: int | None) -> tuple[int, int]:
@@ -27,92 +24,87 @@ def _period(year: int | None, month: int | None) -> tuple[int, int]:
     return year or today.year, month or today.month
 
 
-def get_reporting_repository(
-    selection_repo: Annotated[EmployeeSelectionRepository, Depends(get_employee_selection_repository)],
-    vendor_repo: Annotated[VendorProfileRepository, Depends(get_vendor_profile_repository)],
-) -> ReportingRepository | PostgresReportingRepository:
-    if settings.database_url:
-        return _postgres_reporting_repo
-    return ReportingRepository(selection_repo, vendor_repo)
-
-
-def get_billing_service(
-    reporting_repo: Annotated[ReportingRepository | PostgresReportingRepository, Depends(get_reporting_repository)],
-) -> BillingService:
-    return BillingService(reporting_repo)
-
-
 @router.get("/employee/me/billing", response_model=MonthlyBillingSummary)
 def get_my_employee_billing(
     employee_id: Annotated[int, Depends(require_employee)],
-    service: Annotated[BillingService, Depends(get_billing_service)],
+    repo: Annotated[object, Depends(get_reporting_repository)],
     year: Annotated[int | None, Query(ge=2000, le=9999)] = None,
     month: Annotated[int | None, Query(ge=1, le=12)] = None,
 ) -> MonthlyBillingSummary:
     y, m = _period(year, month)
-    return service.employee_billing(employee_id, y, m)
+    return _service(repo).employee_billing(employee_id, y, m)
 
 
 @router.get("/vendor/me/billing", response_model=MonthlyBillingSummary)
 def get_my_vendor_billing(
     vendor_id: Annotated[int, Depends(require_approved_vendor)],
-    service: Annotated[BillingService, Depends(get_billing_service)],
+    repo: Annotated[object, Depends(get_reporting_repository)],
     year: Annotated[int | None, Query(ge=2000, le=9999)] = None,
     month: Annotated[int | None, Query(ge=1, le=12)] = None,
 ) -> MonthlyBillingSummary:
     y, m = _period(year, month)
-    return service.vendor_billing(vendor_id, y, m)
+    return _service(repo).vendor_billing(vendor_id, y, m)
 
 
 @router.get("/admin/billing/vendors", response_model=list[VendorReceivable])
-def list_vendor_receivables(
+def vendor_receivables(
     _role: Annotated[str, Depends(require_roles("admin", "committee_reviewer"))],
-    service: Annotated[BillingService, Depends(get_billing_service)],
-    year: Annotated[int | None, Query(ge=2000, le=9999)] = None,
-    month: Annotated[int | None, Query(ge=1, le=12)] = None,
+    repo: Annotated[object, Depends(get_reporting_repository)],
+    year: Annotated[int, Query()],
+    month: Annotated[int, Query()],
 ) -> list[VendorReceivable]:
-    y, m = _period(year, month)
-    return service.vendor_receivables(y, m)
+    return _service(repo).vendor_receivables(year, month)
 
 
 @router.get("/admin/billing/vendors.csv")
-def export_vendor_receivables_csv(
+def vendor_receivables_csv(
     _role: Annotated[str, Depends(require_roles("admin", "committee_reviewer"))],
-    service: Annotated[BillingService, Depends(get_billing_service)],
-    year: Annotated[int | None, Query(ge=2000, le=9999)] = None,
-    month: Annotated[int | None, Query(ge=1, le=12)] = None,
+    repo: Annotated[object, Depends(get_reporting_repository)],
+    year: Annotated[int, Query()],
+    month: Annotated[int, Query()],
 ) -> Response:
-    y, m = _period(year, month)
-    filename = f"vendor-receivables-{y:04d}-{m:02d}.csv"
+    csv_text = _service(repo).vendor_receivables_csv(year, month)
+    filename = f"vendor-receivables-{year:04d}-{month:02d}.csv"
     return Response(
-        service.vendor_receivables_csv(y, m),
+        content=csv_text,
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
-@router.get("/admin/billing/payroll", response_model=list[EmployeeTotal])
-def list_employee_payroll(
+@router.get("/admin/billing/payroll")
+def payroll(
     _role: Annotated[str, Depends(require_roles("admin", "committee_reviewer"))],
-    service: Annotated[BillingService, Depends(get_billing_service)],
-    year: Annotated[int | None, Query(ge=2000, le=9999)] = None,
-    month: Annotated[int | None, Query(ge=1, le=12)] = None,
-) -> list[EmployeeTotal]:
-    y, m = _period(year, month)
-    return service.employee_payroll(y, m)
+    repo: Annotated[object, Depends(get_reporting_repository)],
+    year: Annotated[int, Query()],
+    month: Annotated[int, Query()],
+) -> list[dict]:
+    return _service(repo).employee_payroll(year, month)
 
 
 @router.get("/admin/billing/payroll.csv")
-def export_employee_payroll_csv(
+def payroll_csv(
     _role: Annotated[str, Depends(require_roles("admin", "committee_reviewer"))],
-    service: Annotated[BillingService, Depends(get_billing_service)],
-    year: Annotated[int | None, Query(ge=2000, le=9999)] = None,
-    month: Annotated[int | None, Query(ge=1, le=12)] = None,
+    repo: Annotated[object, Depends(get_reporting_repository)],
+    year: Annotated[int, Query()],
+    month: Annotated[int, Query()],
 ) -> Response:
-    y, m = _period(year, month)
-    filename = f"payroll-deductions-{y:04d}-{m:02d}.csv"
+    csv_text = _service(repo).employee_payroll_csv(year, month)
+    filename = f"payroll-deductions-{year:04d}-{month:02d}.csv"
     return Response(
-        service.employee_payroll_csv(y, m),
+        content=csv_text,
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.post("/admin/billing/statements", response_model=MonthlyStatement)
+def generate_statement(
+    _role: Annotated[str, Depends(require_roles("admin", "committee_reviewer"))],
+    repo: Annotated[object, Depends(get_reporting_repository)],
+    year: Annotated[int, Query()],
+    month: Annotated[int, Query()],
+    actor_id: Annotated[int | None, Depends(get_current_user_id)] = None,
+    actor_role: Annotated[str, Depends(get_current_user_role)] = "anonymous",
+) -> MonthlyStatement:
+    return _service(repo).generate_statement(year, month, actor_user_id=actor_id, actor_role=actor_role)
