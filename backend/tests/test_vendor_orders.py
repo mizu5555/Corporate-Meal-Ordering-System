@@ -51,7 +51,9 @@ def test_list_returns_orders_for_own_vendor() -> None:
     body = resp.json()
     assert len(body) == 1
     assert body[0]["vendor_id"] == 1
-    assert body[0]["employee_id"] == 10
+    assert body[0].get("employee_id") is None
+    assert body[0].get("employee_badge_code") is None
+    assert body[0].get("masked_name") is None
     assert "items" in body[0]
     assert "status" in body[0]
 
@@ -88,7 +90,9 @@ def test_list_filters_orders_by_facility() -> None:
     body = resp.json()
     assert len(body) == 1
     assert body[0]["facility_id"] == 10
-    assert body[0]["employee_id"] == 10
+    assert body[0].get("employee_id") is None
+    assert body[0].get("employee_badge_code") is None
+    assert body[0].get("masked_name") is None
 
 
 def test_list_rejects_unserved_facility_filter() -> None:
@@ -121,7 +125,9 @@ def test_get_order_returns_full_order() -> None:
     assert resp.status_code == 200
     body = resp.json()
     assert body["id"] == order.id
-    assert body["employee_id"] == 10
+    assert body.get("employee_id") is None
+    assert body.get("employee_badge_code") is None
+    assert body.get("masked_name") is None
     assert body["status"] == "pending"
 
 

@@ -9,6 +9,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Header, Query
 from backend.core.audit import get_audit_log_repository
 from backend.core.errors import CodedHTTPException
 from backend.core.rbac import get_current_user_id
+from backend.core.user_directory import get_user_repository
 from backend.core.vendor_identity import get_vendor_profile_repository, require_approved_vendor
 from backend.repositories.audit_log_repository import AuditLogRepository
 from backend.repositories.employee_selection_repository import EmployeeSelectionRepository
@@ -26,8 +27,9 @@ def get_vendor_order_service(
     selection_repo: Annotated[EmployeeSelectionRepository, Depends(get_employee_selection_repository)],
     vendor_repo: Annotated[VendorProfileRepository, Depends(get_vendor_profile_repository)],
     audit_repo: Annotated[AuditLogRepository, Depends(get_audit_log_repository)],
+    user_repo: Annotated[object, Depends(get_user_repository)],
 ) -> VendorOrderService:
-    return VendorOrderService(selection_repo, vendor_repo, audit_repo)
+    return VendorOrderService(selection_repo, vendor_repo, audit_repo, user_repo=user_repo)
 
 
 def optional_header_user_id(x_user_id: Annotated[str | None, Header()] = None) -> int | None:
