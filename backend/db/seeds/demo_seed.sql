@@ -652,3 +652,15 @@ SELECT u.id, v.id, f.id, 'ready', 1500, CURRENT_DATE, to_char(CURRENT_DATE, 'MMD
 FROM users u, vendors v, facilities f
 WHERE u.email = 'demo.employee3@corpmeal.local' AND v.name = 'Demo Green Bowl' AND f.code = 'F15A'
 ON CONFLICT DO NOTHING;
+
+-- Advance the sequence past any badge already assigned by seeds/backfill so a
+-- freshly registered employee never collides with a pre-seeded EMP-NNNN
+-- (demo_seed assigns EMP-0002..0004 via explicit UPDATEs, not nextval).
+SELECT setval(
+    'employee_badge_seq',
+    GREATEST(
+        (SELECT COALESCE(MAX(CAST(SUBSTRING(badge_code FROM 'EMP-([0-9]+)$') AS INTEGER)), 0)
+         FROM users WHERE badge_code ~ '^EMP-[0-9]+$'),
+        1
+    )
+);
