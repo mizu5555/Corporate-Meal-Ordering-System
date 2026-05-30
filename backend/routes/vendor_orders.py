@@ -79,6 +79,16 @@ def get_vendor_pickup_label(
     return service.get_pickup_label(vendor_id, order_id)
 
 
+@router.get("/by-badge/{badge_code}", response_model=list[EmployeeOrder])
+def list_orders_by_badge(
+    badge_code: str,
+    vendor_id: Annotated[int, Depends(require_approved_vendor)],
+    service: Annotated[VendorOrderService, Depends(get_vendor_order_service)],
+    meal_date: Annotated[date | None, Query()] = None,
+) -> list[EmployeeOrder]:
+    return service.list_ready_orders_by_badge(vendor_id, badge_code, meal_date=meal_date)
+
+
 @router.get("/{order_id}", response_model=EmployeeOrder)
 def get_vendor_order(
     order_id: int,

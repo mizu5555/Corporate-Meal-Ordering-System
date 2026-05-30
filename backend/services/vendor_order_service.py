@@ -123,6 +123,20 @@ class VendorOrderService:
         )
         return updated
 
+    def list_ready_orders_by_badge(self, vendor_id, badge_code, *, meal_date=None):
+        if self._user_repo is None:
+            return []
+        user = self._user_repo.get_by_badge_code(badge_code)
+        if user is None:
+            raise CodedHTTPException(
+                status_code=404, code="badge_not_found", detail="no employee with this badge"
+            )
+        orders = self._repo.list_orders_by_employee_for_vendor(
+            vendor_id=vendor_id, employee_id=user.id, status="ready", meal_date=meal_date
+        )
+        # by-badge is the one path that attaches employee identity (badge + masked name)
+        return [self._label_order(o) for o in orders]
+
     def _assert_facility_access(self, vendor_id: int, facility_id: int | None) -> None:
         if facility_id is None:
             return
