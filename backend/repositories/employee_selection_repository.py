@@ -241,6 +241,26 @@ class EmployeeSelectionRepository:
         rows.sort(key=lambda r: r.id)
         return [self._order_to_schema(r) for r in rows]
 
+    def list_orders_by_employee_for_vendor(
+        self,
+        *,
+        vendor_id: int,
+        employee_id: int,
+        status: str | None = None,
+        meal_date: date | None = None,
+    ) -> list[EmployeeOrder]:
+        result = []
+        for record in self._orders.values():
+            if record.vendor_id != vendor_id or record.employee_id != employee_id:
+                continue
+            if status is not None and record.status != status:
+                continue
+            if meal_date is not None and record.meal_date != meal_date:
+                continue
+            result.append(self._order_to_schema(record))
+        result.sort(key=lambda o: o.id)
+        return result
+
     def get_order_for_vendor(self, *, vendor_id: int, order_id: int) -> EmployeeOrder | None:
         order = self._orders.get(order_id)
         if order is None or order.vendor_id != vendor_id:
