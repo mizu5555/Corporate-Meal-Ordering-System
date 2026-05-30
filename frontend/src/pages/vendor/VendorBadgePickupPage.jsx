@@ -11,7 +11,7 @@ const STATUS_LABELS = {
 };
 
 function formatItems(items) {
-  return (items ?? []).map((item) => `${item.name} x${item.quantity}`).join("、");
+  return (items ?? []).map((item) => `${item.item_name} x${item.quantity}`).join("、");
 }
 
 // Vendor quick-pickup view: enter — or optionally scan — an employee badge
