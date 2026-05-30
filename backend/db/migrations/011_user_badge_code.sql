@@ -13,3 +13,14 @@ CREATE SEQUENCE IF NOT EXISTS employee_badge_seq START 1;
 -- Backfill the base seed employee with a stable badge (idempotent).
 UPDATE users SET badge_code = 'EMP-0001'
 WHERE email = 'employee@corpmeal.local' AND badge_code IS NULL;
+
+-- Advance the sequence past any badge already assigned by seeds/backfill so a
+-- freshly registered employee never collides with a pre-seeded EMP-NNNN.
+SELECT setval(
+    'employee_badge_seq',
+    GREATEST(
+        (SELECT COALESCE(MAX(CAST(SUBSTRING(badge_code FROM 'EMP-([0-9]+)$') AS INTEGER)), 0)
+         FROM users WHERE badge_code ~ '^EMP-[0-9]+$'),
+        1
+    )
+);

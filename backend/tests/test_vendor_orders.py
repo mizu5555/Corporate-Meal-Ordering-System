@@ -163,7 +163,13 @@ def test_patch_status_pending_to_confirmed() -> None:
         json={"status": "confirmed"},
     )
     assert resp.status_code == 200
-    assert resp.json()["status"] == "confirmed"
+    body = resp.json()
+    assert body["status"] == "confirmed"
+    # regression: the PATCH status response must be de-identified like every
+    # other vendor path (no internal employee uid / badge / masked name leak).
+    assert body.get("employee_id") is None
+    assert body.get("employee_badge_code") is None
+    assert body.get("masked_name") is None
 
 
 def test_patch_status_pending_to_cancelled() -> None:

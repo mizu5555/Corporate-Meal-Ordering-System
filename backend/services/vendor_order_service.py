@@ -91,6 +91,11 @@ class VendorOrderService:
             raise CodedHTTPException(status_code=404, code="not_found", detail="order not found")
         return self._deidentify_order(updated)
 
+    def get_raw_order(self, vendor_id: int, order_id: int) -> EmployeeOrder:
+        """Identity-bearing order (employee_id intact). For server-internal use
+        only (e.g. notification recipient resolution), never for vendor responses."""
+        return self._get_order_raw(vendor_id, order_id)
+
     def update_status(
         self,
         vendor_id: int,
@@ -121,7 +126,7 @@ class VendorOrderService:
             target_id=order_id,
             metadata={"from": old_status, "to": new_status},
         )
-        return updated
+        return self._deidentify_order(updated)
 
     def list_ready_orders_by_badge(self, vendor_id, badge_code, *, meal_date=None):
         if self._user_repo is None:

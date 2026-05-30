@@ -122,6 +122,13 @@ def update_vendor_order_status(
     service: Annotated[VendorOrderService, Depends(get_vendor_order_service)],
     notification_service: Annotated[NotificationService, Depends(get_notification_service)],
 ) -> EmployeeOrder:
+    # Resolve the notification recipient from the identity-bearing order BEFORE
+    # de-identification: update_status returns a de-identified order (employee_id
+    # is None), which cannot be used as the notification recipient.
+    raw_order = service.get_raw_order(vendor_id, order_id)
     order = service.update_status(vendor_id, order_id, payload.status, actor_user_id=actor_user_id)
-    background_tasks.add_task(notification_service.create_order_status_updated, order)
+    background_tasks.add_task(
+        notification_service.create_order_status_updated,
+        raw_order.model_copy(update={"status": order.status}),
+    )
     return order
