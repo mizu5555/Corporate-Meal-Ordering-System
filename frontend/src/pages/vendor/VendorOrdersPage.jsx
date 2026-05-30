@@ -146,9 +146,6 @@ export default function VendorOrdersPage() {
                 onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
               >
                 <p style={{ margin: 0, fontSize: 12, color: "var(--muted)" }}>#{order.id}</p>
-                <p style={{ margin: 0, fontSize: 13, color: "var(--muted)" }}>
-                  員工 #{order.employee_id}
-                </p>
                 <p style={{ margin: 0, fontWeight: 700, fontSize: 13 }}>
                   {order.pickup_code ?? "-"}
                 </p>
