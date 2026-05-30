@@ -28,7 +28,8 @@ jobs:
 
   integration:
     runs-on: ubuntu-latest
-    needs: unit
+    # No `needs: unit` — the unit and integration suites are independent, so they
+    # run concurrently for faster feedback (build-push still gates on both passing).
     services:
       postgres:
         image: postgres:16
