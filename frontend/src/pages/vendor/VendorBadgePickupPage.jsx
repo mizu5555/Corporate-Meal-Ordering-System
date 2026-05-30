@@ -208,9 +208,22 @@ export function VendorBadgePickupPage() {
     setError(null);
     try {
       const updated = await confirmPickup(orderId);
-      // Reflect delivered: update the row in place (server returns the order).
+      // Reflect delivered: update the row in place. The pickup-confirm response is
+      // a general vendor response (minimal disclosure → no employee identity), so
+      // keep the masked_name / badge we already got from the by-badge lookup
+      // instead of letting the confirm response's nulls overwrite them.
       setOrders((prev) =>
-        prev.map((o) => (o.id === orderId ? { ...o, ...updated, status: "delivered" } : o)),
+        prev.map((o) =>
+          o.id === orderId
+            ? {
+                ...o,
+                ...updated,
+                masked_name: o.masked_name ?? updated.masked_name,
+                employee_badge_code: o.employee_badge_code ?? updated.employee_badge_code,
+                status: "delivered",
+              }
+            : o,
+        ),
       );
     } catch (err) {
       setError(err.message || "確認領餐失敗。");
