@@ -24,17 +24,17 @@ def _user(role: str = "employee", vendor_id: int | None = None, is_active: bool 
     }
 
 
-def _conn_ctx(*, existing_row=None) -> MagicMock:
+def _conn_ctx(*, existing_row=None, badge_code: str | None = None) -> MagicMock:
     """Return a mock context manager for get_connection().
 
     First conn.execute() → SELECT check (returns existing_row or None).
-    Second conn.execute() → INSERT RETURNING id.
+    Second conn.execute() → INSERT RETURNING id, badge_code.
     """
     conn = MagicMock()
     check = MagicMock()
     check.fetchone.return_value = existing_row
     insert = MagicMock()
-    insert.fetchone.return_value = {"id": 1}
+    insert.fetchone.return_value = {"id": 1, "badge_code": badge_code}
     conn.execute.side_effect = [check, insert]
 
     ctx = MagicMock()
