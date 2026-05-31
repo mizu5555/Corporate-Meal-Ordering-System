@@ -148,3 +148,11 @@ export function drawRandomMeal({ mealDate, vendorIds, facilityId }) {
     () => mockRandomMeal({ mealDate, vendorIds, facilityId }),
   );
 }
+
+export function changePassword(currentPassword, newPassword) {
+  return apiFetch("/auth/me/password", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  });
+}

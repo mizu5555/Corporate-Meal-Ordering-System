@@ -11,6 +11,7 @@ export const navigationByRole = {
     { label: "Random Meal", to: "/employee/random-meal" },
     { label: "Current Orders", to: "/employee/orders" },
     { label: "My Badge", to: "/employee/badge" },
+    { label: "帳號設定", to: "/employee/account" },
     { label: "Notifications", to: "/notifications" },
   ],
   vendor_manager: [

@@ -1,9 +1,12 @@
-from fastapi import APIRouter, status
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, status
 
 from backend.core.errors import CodedHTTPException
+from backend.core.rbac import get_current_user_id
 from backend.core.security import create_access_token, hash_password, verify_password
 from backend.db.connection import get_connection
-from backend.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
+from backend.schemas.auth import ChangePasswordRequest, LoginRequest, RegisterRequest, TokenResponse
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -116,3 +119,42 @@ def register(payload: RegisterRequest) -> TokenResponse:
         vendor_id=None,
         badge_code=row["badge_code"],
     )
+
+
+@router.patch("/me/password", status_code=status.HTTP_204_NO_CONTENT)
+def change_password(
+    payload: ChangePasswordRequest,
+    user_id: Annotated[int | None, Depends(get_current_user_id)],
+) -> None:
+    if user_id is None:
+        raise CodedHTTPException(status_code=401, code="unauthenticated", detail="Login required")
+
+    if len(payload.new_password) < 8:
+        raise CodedHTTPException(
+            status_code=422,
+            code="password_too_short",
+            detail="New password must be at least 8 characters",
+        )
+
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT password_hash FROM users WHERE id = %s",
+            (user_id,),
+        ).fetchone()
+
+    if not row or not row["password_hash"]:
+        raise CodedHTTPException(status_code=404, code="user_not_found", detail="User not found")
+
+    if not verify_password(payload.current_password, row["password_hash"]):
+        raise CodedHTTPException(
+            status_code=403,
+            code="wrong_current_password",
+            detail="Current password is incorrect",
+        )
+
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE users SET password_hash = %s, updated_at = NOW() WHERE id = %s",
+            (hash_password(payload.new_password), user_id),
+        )
+        conn.commit()

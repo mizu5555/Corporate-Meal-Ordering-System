@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { getMyFacilities as getEmployeeFacilities } from "../api/employee";
 import { getMyFacilities as getVendorFacilities } from "../api/vendor";
 import { useAuth } from "../auth/AuthContext";
-import { chooseFacilityId } from "./facilitySelection";
+import { chooseFacilityId, loadHomeFacilityId } from "./facilitySelection";
 
 const FacilityContext = createContext(null);
 
@@ -46,7 +46,8 @@ export function FacilityProvider({ children }) {
         if (cancelled) return;
         const nextFacilities = Array.isArray(data) ? data : [];
         setFacilities(nextFacilities);
-        setSelectedFacilityId((current) => chooseFacilityId(nextFacilities, current));
+        const savedHome = loadHomeFacilityId(user?.numericId);
+        setSelectedFacilityId((current) => chooseFacilityId(nextFacilities, savedHome ?? current));
       })
       .catch((err) => {
         if (cancelled) return;
