@@ -592,3 +592,46 @@ def test_select_meal_requires_employee_id() -> None:
 
     assert resp.status_code == 400
     assert resp.json()["code"] == "validation_error"
+
+
+# --- remaining_quantity in menu response ---
+
+def test_list_menu_includes_remaining_quantity_when_quota_set() -> None:
+    client, item_repo, selection_repo = _setup()
+    item = item_repo.create(vendor_id=1, name="Rice Bowl", price_cents=120, daily_quota=5)
+    # place 2 orders for today to consume some quota
+    selection_repo.create_order(
+        employee_id=100, vendor_id=1, meal_date=date.today(),
+        items=[OrderItemSnapshot(item_id=item.id, item_name="Rice Bowl", quantity=2, unit_price_cents=120)],
+    )
+
+    resp = client.get("/employee/vendors/1/menu", headers=_browse_h())
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body) == 1
+    assert body[0]["remaining_quantity"] == 3  # 5 - 2 = 3
+
+
+def test_list_menu_remaining_quantity_is_null_when_no_quota() -> None:
+    client, item_repo, _ = _setup()
+    item_repo.create(vendor_id=1, name="Rice Bowl", price_cents=120, daily_quota=None)
+
+    resp = client.get("/employee/vendors/1/menu", headers=_browse_h())
+
+    assert resp.status_code == 200
+    assert resp.json()[0]["remaining_quantity"] is None
+
+
+def test_list_menu_shows_zero_remaining_when_quota_exhausted() -> None:
+    client, item_repo, selection_repo = _setup()
+    item = item_repo.create(vendor_id=1, name="Rice Bowl", price_cents=120, daily_quota=2)
+    selection_repo.create_order(
+        employee_id=100, vendor_id=1, meal_date=date.today(),
+        items=[OrderItemSnapshot(item_id=item.id, item_name="Rice Bowl", quantity=2, unit_price_cents=120)],
+    )
+
+    resp = client.get("/employee/vendors/1/menu", headers=_browse_h())
+
+    assert resp.status_code == 200
+    assert resp.json()[0]["remaining_quantity"] == 0
