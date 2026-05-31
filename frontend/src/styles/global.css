@@ -188,6 +188,18 @@ p {
   transform: translateY(-1px);
 }
 
+/* Ghost buttons inside panels sit on a light surface — override to dark contrast. */
+.panel .ghost-button {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+}
+
+.panel .ghost-button:hover {
+  background: rgba(23, 33, 43, 0.05);
+  transform: none;
+}
+
 .app-shell {
   display: grid;
   grid-template-columns: 320px minmax(0, 1fr);
