@@ -264,3 +264,62 @@ def test_patch_status_404_for_other_vendors_order() -> None:
     )
     assert resp.status_code == 404
     assert resp.json()["code"] == "not_found"
+
+
+# --- meal_date and status filters ---
+
+def test_list_filters_orders_by_meal_date() -> None:
+    from datetime import date
+    vendor_repo = _seed_vendor_repo()
+    selection_repo = EmployeeSelectionRepository()
+    target = selection_repo.create_order(employee_id=10, vendor_id=1, items=[], meal_date=date(2026, 6, 1))
+    selection_repo.create_order(employee_id=10, vendor_id=1, items=[], meal_date=date(2026, 6, 2))
+
+    resp = _client(vendor_repo, selection_repo).get(
+        "/vendor/me/orders?meal_date=2026-06-01", headers=_vh(1)
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body) == 1
+    assert body[0]["id"] == target.id
+
+
+def test_list_filters_orders_by_status() -> None:
+    vendor_repo = _seed_vendor_repo()
+    selection_repo = EmployeeSelectionRepository()
+    pending = selection_repo.create_order(employee_id=10, vendor_id=1, items=[], meal_date=None)
+    confirmed = selection_repo.create_order(employee_id=10, vendor_id=1, items=[], meal_date=None)
+    selection_repo.update_order_status(vendor_id=1, order_id=confirmed.id, new_status="confirmed")
+
+    resp = _client(vendor_repo, selection_repo).get(
+        "/vendor/me/orders?status=confirmed", headers=_vh(1)
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body) == 1
+    assert body[0]["id"] == confirmed.id
+    assert body[0]["status"] == "confirmed"
+
+
+def test_list_filters_by_meal_date_and_status_combined() -> None:
+    from datetime import date
+    vendor_repo = _seed_vendor_repo()
+    selection_repo = EmployeeSelectionRepository()
+    target = selection_repo.create_order(employee_id=10, vendor_id=1, items=[], meal_date=date(2026, 6, 1))
+    selection_repo.update_order_status(vendor_id=1, order_id=target.id, new_status="confirmed")
+    # same date, different status
+    selection_repo.create_order(employee_id=10, vendor_id=1, items=[], meal_date=date(2026, 6, 1))
+    # same status, different date
+    other = selection_repo.create_order(employee_id=10, vendor_id=1, items=[], meal_date=date(2026, 6, 2))
+    selection_repo.update_order_status(vendor_id=1, order_id=other.id, new_status="confirmed")
+
+    resp = _client(vendor_repo, selection_repo).get(
+        "/vendor/me/orders?meal_date=2026-06-01&status=confirmed", headers=_vh(1)
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body) == 1
+    assert body[0]["id"] == target.id

@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getMyOrders } from "../../api/vendor";
 import { useFacility } from "../../facility/FacilityContext";
-import FacilityScopeLabel from "../../facility/FacilityScopeLabel";
 import { formatPrice } from "../../utils/format";
 
 const STATUS_LABEL = {
@@ -22,6 +21,13 @@ const STATUS_COLOR = {
   delivered: { background: "rgba(23,33,43,0.07)", color: "var(--muted)" },
   cancelled: { background: "rgba(200,92,44,0.08)", color: "var(--brand-deep)" },
 };
+
+const ALL_STATUSES = ["pending", "confirmed", "preparing", "ready", "delivered", "cancelled"];
+
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 function StatusBadge({ status }) {
   return (
@@ -47,9 +53,24 @@ function itemsSummary(items) {
   return items.length > 1 ? `${first} 等 ${items.length} 項` : first;
 }
 
+const selectStyle = {
+  padding: "7px 12px",
+  borderRadius: "var(--radius-md)",
+  border: "1px solid var(--line)",
+  background: "var(--surface-strong)",
+  fontSize: 13,
+  cursor: "pointer",
+};
+
 export default function VendorOrdersPage() {
   const navigate = useNavigate();
-  const { selectedFacilityId } = useFacility();
+  const { selectedFacilityId, facilities } = useFacility();
+
+  const [facilityFilter, setFacilityFilter] = useState(() =>
+    selectedFacilityId != null ? String(selectedFacilityId) : "",
+  );
+  const [dateFilter, setDateFilter] = useState(todayStr);
+  const [statusFilter, setStatusFilter] = useState("");
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -57,11 +78,23 @@ export default function VendorOrdersPage() {
   useEffect(() => {
     setLoading(true);
     setError(null);
-    getMyOrders({ facilityId: selectedFacilityId })
+    getMyOrders({
+      facilityId: facilityFilter ? Number(facilityFilter) : undefined,
+      mealDate: dateFilter || undefined,
+      status: statusFilter || undefined,
+    })
       .then(setOrders)
       .catch((err) => setError(err.message ?? "無法載入訂單"))
       .finally(() => setLoading(false));
-  }, [selectedFacilityId]);
+  }, [facilityFilter, dateFilter, statusFilter]);
+
+  const showAllFacilities = facilityFilter === "";
+
+  function facilityName(facilityId) {
+    if (!facilityId) return "—";
+    const f = facilities.find((x) => x.id === facilityId);
+    return f ? f.name : `#${facilityId}`;
+  }
 
   const totalRevenue = orders.reduce((sum, o) => sum + o.total_price_cents, 0);
   const totalItems = orders.reduce(
@@ -69,19 +102,59 @@ export default function VendorOrdersPage() {
     0,
   );
 
+  const cols = showAllFacilities
+    ? "150px 110px 100px 1fr 110px 100px 36px"
+    : "150px 110px 1fr 110px 100px 36px";
+
   return (
     <div>
       <div className="page-header">
-        <FacilityScopeLabel label="Orders facility" />
         <p className="eyebrow">Vendor · Orders</p>
-        <h2>今日訂單</h2>
+        <h2>訂單查詢</h2>
       </div>
 
-      {loading && <p className="loading-state">載入訂單中...</p>}
+      {/* Filter row */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap", alignItems: "center" }}>
+        <select value={facilityFilter} onChange={(e) => setFacilityFilter(e.target.value)} style={selectStyle}>
+          <option value="">全部廠區</option>
+          {facilities.map((f) => (
+            <option key={f.id} value={String(f.id)}>{f.name}</option>
+          ))}
+        </select>
+
+        <input
+          type="date"
+          value={dateFilter}
+          onChange={(e) => setDateFilter(e.target.value)}
+          style={{ ...selectStyle, cursor: "text" }}
+        />
+
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={selectStyle}>
+          <option value="">全部狀態</option>
+          {ALL_STATUSES.map((s) => (
+            <option key={s} value={s}>{STATUS_LABEL[s]}</option>
+          ))}
+        </select>
+
+        {(facilityFilter || dateFilter || statusFilter) && (
+          <button
+            onClick={() => { setFacilityFilter(""); setDateFilter(todayStr()); setStatusFilter(""); }}
+            style={{ ...selectStyle, color: "var(--muted)", background: "transparent", border: "none" }}
+            type="button"
+          >
+            重設
+          </button>
+        )}
+
+        <span style={{ marginLeft: "auto", fontSize: 13, color: "var(--muted)" }}>
+          {loading ? "載入中..." : `共 ${orders.length} 筆`}
+        </span>
+      </div>
+
       {error && <p className="error-state">{error}</p>}
 
       {!loading && !error && orders.length === 0 && (
-        <p className="empty-state">今日尚未收到任何訂單。</p>
+        <p className="empty-state">沒有符合條件的訂單。</p>
       )}
 
       {!loading && !error && orders.length > 0 && (
@@ -105,7 +178,7 @@ export default function VendorOrdersPage() {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "56px 120px 110px 1fr 110px 100px 36px",
+                gridTemplateColumns: cols,
                 padding: "10px 20px",
                 borderBottom: "1px solid var(--line)",
                 color: "var(--muted)",
@@ -115,9 +188,9 @@ export default function VendorOrdersPage() {
                 letterSpacing: "0.05em",
               }}
             >
-              <span>#</span>
-              <span>來源</span>
+              <span>日期 · 訂單</span>
               <span>取餐碼</span>
+              {showAllFacilities && <span>廠區</span>}
               <span>品項</span>
               <span style={{ textAlign: "right" }}>合計</span>
               <span style={{ textAlign: "right" }}>狀態</span>
@@ -131,7 +204,7 @@ export default function VendorOrdersPage() {
                 onClick={() => navigate(`/vendor/orders/${order.id}`)}
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "56px 120px 110px 1fr 110px 100px 36px",
+                  gridTemplateColumns: cols,
                   alignItems: "center",
                   width: "100%",
                   padding: "14px 20px",
@@ -145,10 +218,18 @@ export default function VendorOrdersPage() {
                 onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(23,33,43,0.03)")}
                 onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
               >
-                <p style={{ margin: 0, fontSize: 12, color: "var(--muted)" }}>#{order.id}</p>
+                <div>
+                  <p style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>{order.meal_date ?? "—"}</p>
+                  <p style={{ margin: "2px 0 0", fontSize: 11, color: "var(--muted)" }}>#{order.id}</p>
+                </div>
                 <p style={{ margin: 0, fontWeight: 700, fontSize: 13 }}>
-                  {order.pickup_code ?? "-"}
+                  {order.pickup_code ?? "—"}
                 </p>
+                {showAllFacilities && (
+                  <p style={{ margin: 0, fontSize: 12, color: "var(--muted)" }}>
+                    {facilityName(order.facility_id)}
+                  </p>
+                )}
                 <p style={{ margin: 0, fontWeight: 500, fontSize: 14 }}>
                   {itemsSummary(order.items)}
                 </p>
