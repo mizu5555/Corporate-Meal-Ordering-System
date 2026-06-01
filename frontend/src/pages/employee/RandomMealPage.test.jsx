@@ -30,7 +30,11 @@ vi.mock("../../cart/CartContext", () => ({ useCart: () => ({ addItem: vi.fn() })
 describe("RandomMealPage", () => {
   test("clicking a recommendation card opens the meal-detail modal", async () => {
     const user = userEvent.setup();
-    render(<MemoryRouter><RandomMealPage /></MemoryRouter>);
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <RandomMealPage />
+      </MemoryRouter>,
+    );
 
     const name = await screen.findByText("招牌雞腿飯");
     await user.click(name.closest(".recommend-card"));

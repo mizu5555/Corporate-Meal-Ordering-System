@@ -25,7 +25,11 @@ vi.mock("../../facility/FacilityContext", () => ({
 }));
 
 function renderCart() {
-  return render(<MemoryRouter><CartPage /></MemoryRouter>);
+  return render(
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <CartPage />
+    </MemoryRouter>,
+  );
 }
 
 beforeEach(() => {
