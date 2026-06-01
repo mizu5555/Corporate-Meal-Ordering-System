@@ -44,7 +44,14 @@ pipeline {
       //     only once PR #N is closed/merged (its preview stack is gone too).
       //     Keying on recency instead broke open-PR previews (#111): an older
       //     but still-open PR's images got pruned -> manifest unknown -> 502.
-      //   - sha-* : keep newest KEEP_SHA
+      //   - sha-* : keep the image for each of the newest KEEP_SHA commits on
+      //     main, identified by commit sha (git log), NOT by the GHCR version's
+      //     created_at. created_at is the *digest's* first-push time, so when a
+      //     merge's image content dedups onto an older PR-preview manifest, the
+      //     freshly added sha-<merge> tag inherits that stale created_at; the old
+      //     created_at-keyed sort then pruned the just-merged image, breaking the
+      //     staging pull with "manifest unknown" (same recency trap as #111/#113,
+      //     which fixed pr-*; this fixes the sha-* analogue).
       //   - v*    : keep all (releases) — never touched
       //   - untagged: deleted (orphaned manifests from overwritten tags; safe
       //     while images are single-arch — revisit if the build goes multi-arch).
@@ -66,35 +73,44 @@ pipeline {
             OPEN_PRS=$(gh pr list -R "${OWNER}/${REPO}" --state open --limit 200 \
                          --json number --jq 'map(.number|tostring)|join(" ")')
 
-            ids_untagged() {
-              echo "$1" | jq -r '.[] | select((.metadata.container.tags // []) | length == 0) | .id'
-            }
-            ids_old_for_prefix() {  # $1=versions json  $2=tag prefix  $3=keep newest
-              echo "$1" | jq -r --arg pre "$2" --argjson keep "$3" '
-                [ .[] | select((.metadata.container.tags // []) | any(startswith($pre))) ]
-                | sort_by(.created_at) | reverse | .[$keep:] | .[].id'
-            }
-            ids_closed_pr() {  # $1=versions json  $2=space-separated open PR numbers
-              # A pr-* version is deletable only when ALL of its pr-<N> tags map to
-              # CLOSED PRs; if any tag is for an open PR the version is kept.
-              echo "$1" | jq -r --arg open "$2" '
-                ($open | split(" ") | map(select(length > 0))) as $openlist
+            # sha- tags worth keeping = the newest KEEP_SHA commits on main (the
+            # deploy targets). Derived from git (checkout scm above), so retention
+            # tracks commit recency, not the GHCR version's created_at. Matches the
+            # CI image tag format: "sha-" + first 12 hex of the full commit sha.
+            PROTECT_SHAS=$(git log -n "$KEEP_SHA" --format='sha-%H' | cut -c1-16 | tr '\n' ' ')
+
+            # A version is KEPT iff it carries any of:
+            #   - a release tag (v*) — releases are never pruned,
+            #   - a protected sha- tag (one of the newest KEEP_SHA main commits),
+            #   - a pr-<N> tag for a still-OPEN PR (its preview stack is live).
+            # Everything else is deleted: untagged orphans, closed-PR-only
+            # previews, and sha- images for commits outside the keep window.
+            # Deciding keep-vs-delete per version (instead of unioning independent
+            # per-rule delete lists) is what stops one rule from deleting a version
+            # another rule wants to keep — e.g. an old sha- tag must NOT drag down a
+            # version that still serves an open PR's preview. Frontend preview and
+            # merge images share a digest (BASE_PATH is injected at container start,
+            # not baked in), so without this an old sha- could prune a live preview
+            # — the exact "manifest unknown" class #113 fixed for pr-*.
+            ids_to_delete() {  # $1=versions json  $2=protected sha- tags  $3=open PR numbers
+              echo "$1" | jq -r --arg prot "$2" --arg open "$3" '
+                ($prot | split(" ") | map(select(length > 0))) as $protlist
+                | ($open | split(" ") | map(select(length > 0))) as $openlist
                 | .[]
-                | select((.metadata.container.tags // []) | any(startswith("pr-")))
-                | select(
-                    (.metadata.container.tags // [])
-                    | map(select(startswith("pr-")) | ltrimstr("pr-"))
-                    | all(. as $n | ($openlist | index($n)) == null)
-                  )
+                | (.metadata.container.tags // []) as $tags
+                | (($tags | any(startswith("v")))
+                   or ($tags | any(. as $t | $protlist | index($t)))
+                   or ($tags | any(startswith("pr-")
+                                    and ((ltrimstr("pr-")) as $n | ($openlist | index($n)) != null)))
+                  ) as $keep
+                | select($keep | not)
                 | .id'
             }
 
             for svc in backend frontend db gateway; do
               PKG="mealorder-${svc}"
               ALL=$(gh api --paginate "/users/${OWNER}/packages/container/${PKG}/versions")
-              for VID in $(ids_untagged "$ALL") \
-                         $(ids_closed_pr "$ALL" "$OPEN_PRS") \
-                         $(ids_old_for_prefix "$ALL" "sha-" "$KEEP_SHA"); do
+              for VID in $(ids_to_delete "$ALL" "$PROTECT_SHAS" "$OPEN_PRS"); do
                 [ -z "$VID" ] && continue
                 if gh api -X DELETE "/users/${OWNER}/packages/container/${PKG}/versions/${VID}"; then
                   echo "deleted ${PKG} version=${VID}"
