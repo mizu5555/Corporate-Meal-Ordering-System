@@ -11,7 +11,7 @@ from backend.schemas.admin import AdminUserItem, AdminUserListResponse
 router = APIRouter(prefix="/admin/users", tags=["admin-users"])
 
 
-def _fetch_users(search: str | None, role: str | None) -> list[dict]:
+def _fetch_users(search: str | None, role: str | None, is_active: bool | None) -> list[dict]:
     conditions = ["1=1"]
     params: list = []
 
@@ -23,6 +23,10 @@ def _fetch_users(search: str | None, role: str | None) -> list[dict]:
     if role:
         conditions.append("r.name = %s")
         params.append(role)
+
+    if is_active is not None:
+        conditions.append("u.is_active = %s")
+        params.append(is_active)
 
     where = " AND ".join(conditions)
     sql = f"""
@@ -42,8 +46,9 @@ def list_users(
     _role: Annotated[str, Depends(require_roles("admin"))],
     search: str | None = Query(default=None),
     role: str | None = Query(default=None),
+    is_active: bool | None = Query(default=None),
 ) -> AdminUserListResponse:
-    users = _fetch_users(search, role)
+    users = _fetch_users(search, role, is_active)
     return AdminUserListResponse(
         users=[AdminUserItem(**u) for u in users],
         total=len(users),

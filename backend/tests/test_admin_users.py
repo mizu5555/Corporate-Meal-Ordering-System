@@ -126,6 +126,32 @@ def test_list_users_role_filter_param_is_forwarded() -> None:
     assert resp.json()["users"][0]["role"] == "vendor_manager"
 
 
+def test_list_users_is_active_false_filter_returns_pending_employees() -> None:
+    """?is_active=false should surface employees awaiting admin approval."""
+    rows = [_make_user_row(is_active=False)]
+    with patch("backend.routes.admin_users.get_connection", return_value=_list_conn(rows)) as mock_conn:
+        resp = client.get("/admin/users?is_active=false", headers=_ADMIN_HEADERS)
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 1
+    assert body["users"][0]["is_active"] is False
+    execute_call = mock_conn.return_value.__enter__.return_value.execute.call_args
+    assert "u.is_active = %s" in execute_call.args[0]
+    assert False in execute_call.args[1]
+
+
+def test_list_users_is_active_true_filter_excludes_pending() -> None:
+    rows = [_make_user_row(is_active=True)]
+    with patch("backend.routes.admin_users.get_connection", return_value=_list_conn(rows)) as mock_conn:
+        resp = client.get("/admin/users?is_active=true", headers=_ADMIN_HEADERS)
+
+    assert resp.status_code == 200
+    execute_call = mock_conn.return_value.__enter__.return_value.execute.call_args
+    assert "u.is_active = %s" in execute_call.args[0]
+    assert True in execute_call.args[1]
+
+
 # ---------------------------------------------------------------------------
 # PATCH /admin/users/{id}/disable
 # ---------------------------------------------------------------------------
