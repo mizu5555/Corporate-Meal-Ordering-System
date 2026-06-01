@@ -207,6 +207,12 @@ class EmployeeOrderingService:
         for vendor_id in vendor_ids:
             vendor = approved_vendors[vendor_id]
             for item in self.menu_item_repository.list(vendor_id=vendor_id, available=True):
+                if not self._matches_dietary_tags(
+                    item,
+                    include_tags=payload.include_tags,
+                    exclude_tags=payload.exclude_tags,
+                ):
+                    continue
                 remaining = self._remaining_quantity(item, used_by_item.get(item.id, 0))
                 if remaining is None or remaining > 0:
                     candidates.append((vendor, item, remaining))
@@ -233,6 +239,8 @@ class EmployeeOrderingService:
         facility_id: int | None = None,
         meal_date: date | None = None,
         limit: int = 8,
+        include_tags: list[str] | None = None,
+        exclude_tags: list[str] | None = None,
     ) -> list[RecommendedItem]:
         target_date = meal_date or date.today()
 
@@ -259,9 +267,15 @@ class EmployeeOrderingService:
         )
 
         # Build item_by_id: {item_id: (vendor_id, raw_item)}
-        item_by_id: dict[int, tuple[int, object]] = {}
+        item_by_id: dict[int, tuple[int, VendorMenuItem]] = {}
         for vid in visible_ids:
             for it in self.menu_item_repository.list(vendor_id=vid, available=True):
+                if not self._matches_dietary_tags(
+                    it,
+                    include_tags=include_tags,
+                    exclude_tags=exclude_tags,
+                ):
+                    continue
                 item_by_id[it.id] = (vid, it)
 
         # Sales window: past 30 days up to today
@@ -530,7 +544,22 @@ class EmployeeOrderingService:
             daily_quota=item.daily_quota,
             remaining_quantity=remaining,
             photo_path=item.photo_path,
+            dietary_tags=item.dietary_tags,
         )
+
+    @staticmethod
+    def _matches_dietary_tags(
+        item: VendorMenuItem,
+        *,
+        include_tags: list[str] | None = None,
+        exclude_tags: list[str] | None = None,
+    ) -> bool:
+        tags = set(item.dietary_tags)
+        if include_tags and not set(include_tags).issubset(tags):
+            return False
+        if exclude_tags and tags.intersection(exclude_tags):
+            return False
+        return True
 
     def _order_to_pickup_label(self, order: EmployeeOrder) -> PickupLabel:
         vendor = self.vendor_repository.get(order.vendor_id)

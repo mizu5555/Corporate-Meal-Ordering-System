@@ -8,6 +8,7 @@ def test_create_assigns_id_and_defaults() -> None:
     assert item.id > 0
     assert item.available is True
     assert item.daily_quota is None
+    assert item.dietary_tags == []
     assert item.photo_path is None
 
 
@@ -47,6 +48,27 @@ def test_update_partial_fields() -> None:
     assert updated is not None
     assert updated.daily_quota == 0
     assert updated.name == "A"
+
+
+def test_create_update_and_list_round_trip_dietary_tags() -> None:
+    repo = MenuItemRepository()
+    item = repo.create(
+        vendor_id=1,
+        name="Vegetarian Rice",
+        price_cents=100,
+        dietary_tags=["vegetarian"],
+    )
+    assert item.dietary_tags == ["vegetarian"]
+
+    updated = repo.update(
+        vendor_id=1,
+        item_id=item.id,
+        fields={"dietary_tags": ["ovo_lacto_vegetarian"]},
+    )
+
+    assert updated is not None
+    assert updated.dietary_tags == ["ovo_lacto_vegetarian"]
+    assert repo.list(vendor_id=1)[0].dietary_tags == ["ovo_lacto_vegetarian"]
 
 
 def test_delete_removes_record() -> None:

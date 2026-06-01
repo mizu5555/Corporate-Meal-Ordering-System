@@ -6,6 +6,7 @@ import { useFacility } from "../../facility/FacilityContext";
 import FacilityScopeLabel from "../../facility/FacilityScopeLabel";
 import { useVendors } from "../../hooks/useVendors";
 import { toLocalIso } from "../../utils/date";
+import { dietaryTagLabel, normalizeDietaryTags } from "../../utils/dietaryTags";
 import { formatPrice, quotaLabel } from "../../utils/format";
 
 function addDaysIso(days) {
@@ -48,10 +49,28 @@ export default function RandomMealPage() {
   const [recLoading, setRecLoading] = useState(false);
   const [recError, setRecError] = useState(null);
   const [limit, setLimit] = useState(10);
+  const [filters, setFilters] = useState({
+    excludeBeef: false,
+    excludePork: false,
+    vegetarian: false,
+    ovoLactoVegetarian: false,
+  });
 
   const selectedCount = allVendors ? vendors.length : selectedVendorIds.length;
   const mealDateInRange = mealDate >= minMealDate && mealDate <= maxMealDate;
   const canDraw = mealDateInRange && selectedCount > 0 && !drawing && !loading;
+  const includeTags = useMemo(() => {
+    const tags = [];
+    if (filters.vegetarian) tags.push("vegetarian");
+    if (filters.ovoLactoVegetarian) tags.push("ovo_lacto_vegetarian");
+    return tags;
+  }, [filters.vegetarian, filters.ovoLactoVegetarian]);
+  const excludeTags = useMemo(() => {
+    const tags = [];
+    if (filters.excludeBeef) tags.push("contains_beef");
+    if (filters.excludePork) tags.push("contains_pork");
+    return tags;
+  }, [filters.excludeBeef, filters.excludePork]);
   const remainingLabel = useMemo(() => {
     if (!draw) return null;
     if (draw.remaining_quantity == null) return "不限量";
@@ -69,7 +88,7 @@ export default function RandomMealPage() {
     let cancelled = false;
     setRecLoading(true);
     setRecError(null);
-    getRecommendations({ facilityId: selectedFacilityId, mealDate, limit })
+    getRecommendations({ facilityId: selectedFacilityId, mealDate, limit, includeTags, excludeTags })
       .then((data) => {
         if (!cancelled) setRecommendations(data);
       })
@@ -83,7 +102,7 @@ export default function RandomMealPage() {
         if (!cancelled) setRecLoading(false);
       });
     return () => { cancelled = true; };
-  }, [tab, mealDate, selectedFacilityId, limit]);
+  }, [tab, mealDate, selectedFacilityId, limit, includeTags, excludeTags]);
 
   function toggleVendor(vendorId) {
     setSelectedVendorIds((current) =>
@@ -91,6 +110,16 @@ export default function RandomMealPage() {
         ? current.filter((id) => id !== vendorId)
         : [...current, vendorId],
     );
+    setDraw(null);
+  }
+
+  function toggleDietaryFilter(name) {
+    setFilters((current) => {
+      const next = { ...current, [name]: !current[name] };
+      if (name === "vegetarian" && next.vegetarian) next.ovoLactoVegetarian = false;
+      if (name === "ovoLactoVegetarian" && next.ovoLactoVegetarian) next.vegetarian = false;
+      return next;
+    });
     setDraw(null);
   }
 
@@ -103,6 +132,8 @@ export default function RandomMealPage() {
         mealDate,
         vendorIds: allVendors ? null : selectedVendorIds,
         facilityId: selectedFacilityId,
+        includeTags,
+        excludeTags,
       });
       setDraw(result);
     } catch (err) {
@@ -116,6 +147,15 @@ export default function RandomMealPage() {
   function recRemainingLabel(rec) {
     if (rec.remaining_quantity == null) return quotaLabel(rec.item.daily_quota);
     return `剩餘 ${rec.remaining_quantity} 份`;
+  }
+
+  function DietaryBadges({ item }) {
+    const tags = normalizeDietaryTags(item.dietary_tags);
+    return tags.map((tag) => (
+      <span className="badge badge-quota" key={tag}>
+        {dietaryTagLabel(tag)}
+      </span>
+    ));
   }
 
   return (
@@ -144,6 +184,42 @@ export default function RandomMealPage() {
               setDraw(null);
             }}
           />
+
+          <div style={{ display: "grid", gap: 10 }}>
+            <span className="field-label">飲食偏好</span>
+            <label className="toggle-row">
+              <input
+                type="checkbox"
+                checked={filters.excludeBeef}
+                onChange={() => toggleDietaryFilter("excludeBeef")}
+              />
+              <span>不含牛肉</span>
+            </label>
+            <label className="toggle-row">
+              <input
+                type="checkbox"
+                checked={filters.excludePork}
+                onChange={() => toggleDietaryFilter("excludePork")}
+              />
+              <span>不含豬肉</span>
+            </label>
+            <label className="toggle-row">
+              <input
+                type="checkbox"
+                checked={filters.vegetarian}
+                onChange={() => toggleDietaryFilter("vegetarian")}
+              />
+              <span>只看素食</span>
+            </label>
+            <label className="toggle-row">
+              <input
+                type="checkbox"
+                checked={filters.ovoLactoVegetarian}
+                onChange={() => toggleDietaryFilter("ovoLactoVegetarian")}
+              />
+              <span>只看蛋奶素</span>
+            </label>
+          </div>
 
           {/* Vendor selector — only shown for 隨機抽餐 tab */}
           {tab === "random" && (
@@ -277,6 +353,7 @@ export default function RandomMealPage() {
                           <span className="badge badge-quota">
                             {recRemainingLabel(rec)}
                           </span>
+                          <DietaryBadges item={rec.item} />
                         </div>
                       </div>
                     </div>
@@ -325,6 +402,7 @@ export default function RandomMealPage() {
                     <span className="badge badge-quota">
                       {remainingLabel ?? quotaLabel(draw.item.daily_quota)}
                     </span>
+                    <DietaryBadges item={draw.item} />
                   </div>
 
                 </div>

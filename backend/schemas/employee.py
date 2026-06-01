@@ -4,9 +4,9 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
-from backend.schemas.vendor_self import Facility
+from backend.schemas.vendor_self import DietaryTag, Facility, normalize_dietary_tags
 
 
 class EmployeeVendor(BaseModel):
@@ -30,6 +30,12 @@ class EmployeeMenuItem(BaseModel):
     daily_quota: int | None
     remaining_quantity: int | None = None
     photo_path: str | None
+    dietary_tags: list[DietaryTag] = Field(default_factory=list)
+
+    @field_validator("dietary_tags", mode="before")
+    @classmethod
+    def _normalize_dietary_tags(cls, value: object) -> list[DietaryTag]:
+        return normalize_dietary_tags(value)
 
 
 class MealSelectionCreate(BaseModel):
@@ -154,6 +160,13 @@ class RandomMealDrawRequest(BaseModel):
     meal_date: date
     vendor_ids: list[int] | None = None
     facility_id: int | None = None
+    include_tags: list[DietaryTag] = Field(default_factory=list)
+    exclude_tags: list[DietaryTag] = Field(default_factory=list)
+
+    @field_validator("include_tags", "exclude_tags", mode="before")
+    @classmethod
+    def _normalize_dietary_tags(cls, value: object) -> list[DietaryTag]:
+        return normalize_dietary_tags(value)
 
 
 class RandomMealDraw(BaseModel):

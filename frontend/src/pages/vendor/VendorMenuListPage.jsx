@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import FacilityScopeLabel from "../../facility/FacilityScopeLabel";
+import { dietaryTagLabel, normalizeDietaryTags } from "../../utils/dietaryTags";
 import { formatPrice, photoUrl } from "../../utils/format";
 import { useVendorMenu } from "../../vendor/VendorMenuContext";
 
@@ -250,6 +251,15 @@ export default function VendorMenuListPage() {
                   >
                     {item.description}
                   </p>
+                )}
+                {normalizeDietaryTags(item.dietary_tags).length > 0 && (
+                  <div className="item-badges" style={{ marginTop: 6 }}>
+                    {normalizeDietaryTags(item.dietary_tags).map((tag) => (
+                      <span className="badge badge-quota" key={tag}>
+                        {dietaryTagLabel(tag)}
+                      </span>
+                    ))}
+                  </div>
                 )}
               </div>
 
