@@ -26,7 +26,7 @@ function errorMessage(item, err) {
 }
 
 export default function CartPage() {
-  const { items, updateQuantity, removeItem, clearCart, totalCount } = useCart();
+  const { items, updateQuantity, removeItem, clearCart, replaceCart, totalCount } = useCart();
   const { selectedFacilityId } = useFacility();
   const navigate = useNavigate();
 
@@ -45,6 +45,7 @@ export default function CartPage() {
     setResult(null);
 
     const errors = [];
+    const failedItems = [];
     for (const cartItem of items) {
       try {
         await submitSelection(cartItem.vendorId, {
@@ -55,13 +56,16 @@ export default function CartPage() {
         });
       } catch (err) {
         errors.push(errorMessage(cartItem, err));
+        failedItems.push(cartItem);
       }
     }
 
     setSubmitting(false);
+    // Succeeded rows are already ordered — drop them so a retry can't double-order.
+    // Only the rows that failed remain in the cart.
+    replaceCart(failedItems);
 
     if (errors.length === 0) {
-      clearCart();
       setResult({ ok: true });
     } else {
       setResult({ ok: false, errors });

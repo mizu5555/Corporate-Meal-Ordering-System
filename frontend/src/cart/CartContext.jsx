@@ -29,10 +29,14 @@ export function CartProvider({ children }) {
     setItems([]);
   }
 
+  function replaceCart(nextItems) {
+    setItems(nextItems);
+  }
+
   const totalCount = items.reduce((sum, i) => sum + i.quantity, 0);
 
   return (
-    <CartContext.Provider value={{ items, addItem, removeItem, updateQuantity, clearCart, totalCount }}>
+    <CartContext.Provider value={{ items, addItem, removeItem, updateQuantity, clearCart, replaceCart, totalCount }}>
       {children}
     </CartContext.Provider>
   );
