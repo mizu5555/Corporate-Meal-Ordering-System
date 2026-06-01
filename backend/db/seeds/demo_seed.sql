@@ -327,6 +327,30 @@ WHERE email = 'demo.employee2@corpmeal.local';
 UPDATE users SET display_name = '李大華', badge_code = 'EMP-0004'
 WHERE email = 'demo.employee3@corpmeal.local';
 
+-- Pending employees — registered but not yet enabled by admin (is_active = FALSE).
+-- They appear in 使用者審核 待審核 tab for the admin to enable in the demo.
+INSERT INTO users (email, display_name, role_id, password_hash, is_active, badge_code)
+VALUES (
+  'demo.pending.emp1@corpmeal.local',
+  '待審 林小美',
+  (SELECT id FROM roles WHERE name = 'employee'),
+  '$2b$12$V92j2Sanc/Ie9L.w1HsXh.Go4a4oDKcq1sovHfObRIsOJ.5F/hxhG',
+  FALSE,
+  'EMP-0005'
+)
+ON CONFLICT (email) DO NOTHING;
+
+INSERT INTO users (email, display_name, role_id, password_hash, is_active, badge_code)
+VALUES (
+  'demo.pending.emp2@corpmeal.local',
+  'Pending Dave Lin',
+  (SELECT id FROM roles WHERE name = 'employee'),
+  '$2b$12$V92j2Sanc/Ie9L.w1HsXh.Go4a4oDKcq1sovHfObRIsOJ.5F/hxhG',
+  FALSE,
+  'EMP-0006'
+)
+ON CONFLICT (email) DO NOTHING;
+
 -- ─────────────────────────────────────────────
 -- 7. EMPLOYEE FACILITIES
 --    employee1 → F12A
