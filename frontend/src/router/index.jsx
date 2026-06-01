@@ -9,6 +9,7 @@ import AdminStatsPage from "../pages/admin/AdminStatsPage";
 import AdminPermissionsPage from "../pages/admin/AdminPermissionsPage";
 import AdminVendorReviewDetailPage from "../pages/admin/AdminVendorReviewDetailPage";
 import AdminVendorReviewListPage from "../pages/admin/AdminVendorReviewListPage";
+import AccountPage from "../pages/employee/AccountPage";
 import BadgePage from "../pages/employee/BadgePage";
 import CartPage from "../pages/employee/CartPage";
 import EmployeeHomePage from "../pages/employee/EmployeeHomePage";
@@ -78,6 +79,7 @@ export function AppRouter() {
             <Route element={<CartPage />} path="/employee/cart" />
             <Route element={<OrdersPage />} path="/employee/orders" />
             <Route element={<BadgePage />} path="/employee/badge" />
+            <Route element={<AccountPage />} path="/employee/account" />
           </Route>
 
           <Route element={<RoleRoute allowedRoles={["vendor_manager"]} />}>

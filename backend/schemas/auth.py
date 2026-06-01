@@ -15,6 +15,11 @@ class RegisterRequest(BaseModel):
     role: Literal["employee", "vendor_manager"]
 
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
