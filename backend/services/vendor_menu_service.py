@@ -10,6 +10,7 @@ from __future__ import annotations
 from backend.core.errors import CodedHTTPException
 from backend.repositories.menu_category_repository import MenuCategoryRepository
 from backend.repositories.menu_item_repository import MenuItemRepository
+from backend.repositories.vendor_profile_repository import VendorProfileRepository
 from backend.schemas.vendor_self import MenuItem, MenuItemCreate, MenuItemUpdate
 from backend.storage.photo_storage import PhotoStorage
 
@@ -20,21 +21,30 @@ class VendorMenuService:
         menu_item_repository: MenuItemRepository,
         category_repository: MenuCategoryRepository,
         photo_storage: PhotoStorage,
+        vendor_repository: VendorProfileRepository | None = None,
     ) -> None:
         self.menu_item_repository = menu_item_repository
         self.category_repository = category_repository
         self.photo_storage = photo_storage
+        self.vendor_repository = vendor_repository
 
     # --- query ---
 
     def list(
-        self, vendor_id: int, *, category_id: int | None = None, available: bool | None = None
+        self,
+        vendor_id: int,
+        *,
+        category_id: int | None = None,
+        available: bool | None = None,
+        facility_id: int | None = None,
     ) -> list[MenuItem]:
+        self._assert_facility_access(vendor_id, facility_id)
         return self.menu_item_repository.list(
             vendor_id=vendor_id, category_id=category_id, available=available
         )
 
-    def get(self, vendor_id: int, item_id: int) -> MenuItem:
+    def get(self, vendor_id: int, item_id: int, *, facility_id: int | None = None) -> MenuItem:
+        self._assert_facility_access(vendor_id, facility_id)
         item = self.menu_item_repository.get(vendor_id=vendor_id, item_id=item_id)
         if item is None:
             raise CodedHTTPException(status_code=404, code="not_found", detail="menu item not found")
@@ -42,7 +52,8 @@ class VendorMenuService:
 
     # --- mutate ---
 
-    def create(self, vendor_id: int, payload: MenuItemCreate) -> MenuItem:
+    def create(self, vendor_id: int, payload: MenuItemCreate, *, facility_id: int | None = None) -> MenuItem:
+        self._assert_facility_access(vendor_id, facility_id)
         if payload.category_id is not None:
             self._assert_category_belongs_to(vendor_id, payload.category_id)
         return self.menu_item_repository.create(
@@ -55,9 +66,16 @@ class VendorMenuService:
             daily_quota=payload.daily_quota,
         )
 
-    def update(self, vendor_id: int, item_id: int, payload: MenuItemUpdate) -> MenuItem:
+    def update(
+        self,
+        vendor_id: int,
+        item_id: int,
+        payload: MenuItemUpdate,
+        *,
+        facility_id: int | None = None,
+    ) -> MenuItem:
         # 確保 item 屬於 caller (避免讓 update 變成跨商家寫入)
-        self.get(vendor_id, item_id)
+        self.get(vendor_id, item_id, facility_id=facility_id)
         fields = payload.model_dump(exclude_unset=True)
         if "category_id" in fields and fields["category_id"] is not None:
             self._assert_category_belongs_to(vendor_id, fields["category_id"])
@@ -68,16 +86,23 @@ class VendorMenuService:
         assert updated is not None
         return updated
 
-    def delete(self, vendor_id: int, item_id: int) -> None:
+    def delete(self, vendor_id: int, item_id: int, *, facility_id: int | None = None) -> None:
         # 連帶刪除檔案 (best-effort)；先刪檔再刪 row 避免 row 沒了但檔還在。
-        self.get(vendor_id, item_id)
+        self.get(vendor_id, item_id, facility_id=facility_id)
         self.photo_storage.delete_menu_photo(vendor_id=vendor_id, item_id=item_id)
         self.menu_item_repository.delete(vendor_id=vendor_id, item_id=item_id)
 
     # --- photo sub-resource (used by Task 12) ---
 
-    def replace_photo(self, vendor_id: int, item_id: int, data: bytes) -> str:
-        self.get(vendor_id, item_id)  # ensure ownership before touching disk
+    def replace_photo(
+        self,
+        vendor_id: int,
+        item_id: int,
+        data: bytes,
+        *,
+        facility_id: int | None = None,
+    ) -> str:
+        self.get(vendor_id, item_id, facility_id=facility_id)  # ensure ownership before touching disk
         path = self.photo_storage.store_menu_photo(
             vendor_id=vendor_id, item_id=item_id, data=data
         )
@@ -86,8 +111,8 @@ class VendorMenuService:
         )
         return path
 
-    def delete_photo(self, vendor_id: int, item_id: int) -> None:
-        self.get(vendor_id, item_id)
+    def delete_photo(self, vendor_id: int, item_id: int, *, facility_id: int | None = None) -> None:
+        self.get(vendor_id, item_id, facility_id=facility_id)
         self.photo_storage.delete_menu_photo(vendor_id=vendor_id, item_id=item_id)
         self.menu_item_repository.clear_photo_path(vendor_id=vendor_id, item_id=item_id)
 
@@ -99,4 +124,14 @@ class VendorMenuService:
                 status_code=422,
                 code="validation_error",
                 detail="category_id does not belong to this vendor",
+            )
+
+    def _assert_facility_access(self, vendor_id: int, facility_id: int | None) -> None:
+        if facility_id is None or self.vendor_repository is None:
+            return
+        if not any(facility.id == facility_id for facility in self.vendor_repository.list_facilities(vendor_id)):
+            raise CodedHTTPException(
+                status_code=403,
+                code="forbidden",
+                detail="vendor does not serve the selected facility",
             )

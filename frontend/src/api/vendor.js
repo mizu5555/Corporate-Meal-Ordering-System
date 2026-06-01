@@ -6,9 +6,9 @@ function withMockFallback(apiCall, mockResult) {
   return apiCall().catch(() => mockResult);
 }
 
-export function getMyMenu() {
+export function getMyMenu({ facilityId } = {}) {
   return withMockFallback(
-    () => apiFetch("/vendor/me/menu"),
+    () => apiFetch(appendFacilityParam("/vendor/me/menu", facilityId)),
     (MOCK_MENU[1] ?? []).map((item) => ({
       ...item,
       created_at: new Date().toISOString(),
@@ -71,38 +71,38 @@ export function confirmPickup(orderId) {
   });
 }
 
-export function createMenuItem(data) {
-  return apiFetch("/vendor/me/menu", {
+export function createMenuItem(data, { facilityId } = {}) {
+  return apiFetch(appendFacilityParam("/vendor/me/menu", facilityId), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
 }
 
-export function updateMenuItem(itemId, data) {
-  return apiFetch(`/vendor/me/menu/${itemId}`, {
+export function updateMenuItem(itemId, data, { facilityId } = {}) {
+  return apiFetch(appendFacilityParam(`/vendor/me/menu/${itemId}`, facilityId), {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
 }
 
-export function deleteMenuItem(itemId) {
-  return apiFetch(`/vendor/me/menu/${itemId}`, { method: "DELETE" });
+export function deleteMenuItem(itemId, { facilityId } = {}) {
+  return apiFetch(appendFacilityParam(`/vendor/me/menu/${itemId}`, facilityId), { method: "DELETE" });
 }
 
-export function uploadMenuItemPhoto(itemId, file) {
+export function uploadMenuItemPhoto(itemId, file, { facilityId } = {}) {
   const form = new FormData();
   form.append("file", file);
   // Do NOT set Content-Type — browser sets multipart/form-data with boundary automatically.
-  return apiFetch(`/vendor/me/menu/${itemId}/photo`, {
+  return apiFetch(appendFacilityParam(`/vendor/me/menu/${itemId}/photo`, facilityId), {
     method: "PUT",
     body: form,
   });
 }
 
-export function deleteMenuItemPhoto(itemId) {
-  return apiFetch(`/vendor/me/menu/${itemId}/photo`, { method: "DELETE" });
+export function deleteMenuItemPhoto(itemId, { facilityId } = {}) {
+  return apiFetch(appendFacilityParam(`/vendor/me/menu/${itemId}/photo`, facilityId), { method: "DELETE" });
 }
 
 export function submitVendorApplication(data) {
