@@ -25,6 +25,8 @@ def _setup(tmp_path: Path) -> tuple[TestClient, MenuItemRepository, MenuCategory
     vendor_repo = VendorProfileRepository()
     vendor_repo.seed(VendorRecord(id=1, name="Alice", status="approved"))
     vendor_repo.seed(VendorRecord(id=2, name="Bob", status="approved"))
+    vendor_repo.assign_facility(1, facility_id=10, code="F10", name="Fab 10")
+    vendor_repo.assign_facility(2, facility_id=20, code="F20", name="Fab 20")
 
     cat_repo = MenuCategoryRepository()
     item_repo = MenuItemRepository()
@@ -84,6 +86,25 @@ def test_list_filters_by_category(tmp_path: Path) -> None:
     assert [i["name"] for i in listed] == ["Soup"]
 
 
+def test_list_accepts_served_facility_scope(tmp_path: Path) -> None:
+    client, item_repo, _ = _setup(tmp_path)
+    item_repo.create(vendor_id=1, name="Soup", price_cents=10)
+
+    resp = client.get("/vendor/me/menu?facility_id=10", headers=_h())
+
+    assert resp.status_code == 200
+    assert [item["name"] for item in resp.json()] == ["Soup"]
+
+
+def test_list_rejects_unserved_facility_scope(tmp_path: Path) -> None:
+    client, _, _ = _setup(tmp_path)
+
+    resp = client.get("/vendor/me/menu?facility_id=20", headers=_h())
+
+    assert resp.status_code == 403
+    assert resp.json()["code"] == "forbidden"
+
+
 def test_cross_vendor_get_returns_404(tmp_path: Path) -> None:
     client, item_repo, _ = _setup(tmp_path)
     item = item_repo.create(vendor_id=1, name="A", price_cents=10)
@@ -99,6 +120,34 @@ def test_patch_partial_update(tmp_path: Path) -> None:
     body = resp.json()
     assert body["daily_quota"] == 0
     assert body["name"] == "A"
+
+
+def test_create_rejects_unserved_facility_scope(tmp_path: Path) -> None:
+    client, item_repo, _ = _setup(tmp_path)
+
+    resp = client.post(
+        "/vendor/me/menu?facility_id=20",
+        headers=_h(),
+        json={"name": "A", "price_cents": 10},
+    )
+
+    assert resp.status_code == 403
+    assert resp.json()["code"] == "forbidden"
+    assert item_repo.list(vendor_id=1) == []
+
+
+def test_patch_rejects_unserved_facility_scope(tmp_path: Path) -> None:
+    client, item_repo, _ = _setup(tmp_path)
+    item = item_repo.create(vendor_id=1, name="A", price_cents=10)
+
+    resp = client.patch(
+        f"/vendor/me/menu/{item.id}?facility_id=20",
+        headers=_h(),
+        json={"daily_quota": 0},
+    )
+
+    assert resp.status_code == 403
+    assert resp.json()["code"] == "forbidden"
 
 
 def test_delete_item(tmp_path: Path) -> None:
@@ -144,6 +193,21 @@ def test_put_photo_happy_path(tmp_path: Path) -> None:
     assert resp.json() == {"photo_path": f"vendors/1/menu/{item.id}.jpg"}
     assert (tmp_path / f"vendors/1/menu/{item.id}.jpg").exists()
     assert item_repo.get(vendor_id=1, item_id=item.id).photo_path == f"vendors/1/menu/{item.id}.jpg"
+
+
+def test_put_photo_rejects_unserved_facility_scope(tmp_path: Path) -> None:
+    client, item_repo, _ = _setup(tmp_path)
+    item = item_repo.create(vendor_id=1, name="A", price_cents=10)
+
+    resp = client.put(
+        f"/vendor/me/menu/{item.id}/photo?facility_id=20",
+        headers=_h(),
+        files={"file": ("photo.png", _png_bytes(), "image/png")},
+    )
+
+    assert resp.status_code == 403
+    assert resp.json()["code"] == "forbidden"
+    assert item_repo.get(vendor_id=1, item_id=item.id).photo_path is None
 
 
 def test_put_photo_rejects_non_image(tmp_path: Path) -> None:

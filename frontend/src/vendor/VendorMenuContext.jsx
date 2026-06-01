@@ -1,9 +1,11 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { createMenuItem, deleteMenuItem, deleteMenuItemPhoto, getMyMenu, updateMenuItem, uploadMenuItemPhoto } from "../api/vendor";
+import { useFacility } from "../facility/FacilityContext";
 
 const VendorMenuContext = createContext(null);
 
 export function VendorMenuProvider({ children }) {
+  const { selectedFacilityId } = useFacility();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -12,27 +14,27 @@ export function VendorMenuProvider({ children }) {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    getMyMenu()
+    getMyMenu({ facilityId: selectedFacilityId })
       .then((data) => { if (!cancelled) setItems(data); })
       .catch((err) => { if (!cancelled) setError(err); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, []);
+  }, [selectedFacilityId]);
 
   async function addItem(data) {
-    const newItem = await createMenuItem(data);
+    const newItem = await createMenuItem(data, { facilityId: selectedFacilityId });
     setItems((prev) => [...prev, newItem]);
     return newItem;
   }
 
   async function updateItem(id, data) {
-    const updated = await updateMenuItem(id, data);
+    const updated = await updateMenuItem(id, data, { facilityId: selectedFacilityId });
     setItems((prev) => prev.map((item) => (item.id === id ? updated : item)));
     return updated;
   }
 
   async function removeItem(id) {
-    await deleteMenuItem(id);
+    await deleteMenuItem(id, { facilityId: selectedFacilityId });
     setItems((prev) => prev.filter((item) => item.id !== id));
   }
 
@@ -41,7 +43,7 @@ export function VendorMenuProvider({ children }) {
   }
 
   async function uploadPhoto(id, file) {
-    const result = await uploadMenuItemPhoto(id, file);
+    const result = await uploadMenuItemPhoto(id, file, { facilityId: selectedFacilityId });
     setItems((prev) =>
       prev.map((item) =>
         item.id === id ? { ...item, photo_path: result.photo_path, _photo_v: Date.now() } : item,
@@ -51,7 +53,7 @@ export function VendorMenuProvider({ children }) {
   }
 
   async function removePhoto(id) {
-    await deleteMenuItemPhoto(id);
+    await deleteMenuItemPhoto(id, { facilityId: selectedFacilityId });
     setItems((prev) =>
       prev.map((item) => (item.id === id ? { ...item, photo_path: null } : item)),
     );
