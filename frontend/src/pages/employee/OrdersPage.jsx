@@ -1,8 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { deleteMyOrder, getMyBilling, updateMyOrder } from "../../api/employee";
 import FacilityScopeLabel from "../../facility/FacilityScopeLabel";
 import { useMyOrders } from "../../hooks/useMyOrders";
 import { formatMoney, formatPrice } from "../../utils/format";
+import { datesWithoutOrders, getDefaultOrderHistoryRange, getFutureMealDates } from "../../utils/orderHistoryRange";
 
 const STATUS_LABELS = {
   pending: "待確認",
@@ -46,7 +48,10 @@ function currentPeriod() {
 }
 
 export default function OrdersPage() {
-  const { orders, setOrders, loading, error } = useMyOrders();
+  const navigate = useNavigate();
+  const orderRange = useMemo(() => getDefaultOrderHistoryRange(), []);
+  const futureMealDates = useMemo(() => getFutureMealDates(), []);
+  const { orders, setOrders, loading, error } = useMyOrders(orderRange);
   const [billing, setBilling] = useState(null);
   const [billingError, setBillingError] = useState(false);
   const [editingOrderId, setEditingOrderId] = useState(null);
@@ -55,6 +60,7 @@ export default function OrdersPage() {
   const [actionError, setActionError] = useState(null);
 
   const visibleOrders = orders.filter((order) => order.status !== "cancelled");
+  const missingFutureOrderDates = datesWithoutOrders(orders, futureMealDates);
 
   useEffect(() => {
     let alive = true;
@@ -141,6 +147,25 @@ export default function OrdersPage() {
 
       {error && <p className="error-state">無法載入訂單，請稍後再試。</p>}
       {actionError && <p className="error-state" style={{ marginBottom: 20 }}>{actionError}</p>}
+
+      {!loading && !error && missingFutureOrderDates.length > 0 && (
+        <div className="panel" style={{ padding: "14px 18px", marginBottom: 20 }}>
+          <p style={{ margin: 0, color: "var(--muted)", fontSize: 13 }}>未來 7 天尚未訂餐</p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 12 }}>
+            {missingFutureOrderDates.map((mealDate) => (
+              <button
+                key={mealDate}
+                className="ghost-button"
+                type="button"
+                onClick={() => navigate(`/employee/random-meal?meal_date=${mealDate}`)}
+                style={{ color: "var(--text)", borderColor: "var(--line)", background: "var(--surface)" }}
+              >
+                {mealDate} 去點餐
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {!loading && !error && visibleOrders.length === 0 && (
         <p className="empty-state">尚無目前訂單。</p>

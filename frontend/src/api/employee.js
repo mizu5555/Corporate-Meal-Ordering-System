@@ -66,8 +66,12 @@ export function getMySelections() {
   return withMockFallback(() => apiFetch("/employee/me/selections"), []);
 }
 
-export function getMyOrders() {
-  return withMockFallback(() => apiFetch("/employee/me/orders"), []);
+export function getMyOrders({ startDate, endDate } = {}) {
+  const params = new URLSearchParams();
+  if (startDate) params.set("start_date", startDate);
+  if (endDate) params.set("end_date", endDate);
+  const qs = params.toString();
+  return withMockFallback(() => apiFetch(`/employee/me/orders${qs ? `?${qs}` : ""}`), []);
 }
 
 export function getMyBilling({ year, month } = {}) {
