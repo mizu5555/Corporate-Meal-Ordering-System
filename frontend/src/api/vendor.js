@@ -113,6 +113,20 @@ export function deleteMenuItemPhoto(itemId, { facilityId } = {}) {
   return apiFetch(appendFacilityParam(`/vendor/me/menu/${itemId}/photo`, facilityId), { method: "DELETE" });
 }
 
+export function getApplicationFacilities() {
+  return withMockFallback(
+    () => apiFetch("/vendor/applications/facilities"),
+    Array.from(
+      new Map(
+        MOCK_VENDORS.flatMap((vendor) => vendor.served_facilities ?? []).map((facility) => [
+          facility.id,
+          facility,
+        ]),
+      ).values(),
+    ),
+  );
+}
+
 export function submitVendorApplication(data) {
   return apiFetch("/vendor/applications", {
     method: "POST",

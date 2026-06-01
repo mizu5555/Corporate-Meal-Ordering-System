@@ -3,6 +3,21 @@ from __future__ import annotations
 
 from backend.db.connection import get_connection
 from backend.schemas.vendor import VendorApplicationCreate, VendorApplicationDetail, VendorApplicationSummary
+from backend.schemas.vendor_self import Facility
+
+
+def _vendor_facilities(conn, vendor_id: int) -> list[Facility]:
+    rows = conn.execute(
+        """
+        SELECT f.id, f.code, f.name
+        FROM facilities f
+        JOIN vendor_facilities vf ON vf.facility_id = f.id
+        WHERE vf.vendor_id = %s
+        ORDER BY f.code, f.id
+        """,
+        (vendor_id,),
+    ).fetchall()
+    return [Facility(**dict(row)) for row in rows]
 
 
 class VendorRepository:
@@ -17,6 +32,15 @@ class VendorRepository:
                 (data.vendor_name, data.address, data.business_hours, data.contact_phone, data.contact_email, user_id),
             ).fetchone()
             vendor_id = vendor_row["id"]
+            for facility_id in data.facility_ids:
+                conn.execute(
+                    """
+                    INSERT INTO vendor_facilities (vendor_id, facility_id)
+                    VALUES (%s, %s)
+                    ON CONFLICT DO NOTHING
+                    """,
+                    (vendor_id, facility_id),
+                )
 
             app_row = conn.execute(
                 """
@@ -26,6 +50,7 @@ class VendorRepository:
                 """,
                 (vendor_id, user_id),
             ).fetchone()
+            served_facilities = _vendor_facilities(conn, vendor_id)
 
         return VendorApplicationDetail(
             application_id=app_row["id"],
@@ -36,6 +61,7 @@ class VendorRepository:
             business_hours=data.business_hours,
             contact_phone=data.contact_phone,
             contact_email=data.contact_email,
+            served_facilities=served_facilities,
             submitted_at=app_row["created_at"],
         )
 
@@ -64,9 +90,11 @@ class VendorRepository:
                 (user_id,),
             ).fetchone()
 
-        if row is None:
-            return None
-        return VendorApplicationDetail(**dict(row))
+            if row is None:
+                return None
+            data = dict(row)
+            data["served_facilities"] = _vendor_facilities(conn, data["vendor_id"])
+        return VendorApplicationDetail(**data)
 
     def list_applications(self, *, status: str | None = None) -> list[VendorApplicationSummary]:
         query = """
@@ -119,9 +147,11 @@ class VendorRepository:
                 (application_id,),
             ).fetchone()
 
-        if row is None:
-            return None
-        return VendorApplicationDetail(**dict(row))
+            if row is None:
+                return None
+            data = dict(row)
+            data["served_facilities"] = _vendor_facilities(conn, data["vendor_id"])
+        return VendorApplicationDetail(**data)
 
     def mark_application_reviewed(
         self,
