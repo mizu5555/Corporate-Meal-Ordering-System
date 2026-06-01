@@ -7,6 +7,7 @@ import AdminFacilitiesPage from "../pages/admin/AdminFacilitiesPage";
 import AdminBillingPage from "../pages/admin/AdminBillingPage";
 import AdminStatsPage from "../pages/admin/AdminStatsPage";
 import AdminPermissionsPage from "../pages/admin/AdminPermissionsPage";
+import AdminEmployeeReviewPage from "../pages/admin/AdminEmployeeReviewPage";
 import AdminVendorReviewDetailPage from "../pages/admin/AdminVendorReviewDetailPage";
 import AdminVendorReviewListPage from "../pages/admin/AdminVendorReviewListPage";
 import AccountPage from "../pages/employee/AccountPage";
@@ -102,6 +103,7 @@ export function AppRouter() {
 
           <Route element={<RoleRoute allowedRoles={["admin"]} />}>
             <Route element={<Navigate replace to="/admin/stats" />} path="/admin" />
+            <Route element={<AdminEmployeeReviewPage />} path="/admin/employees" />
             <Route element={<AdminVendorReviewListPage />} path="/admin/vendors" />
             <Route element={<AdminVendorReviewDetailPage />} path="/admin/vendors/:applicationId" />
             <Route element={<AdminPermissionsPage />} path="/admin/permissions" />

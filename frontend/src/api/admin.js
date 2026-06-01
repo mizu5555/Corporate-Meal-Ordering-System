@@ -1,9 +1,10 @@
 import { apiFetch } from "./client";
 
-export function getUsers({ search, role } = {}) {
+export function getUsers({ search, role, is_active } = {}) {
   const params = new URLSearchParams();
   if (search) params.set("search", search);
   if (role) params.set("role", role);
+  if (is_active !== undefined && is_active !== null) params.set("is_active", String(is_active));
   const qs = params.toString();
   return apiFetch(`/admin/users${qs ? `?${qs}` : ""}`);
 }

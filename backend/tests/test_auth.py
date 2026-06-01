@@ -103,7 +103,10 @@ def test_login_unknown_email_returns_401_invalid_credentials() -> None:
 
 @pytest.mark.parametrize("role", ["employee", "vendor_manager"])
 def test_register_new_user_returns_201_with_token(role: str) -> None:
-    registered_user = _user(role=role)
+    # _fetch_user returns what was actually written to the DB:
+    # employee → is_active=False (pending approval); vendor_manager → is_active=True
+    is_active = role != "employee"
+    registered_user = _user(role=role, is_active=is_active)
     with (
         patch("backend.routes.auth.get_connection", return_value=_conn_ctx()),
         patch("backend.routes.auth._fetch_user", return_value=registered_user),
@@ -118,6 +121,41 @@ def test_register_new_user_returns_201_with_token(role: str) -> None:
     assert "access_token" in body
     assert body["role"] == role
     assert body["user_id"] == 1
+    assert body["is_active"] is is_active
+
+
+def test_register_employee_starts_inactive() -> None:
+    """Newly registered employees must be inactive until an admin enables them."""
+    registered_user = _user(role="employee", is_active=False)
+    with (
+        patch("backend.routes.auth.get_connection", return_value=_conn_ctx(badge_code="EMP-0001")),
+        patch("backend.routes.auth._fetch_user", return_value=registered_user),
+    ):
+        resp = client.post(
+            "/auth/register",
+            json={"email": "new.emp@example.com", "password": _PASSWORD, "display_name": "New Emp", "role": "employee"},
+        )
+
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["is_active"] is False
+    assert body["badge_code"] == "EMP-0001"
+
+
+def test_register_vendor_manager_starts_active() -> None:
+    """Vendor managers are active on registration (vendor approval is a separate step)."""
+    registered_user = _user(role="vendor_manager", is_active=True)
+    with (
+        patch("backend.routes.auth.get_connection", return_value=_conn_ctx()),
+        patch("backend.routes.auth._fetch_user", return_value=registered_user),
+    ):
+        resp = client.post(
+            "/auth/register",
+            json={"email": "new.vendor@example.com", "password": _PASSWORD, "display_name": "New Vendor", "role": "vendor_manager"},
+        )
+
+    assert resp.status_code == 201
+    assert resp.json()["is_active"] is True
 
 
 def test_register_existing_email_returns_409_email_taken() -> None:

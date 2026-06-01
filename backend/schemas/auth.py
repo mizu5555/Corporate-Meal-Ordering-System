@@ -26,5 +26,6 @@ class TokenResponse(BaseModel):
     user_id: int
     role: str
     display_name: str
+    is_active: bool = True
     vendor_id: int | None = None
     badge_code: str | None = None

@@ -71,6 +71,7 @@ def login(payload: LoginRequest) -> TokenResponse:
         user_id=user["id"],
         role=user["role"],
         display_name=user["display_name"],
+        is_active=user["is_active"],
         vendor_id=user["vendor_id"],
     )
 
@@ -97,11 +98,14 @@ def register(payload: RegisterRequest) -> TokenResponse:
 
         row = conn.execute(
             """
-            INSERT INTO users (email, display_name, role_id, password_hash, badge_code)
+            INSERT INTO users (email, display_name, role_id, password_hash, badge_code, is_active)
             SELECT %s, %s, r.id, %s,
                    CASE WHEN r.name = 'employee'
                         THEN 'EMP-' || LPAD(nextval('employee_badge_seq')::text, 4, '0')
-                        ELSE NULL END
+                        ELSE NULL END,
+                   -- Employees start inactive and require admin approval before they can order.
+                   -- All other roles (vendor_manager, admin) are active immediately.
+                   CASE WHEN r.name = 'employee' THEN FALSE ELSE TRUE END
             FROM roles r
             WHERE r.name = %s
             RETURNING id, badge_code
@@ -116,6 +120,7 @@ def register(payload: RegisterRequest) -> TokenResponse:
         user_id=user["id"],
         role=user["role"],
         display_name=user["display_name"],
+        is_active=user["is_active"],
         vendor_id=None,
         badge_code=row["badge_code"],
     )

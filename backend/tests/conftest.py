@@ -4,6 +4,7 @@ import pytest
 from prometheus_client import REGISTRY
 
 from backend.core.audit import get_audit_log_repository
+from backend.core.employee_identity import get_employee_active_check
 from backend.main import app
 from backend.repositories.audit_log_repository import AuditLogRepository
 
@@ -31,3 +32,18 @@ def _in_memory_audit_repo() -> Generator[None, None, None]:
     app.dependency_overrides.setdefault(get_audit_log_repository, lambda: AuditLogRepository())
     yield
     app.dependency_overrides.pop(get_audit_log_repository, None)
+
+
+@pytest.fixture(autouse=True)
+def _bypass_employee_active_check(request: pytest.FixtureRequest) -> Generator[None, None, None]:
+    """Unit tests run without a DB — bypass the is_active DB check in require_employee.
+
+    Integration tests (marked with ``pytest.mark.integration``) skip this so
+    the real check runs against Postgres.
+    """
+    if request.node.get_closest_marker("integration"):
+        yield
+        return
+    app.dependency_overrides.setdefault(get_employee_active_check, lambda: (lambda _: None))
+    yield
+    app.dependency_overrides.pop(get_employee_active_check, None)
