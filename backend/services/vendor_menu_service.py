@@ -7,12 +7,22 @@
 """
 from __future__ import annotations
 
+from datetime import date, timedelta
+
 from backend.core.errors import CodedHTTPException
 from backend.repositories.menu_category_repository import MenuCategoryRepository
 from backend.repositories.menu_item_repository import MenuItemRepository
 from backend.repositories.vendor_profile_repository import VendorProfileRepository
-from backend.schemas.vendor_self import MenuItem, MenuItemCreate, MenuItemUpdate
+from backend.schemas.vendor_self import (
+    MenuItem,
+    MenuItemCreate,
+    MenuItemDateOverride,
+    MenuItemDateOverrideUpsert,
+    MenuItemUpdate,
+)
 from backend.storage.photo_storage import PhotoStorage
+
+MENU_DATE_WINDOW_DAYS = 7
 
 
 class VendorMenuService:
@@ -116,7 +126,50 @@ class VendorMenuService:
         self.photo_storage.delete_menu_photo(vendor_id=vendor_id, item_id=item_id)
         self.menu_item_repository.clear_photo_path(vendor_id=vendor_id, item_id=item_id)
 
+    # --- per-date schedule / overrides ---
+
+    def list_date_overrides(self, vendor_id: int, item_id: int) -> list[MenuItemDateOverride]:
+        """Return all date overrides for an item (validates ownership)."""
+        self.get(vendor_id, item_id)  # raises 404 if not owned
+        return self.menu_item_repository.list_date_overrides(vendor_id=vendor_id, item_id=item_id)
+
+    def upsert_date_override(
+        self,
+        vendor_id: int,
+        item_id: int,
+        meal_date: date,
+        payload: MenuItemDateOverrideUpsert,
+    ) -> MenuItemDateOverride:
+        """Create or replace the per-date override for item/meal_date."""
+        self.get(vendor_id, item_id)  # raises 404 if not owned
+        self._assert_date_in_window(meal_date)
+        return self.menu_item_repository.upsert_date_override(
+            vendor_id=vendor_id,
+            item_id=item_id,
+            meal_date=meal_date,
+            available=payload.available,
+            daily_quota=payload.daily_quota,
+            price_cents=payload.price_cents,
+        )
+
+    def delete_date_override(self, vendor_id: int, item_id: int, meal_date: date) -> None:
+        """Delete the per-date override for item/meal_date (idempotent)."""
+        self.get(vendor_id, item_id)  # raises 404 if not owned
+        self.menu_item_repository.delete_date_override(
+            vendor_id=vendor_id, item_id=item_id, meal_date=meal_date
+        )
+
     # --- helpers ---
+
+    def _assert_date_in_window(self, meal_date: date) -> None:
+        today = date.today()
+        max_date = today + timedelta(days=MENU_DATE_WINDOW_DAYS - 1)
+        if meal_date < today or meal_date > max_date:
+            raise CodedHTTPException(
+                status_code=400,
+                code="validation_error",
+                detail="meal_date must be within the next 7 days",
+            )
 
     def _assert_category_belongs_to(self, vendor_id: int, category_id: int) -> None:
         if self.category_repository.get(vendor_id=vendor_id, category_id=category_id) is None:

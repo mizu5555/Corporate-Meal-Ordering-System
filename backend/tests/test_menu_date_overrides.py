@@ -1,0 +1,429 @@
+"""Unit tests for per-date menu scheduling (override CRUD + effective resolution).
+
+Tests cover:
+  - Base fallback: no override → base values used everywhere (ordering, browse, random)
+  - Per-date quota override: ordering respects the overridden quota
+  - Per-date availability off: item not orderable / not visible for that day
+  - Per-date price override: snapshot captures the overridden price
+  - Non-overridden date: base values unchanged for other dates
+  - CRUD endpoints via HTTP: list, upsert, delete
+  - Validation: date outside 7-day window rejected
+"""
+from __future__ import annotations
+
+from datetime import date, timedelta
+
+import pytest
+from fastapi.testclient import TestClient
+
+from backend.core.audit import get_audit_log_repository
+from backend.core.vendor_identity import get_vendor_profile_repository
+from backend.main import app
+from backend.repositories.audit_log_repository import AuditLogRepository
+from backend.repositories.employee_selection_repository import EmployeeSelectionRepository
+from backend.repositories.menu_item_repository import MenuItemRepository
+from backend.repositories.vendor_profile_repository import VendorProfileRepository, VendorRecord
+from backend.routes.employee_ordering import get_employee_selection_repository
+from backend.routes.vendor_menu import get_menu_item_repository
+from backend.services.employee_ordering_service import EmployeeOrderingService
+from backend.services.vendor_menu_service import VendorMenuService, MENU_DATE_WINDOW_DAYS
+from backend.repositories.menu_category_repository import MenuCategoryRepository
+from backend.storage.photo_storage import PhotoStorage
+from unittest.mock import MagicMock
+
+
+# ── helpers ───────────────────────────────────────────────────────────────────
+
+
+def _make_repos():
+    vendor_repo = VendorProfileRepository()
+    vendor_repo.seed(VendorRecord(id=1, name="Bento", status="approved", address="No.1"))
+    item_repo = MenuItemRepository()
+    selection_repo = EmployeeSelectionRepository()
+    return vendor_repo, item_repo, selection_repo
+
+
+def _make_service(vendor_repo, item_repo, selection_repo):
+    return EmployeeOrderingService(
+        vendor_repository=vendor_repo,
+        menu_item_repository=item_repo,
+        selection_repository=selection_repo,
+        audit_log_repository=AuditLogRepository(),
+    )
+
+
+def _make_vendor_menu_service(item_repo):
+    cat_repo = MenuCategoryRepository()
+    storage = MagicMock(spec=PhotoStorage)
+    return VendorMenuService(item_repo, cat_repo, storage)
+
+
+def _setup_http():
+    vendor_repo, item_repo, selection_repo = _make_repos()
+    app.dependency_overrides[get_vendor_profile_repository] = lambda: vendor_repo
+    app.dependency_overrides[get_menu_item_repository] = lambda: item_repo
+    app.dependency_overrides[get_employee_selection_repository] = lambda: selection_repo
+    app.dependency_overrides[get_audit_log_repository] = lambda: AuditLogRepository()
+    return TestClient(app), vendor_repo, item_repo, selection_repo
+
+
+def teardown_function():
+    app.dependency_overrides.clear()
+
+
+def _today_plus(days: int) -> date:
+    return date.today() + timedelta(days=days)
+
+
+def _vh() -> dict:
+    return {"x-user-role": "vendor_manager", "x-vendor-id": "1"}
+
+
+def _eh(uid: int = 99) -> dict:
+    return {"x-user-role": "employee", "x-user-id": str(uid)}
+
+
+# ── 1. Base fallback ──────────────────────────────────────────────────────────
+
+
+def test_base_fallback_no_override_browse() -> None:
+    vendor_repo, item_repo, selection_repo = _make_repos()
+    item_repo.create(vendor_id=1, name="Rice Box", price_cents=8000, available=True, daily_quota=10)
+    svc = _make_service(vendor_repo, item_repo, selection_repo)
+
+    items = svc.list_menu(1, meal_date=_today_plus(0))
+    assert len(items) == 1
+    assert items[0].available is True
+    assert items[0].daily_quota == 10
+    assert items[0].price_cents == 8000
+
+
+def test_base_fallback_no_override_order_price() -> None:
+    vendor_repo, item_repo, selection_repo = _make_repos()
+    item = item_repo.create(vendor_id=1, name="Rice Box", price_cents=8000, available=True)
+    svc = _make_service(vendor_repo, item_repo, selection_repo)
+
+    from backend.schemas.employee import EmployeeOrderCreate, EmployeeOrderItemCreate
+    order = svc.create_order(
+        10, 1,
+        EmployeeOrderCreate(
+            meal_date=_today_plus(1),
+            items=[EmployeeOrderItemCreate(item_id=item.id, quantity=1)],
+        ),
+    )
+    assert order.items[0].unit_price_cents == 8000
+
+
+# ── 2. Per-date quota override ────────────────────────────────────────────────
+
+
+def test_per_date_quota_override_allows_order_within_new_quota() -> None:
+    vendor_repo, item_repo, selection_repo = _make_repos()
+    item = item_repo.create(vendor_id=1, name="Rice Box", price_cents=8000, available=True, daily_quota=5)
+    target = _today_plus(1)
+    # Set override: only 2 allowed on target day
+    item_repo.upsert_date_override(
+        vendor_id=1, item_id=item.id, meal_date=target,
+        available=None, daily_quota=2, price_cents=None,
+    )
+    svc = _make_service(vendor_repo, item_repo, selection_repo)
+    from backend.schemas.employee import EmployeeOrderCreate, EmployeeOrderItemCreate
+
+    order = svc.create_order(
+        10, 1,
+        EmployeeOrderCreate(
+            meal_date=target,
+            items=[EmployeeOrderItemCreate(item_id=item.id, quantity=2)],
+        ),
+    )
+    assert order.items[0].quantity == 2
+
+
+def test_per_date_quota_override_blocks_order_exceeding_new_quota() -> None:
+    vendor_repo, item_repo, selection_repo = _make_repos()
+    item = item_repo.create(vendor_id=1, name="Rice Box", price_cents=8000, available=True, daily_quota=10)
+    target = _today_plus(1)
+    item_repo.upsert_date_override(
+        vendor_id=1, item_id=item.id, meal_date=target,
+        available=None, daily_quota=1, price_cents=None,
+    )
+    svc = _make_service(vendor_repo, item_repo, selection_repo)
+    from backend.schemas.employee import EmployeeOrderCreate, EmployeeOrderItemCreate
+    from backend.core.errors import CodedHTTPException
+
+    with pytest.raises(CodedHTTPException) as exc_info:
+        svc.create_order(
+            10, 1,
+            EmployeeOrderCreate(
+                meal_date=target,
+                items=[EmployeeOrderItemCreate(item_id=item.id, quantity=2)],
+            ),
+        )
+    assert exc_info.value.code == "QUOTA_EXHAUSTED"
+
+
+def test_per_date_quota_override_zero_means_sold_out() -> None:
+    vendor_repo, item_repo, selection_repo = _make_repos()
+    item = item_repo.create(vendor_id=1, name="Rice Box", price_cents=8000, available=True, daily_quota=10)
+    target = _today_plus(1)
+    item_repo.upsert_date_override(
+        vendor_id=1, item_id=item.id, meal_date=target,
+        available=None, daily_quota=0, price_cents=None,
+    )
+    svc = _make_service(vendor_repo, item_repo, selection_repo)
+    from backend.schemas.employee import EmployeeOrderCreate, EmployeeOrderItemCreate
+    from backend.core.errors import CodedHTTPException
+
+    with pytest.raises(CodedHTTPException) as exc_info:
+        svc.create_order(
+            10, 1,
+            EmployeeOrderCreate(
+                meal_date=target,
+                items=[EmployeeOrderItemCreate(item_id=item.id, quantity=1)],
+            ),
+        )
+    assert exc_info.value.code == "QUOTA_EXHAUSTED"
+
+
+# ── 3. Per-date availability off ──────────────────────────────────────────────
+
+
+def test_per_date_availability_off_hides_item_from_browse() -> None:
+    vendor_repo, item_repo, selection_repo = _make_repos()
+    item = item_repo.create(vendor_id=1, name="Rice Box", price_cents=8000, available=True)
+    target = _today_plus(1)
+    item_repo.upsert_date_override(
+        vendor_id=1, item_id=item.id, meal_date=target,
+        available=False, daily_quota=None, price_cents=None,
+    )
+    svc = _make_service(vendor_repo, item_repo, selection_repo)
+
+    items = svc.list_menu(1, meal_date=target)
+    assert items == []  # available=True filter hides this item
+
+
+def test_per_date_availability_off_blocks_ordering() -> None:
+    vendor_repo, item_repo, selection_repo = _make_repos()
+    item = item_repo.create(vendor_id=1, name="Rice Box", price_cents=8000, available=True)
+    target = _today_plus(1)
+    item_repo.upsert_date_override(
+        vendor_id=1, item_id=item.id, meal_date=target,
+        available=False, daily_quota=None, price_cents=None,
+    )
+    svc = _make_service(vendor_repo, item_repo, selection_repo)
+    from backend.schemas.employee import EmployeeOrderCreate, EmployeeOrderItemCreate
+    from backend.core.errors import CodedHTTPException
+
+    with pytest.raises(CodedHTTPException) as exc_info:
+        svc.create_order(
+            10, 1,
+            EmployeeOrderCreate(
+                meal_date=target,
+                items=[EmployeeOrderItemCreate(item_id=item.id, quantity=1)],
+            ),
+        )
+    assert exc_info.value.code == "ITEM_UNAVAILABLE"
+
+
+# ── 4. Per-date price override ────────────────────────────────────────────────
+
+
+def test_per_date_price_override_used_in_order_snapshot() -> None:
+    vendor_repo, item_repo, selection_repo = _make_repos()
+    item = item_repo.create(vendor_id=1, name="Rice Box", price_cents=8000, available=True)
+    target = _today_plus(1)
+    item_repo.upsert_date_override(
+        vendor_id=1, item_id=item.id, meal_date=target,
+        available=None, daily_quota=None, price_cents=9500,
+    )
+    svc = _make_service(vendor_repo, item_repo, selection_repo)
+    from backend.schemas.employee import EmployeeOrderCreate, EmployeeOrderItemCreate
+
+    order = svc.create_order(
+        10, 1,
+        EmployeeOrderCreate(
+            meal_date=target,
+            items=[EmployeeOrderItemCreate(item_id=item.id, quantity=1)],
+        ),
+    )
+    assert order.items[0].unit_price_cents == 9500
+
+
+def test_per_date_price_override_shown_in_browse() -> None:
+    vendor_repo, item_repo, selection_repo = _make_repos()
+    item = item_repo.create(vendor_id=1, name="Rice Box", price_cents=8000, available=True)
+    target = _today_plus(1)
+    item_repo.upsert_date_override(
+        vendor_id=1, item_id=item.id, meal_date=target,
+        available=None, daily_quota=None, price_cents=9500,
+    )
+    svc = _make_service(vendor_repo, item_repo, selection_repo)
+
+    items = svc.list_menu(1, meal_date=target)
+    assert items[0].price_cents == 9500
+
+
+# ── 5. Non-overridden date unaffected ─────────────────────────────────────────
+
+
+def test_override_on_one_date_does_not_affect_other_dates() -> None:
+    vendor_repo, item_repo, selection_repo = _make_repos()
+    item = item_repo.create(vendor_id=1, name="Rice Box", price_cents=8000, available=True, daily_quota=10)
+    target = _today_plus(2)
+    other = _today_plus(3)
+    item_repo.upsert_date_override(
+        vendor_id=1, item_id=item.id, meal_date=target,
+        available=False, daily_quota=0, price_cents=9999,
+    )
+    svc = _make_service(vendor_repo, item_repo, selection_repo)
+
+    items_other = svc.list_menu(1, meal_date=other)
+    assert len(items_other) == 1
+    assert items_other[0].available is True
+    assert items_other[0].daily_quota == 10
+    assert items_other[0].price_cents == 8000
+
+
+# ── 6. HTTP CRUD endpoints ────────────────────────────────────────────────────
+
+
+def test_put_schedule_creates_override() -> None:
+    client, _, item_repo, _ = _setup_http()
+    item = item_repo.create(vendor_id=1, name="Rice Box", price_cents=8000, available=True)
+    target = _today_plus(1).isoformat()
+
+    resp = client.put(
+        f"/vendor/me/menu/{item.id}/schedule/{target}",
+        headers=_vh(),
+        json={"available": False, "daily_quota": 5, "price_cents": 9000},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["item_id"] == item.id
+    assert body["meal_date"] == target
+    assert body["available"] is False
+    assert body["daily_quota"] == 5
+    assert body["price_cents"] == 9000
+
+
+def test_put_schedule_is_idempotent() -> None:
+    client, _, item_repo, _ = _setup_http()
+    item = item_repo.create(vendor_id=1, name="Rice Box", price_cents=8000, available=True)
+    target = _today_plus(1).isoformat()
+
+    client.put(
+        f"/vendor/me/menu/{item.id}/schedule/{target}",
+        headers=_vh(),
+        json={"daily_quota": 5},
+    )
+    resp = client.put(
+        f"/vendor/me/menu/{item.id}/schedule/{target}",
+        headers=_vh(),
+        json={"daily_quota": 3},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["daily_quota"] == 3
+
+
+def test_get_schedule_list() -> None:
+    client, _, item_repo, _ = _setup_http()
+    item = item_repo.create(vendor_id=1, name="Rice Box", price_cents=8000, available=True)
+    d1 = _today_plus(1).isoformat()
+    d2 = _today_plus(2).isoformat()
+
+    client.put(f"/vendor/me/menu/{item.id}/schedule/{d1}", headers=_vh(), json={"daily_quota": 5})
+    client.put(f"/vendor/me/menu/{item.id}/schedule/{d2}", headers=_vh(), json={"available": False})
+
+    resp = client.get(f"/vendor/me/menu/{item.id}/schedule", headers=_vh())
+    assert resp.status_code == 200
+    dates = [r["meal_date"] for r in resp.json()]
+    assert d1 in dates
+    assert d2 in dates
+
+
+def test_delete_schedule_removes_override() -> None:
+    client, _, item_repo, _ = _setup_http()
+    item = item_repo.create(vendor_id=1, name="Rice Box", price_cents=8000, available=True)
+    target = _today_plus(1).isoformat()
+
+    client.put(f"/vendor/me/menu/{item.id}/schedule/{target}", headers=_vh(), json={"daily_quota": 5})
+
+    del_resp = client.delete(f"/vendor/me/menu/{item.id}/schedule/{target}", headers=_vh())
+    assert del_resp.status_code == 204
+
+    list_resp = client.get(f"/vendor/me/menu/{item.id}/schedule", headers=_vh())
+    assert list_resp.json() == []
+
+
+def test_delete_schedule_nonexistent_is_ok() -> None:
+    client, _, item_repo, _ = _setup_http()
+    item = item_repo.create(vendor_id=1, name="Rice Box", price_cents=8000, available=True)
+    resp = client.delete(
+        f"/vendor/me/menu/{item.id}/schedule/{_today_plus(1).isoformat()}",
+        headers=_vh(),
+    )
+    assert resp.status_code == 204
+
+
+# ── 7. Date-window validation ─────────────────────────────────────────────────
+
+
+def test_put_schedule_rejects_past_date() -> None:
+    client, _, item_repo, _ = _setup_http()
+    item = item_repo.create(vendor_id=1, name="Rice Box", price_cents=8000, available=True)
+    yesterday = (date.today() - timedelta(days=1)).isoformat()
+
+    resp = client.put(
+        f"/vendor/me/menu/{item.id}/schedule/{yesterday}",
+        headers=_vh(),
+        json={"daily_quota": 5},
+    )
+    assert resp.status_code == 400
+    assert resp.json()["code"] == "validation_error"
+
+
+def test_put_schedule_rejects_date_beyond_window() -> None:
+    client, _, item_repo, _ = _setup_http()
+    item = item_repo.create(vendor_id=1, name="Rice Box", price_cents=8000, available=True)
+    far_date = (date.today() + timedelta(days=MENU_DATE_WINDOW_DAYS)).isoformat()
+
+    resp = client.put(
+        f"/vendor/me/menu/{item.id}/schedule/{far_date}",
+        headers=_vh(),
+        json={"daily_quota": 5},
+    )
+    assert resp.status_code == 400
+    assert resp.json()["code"] == "validation_error"
+
+
+def test_put_schedule_accepts_last_day_of_window() -> None:
+    client, _, item_repo, _ = _setup_http()
+    item = item_repo.create(vendor_id=1, name="Rice Box", price_cents=8000, available=True)
+    last_day = (date.today() + timedelta(days=MENU_DATE_WINDOW_DAYS - 1)).isoformat()
+
+    resp = client.put(
+        f"/vendor/me/menu/{item.id}/schedule/{last_day}",
+        headers=_vh(),
+        json={"daily_quota": 5},
+    )
+    assert resp.status_code == 200
+
+
+# ── 8. Random draw respects per-date availability ────────────────────────────
+
+
+def test_random_draw_skips_unavailable_item_on_date() -> None:
+    vendor_repo, item_repo, selection_repo = _make_repos()
+    item = item_repo.create(vendor_id=1, name="Rice Box", price_cents=8000, available=True)
+    target = _today_plus(1)
+    item_repo.upsert_date_override(
+        vendor_id=1, item_id=item.id, meal_date=target,
+        available=False, daily_quota=None, price_cents=None,
+    )
+    svc = _make_service(vendor_repo, item_repo, selection_repo)
+    from backend.schemas.employee import RandomMealDrawRequest
+    from backend.core.errors import CodedHTTPException
+
+    with pytest.raises(CodedHTTPException) as exc_info:
+        svc.draw_random_meal(RandomMealDrawRequest(meal_date=target, vendor_ids=[1]))
+    assert exc_info.value.code == "no_random_meal_available"

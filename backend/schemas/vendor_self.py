@@ -5,7 +5,7 @@
 """
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
@@ -127,3 +127,29 @@ class PhotoUploadResponse(BaseModel):
     """上傳圖片後回傳的路徑。"""
 
     photo_path: str
+
+
+# -------- Per-date menu scheduling --------
+
+
+class MenuItemDateOverride(BaseModel):
+    """單一 (item_id, meal_date) 的覆寫值；NULL 欄位表示沿用品項基礎值。"""
+
+    item_id: int
+    meal_date: date
+    available: bool | None = None
+    daily_quota: int | None = None
+    price_cents: int | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class MenuItemDateOverrideUpsert(BaseModel):
+    """PUT /vendor/me/menu/{id}/schedule/{date} 的 request body。
+
+    所有欄位皆 optional；傳 null 表示「不覆寫此欄，沿用品項基礎值」。
+    """
+
+    available: bool | None = None
+    daily_quota: int | None = Field(default=None, ge=0)
+    price_cents: int | None = Field(default=None, ge=0)

@@ -276,6 +276,15 @@ export default function VendorMenuListPage() {
                   className="ghost-button"
                   type="button"
                   style={{ minHeight: 36, padding: "0 14px", fontSize: 13 }}
+                  onClick={() => navigate(`/vendor/menu/${item.id}/schedule`)}
+                  title="設定每日排程"
+                >
+                  排程
+                </button>
+                <button
+                  className="ghost-button"
+                  type="button"
+                  style={{ minHeight: 36, padding: "0 14px", fontSize: 13 }}
                   onClick={() => navigate(`/vendor/menu/${item.id}/edit`)}
                 >
                   編輯
