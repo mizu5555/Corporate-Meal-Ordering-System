@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { drawRandomMeal, getRecommendations } from "../../api/employee";
-import { useCart } from "../../cart/CartContext";
+import MealDetailModal from "../../components/employee/MealDetailModal";
 import { useFacility } from "../../facility/FacilityContext";
 import FacilityScopeLabel from "../../facility/FacilityScopeLabel";
 import { useVendors } from "../../hooks/useVendors";
@@ -23,8 +22,6 @@ function drawErrorMessage(err) {
 }
 
 export default function RandomMealPage() {
-  const navigate = useNavigate();
-  const { addItem, totalCount } = useCart();
   const { selectedFacilityId } = useFacility();
   const { vendors, loading, error } = useVendors({ facilityId: selectedFacilityId });
   const minMealDate = addDaysIso(0);
@@ -38,8 +35,7 @@ export default function RandomMealPage() {
   const [draw, setDraw] = useState(null);
   const [drawError, setDrawError] = useState(null);
   const [drawing, setDrawing] = useState(false);
-  const [addedToCart, setAddedToCart] = useState(false);
-  const [lastAdded, setLastAdded] = useState(null); // name of the most recently added item, for banner feedback
+  const [detail, setDetail] = useState(null); // { item, remaining } shown in the meal-detail modal
 
   // --- 熱門推薦 state ---
   const [recommendations, setRecommendations] = useState([]);
@@ -59,7 +55,6 @@ export default function RandomMealPage() {
   useEffect(() => {
     setSelectedVendorIds([]);
     setDraw(null);
-    setAddedToCart(false);
   }, [selectedFacilityId]);
 
   // Fetch recommendations whenever the tab, mealDate, or facilityId changes
@@ -96,7 +91,7 @@ export default function RandomMealPage() {
   async function handleDraw() {
     setDrawing(true);
     setDrawError(null);
-    setAddedToCart(false);
+    setDraw(null);
     try {
       const result = await drawRandomMeal({
         mealDate,
@@ -112,19 +107,6 @@ export default function RandomMealPage() {
     }
   }
 
-  function handleAddDrawToCart() {
-    if (!draw) return;
-    addItem(draw.item, draw.vendor.id, 1, mealDate);
-    setLastAdded(draw.item.name);
-    setAddedToCart(true);
-  }
-
-  function handleAddRecToCart(rec) {
-    addItem(rec.item, rec.vendor.id, 1, mealDate);
-    setLastAdded(rec.item.name);
-    setAddedToCart(true);
-  }
-
   function recRemainingLabel(rec) {
     if (rec.remaining_quantity == null) return quotaLabel(rec.item.daily_quota);
     return `剩餘 ${rec.remaining_quantity} 份`;
@@ -137,32 +119,6 @@ export default function RandomMealPage() {
         <p className="eyebrow">員工 / 推薦與隨機抽餐</p>
         <h2>今天吃什麼？</h2>
       </div>
-
-      {addedToCart && (
-        <div
-          className="success-state"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 12,
-            marginBottom: 16,
-          }}
-        >
-          <span>
-            ✅ 已加入購物車
-            {lastAdded ? `：${lastAdded}` : ""}
-            （共 {totalCount} 件）
-          </span>
-          <button
-            className="primary-button"
-            type="button"
-            onClick={() => navigate("/employee/cart")}
-          >
-            去結帳
-          </button>
-        </div>
-      )}
 
       {/* Shared selectors */}
       <section className="random-meal-layout">
@@ -180,7 +136,6 @@ export default function RandomMealPage() {
             onChange={(event) => {
               setMealDate(event.target.value);
               setDraw(null);
-              setAddedToCart(false);
             }}
           />
 
@@ -199,7 +154,6 @@ export default function RandomMealPage() {
                     onChange={(event) => {
                       setAllVendors(event.target.checked);
                       setDraw(null);
-                      setAddedToCart(false);
                     }}
                   />
                   <span>全部餐廳</span>
@@ -243,14 +197,14 @@ export default function RandomMealPage() {
             <button
               type="button"
               className={`range-pill${tab === "recommend" ? " is-active" : ""}`}
-              onClick={() => { setTab("recommend"); setAddedToCart(false); }}
+              onClick={() => setTab("recommend")}
             >
               熱門推薦
             </button>
             <button
               type="button"
               className={`range-pill${tab === "random" ? " is-active" : ""}`}
-              onClick={() => { setTab("random"); setAddedToCart(false); }}
+              onClick={() => setTab("random")}
             >
               隨機抽餐
             </button>
@@ -287,6 +241,17 @@ export default function RandomMealPage() {
                     <div
                       key={`${rec.vendor.id}-${rec.item.id}`}
                       className="recommend-card"
+                      role="button"
+                      tabIndex={0}
+                      aria-label={rec.item.name}
+                      style={{ cursor: "pointer" }}
+                      onClick={() => setDetail({ item: rec.item, remaining: rec.remaining_quantity })}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setDetail({ item: rec.item, remaining: rec.remaining_quantity });
+                        }
+                      }}
                     >
                       <div className="recommend-card-rank" data-top={index < 3 || undefined}>
                         {index + 1}
@@ -307,15 +272,6 @@ export default function RandomMealPage() {
                             {recRemainingLabel(rec)}
                           </span>
                         </div>
-                      </div>
-                      <div className="recommend-card-action">
-                        <button
-                          className="primary-button"
-                          type="button"
-                          onClick={() => handleAddRecToCart(rec)}
-                        >
-                          加入購物車
-                        </button>
                       </div>
                     </div>
                   ))}
@@ -338,7 +294,20 @@ export default function RandomMealPage() {
               {drawError && <p className="error-state">{drawError}</p>}
 
               {draw && (
-                <div className="random-result-card">
+                <div
+                  className="random-result-card"
+                  role="button"
+                  tabIndex={0}
+                  aria-label={draw.item.name}
+                  style={{ cursor: "pointer" }}
+                  onClick={() => setDetail({ item: draw.item, remaining: draw.remaining_quantity })}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setDetail({ item: draw.item, remaining: draw.remaining_quantity });
+                    }
+                  }}
+                >
                   <p className="eyebrow">{draw.vendor.name}</p>
                   <h3>{draw.item.name}</h3>
                   <p className="random-price">{formatPrice(draw.item.price_cents)}</p>
@@ -352,21 +321,21 @@ export default function RandomMealPage() {
                     </span>
                   </div>
 
-                  <div className="random-result-actions">
-                    <button
-                      className="primary-button"
-                      type="button"
-                      onClick={handleAddDrawToCart}
-                    >
-                      加入購物車
-                    </button>
-                  </div>
                 </div>
               )}
             </div>
           )}
         </div>
       </section>
+
+      {detail && (
+        <MealDetailModal
+          item={detail.item}
+          mealDate={mealDate}
+          remaining={detail.remaining}
+          onClose={() => setDetail(null)}
+        />
+      )}
     </div>
   );
 }
