@@ -5,15 +5,18 @@ import { maxAddQuantity } from "../../cart/quantity";
 
 export default function MealDetailModal({ item, onClose, mealDate = null, remaining = null }) {
   const photo = photoUrl(item.photo_path);
-  const quota = quotaLabel(item.daily_quota);
-  const soldOut = item.daily_quota === 0 || remaining === 0;
+  // Per-meal-date remaining (from random/recommendation) wins; otherwise the menu
+  // item's own remaining_quantity (today's remaining, exposed by the menu API).
+  const effectiveRemaining = remaining != null ? remaining : item.remaining_quantity;
+  const soldOut = effectiveRemaining === 0;
   const unavailable = !item.available || soldOut;
+  const quota = quotaLabel(effectiveRemaining);
 
   const [quantity, setQuantity] = useState(1);
   const [added, setAdded] = useState(false);
   const { addItem } = useCart();
 
-  const maxQty = maxAddQuantity({ remaining, dailyQuota: item.daily_quota });
+  const maxQty = maxAddQuantity({ remaining: effectiveRemaining, dailyQuota: item.daily_quota });
 
   useEffect(() => {
     function onKey(e) {

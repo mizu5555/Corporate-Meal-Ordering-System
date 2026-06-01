@@ -29,6 +29,7 @@ from backend.schemas.employee import (
 from backend.schemas.vendor_self import Facility, MenuItem as VendorMenuItem
 
 MEAL_DATE_WINDOW_DAYS = 7
+ORDER_HISTORY_PAST_DAYS = 30
 
 
 class EmployeeOrderingService:
@@ -79,13 +80,15 @@ class EmployeeOrderingService:
         vendor = self._vendor_to_schema(self._get_approved_vendor(vendor_id))
         if employee_id is not None:
             self._assert_facility_access(vendor, employee_id, facility_id=facility_id)
+        items = self.menu_item_repository.list(
+            vendor_id=vendor_id, category_id=category_id, available=available
+        )
+        used_by_item = self.selection_repository.item_quantities_for_date(
+            meal_date=date.today(), vendor_ids=[vendor_id]
+        )
         return [
-            self._menu_item_to_schema(item)
-            for item in self.menu_item_repository.list(
-                vendor_id=vendor_id,
-                category_id=category_id,
-                available=available,
-            )
+            self._menu_item_to_schema(item, remaining=self._remaining_quantity(item, used_by_item.get(item.id, 0)))
+            for item in items
         ]
 
     def select_meal(
@@ -306,8 +309,34 @@ class EmployeeOrderingService:
 
         return results
 
-    def list_my_orders(self, employee_id: int) -> list[EmployeeOrder]:
-        return self.selection_repository.list_orders(employee_id=employee_id)
+    def list_my_orders(
+        self,
+        employee_id: int,
+        *,
+        start_date: date | None = None,
+        end_date: date | None = None,
+    ) -> list[EmployeeOrder]:
+        today = date.today()
+        min_date = today - timedelta(days=ORDER_HISTORY_PAST_DAYS)
+        max_date = today + timedelta(days=MEAL_DATE_WINDOW_DAYS - 1)
+
+        if start_date is not None and end_date is not None and start_date > end_date:
+            raise CodedHTTPException(
+                status_code=400,
+                code="validation_error",
+                detail="start_date must be on or before end_date",
+            )
+
+        effective_start = max(start_date or min_date, min_date)
+        effective_end = min(end_date or max_date, max_date)
+        if effective_start > effective_end:
+            return []
+
+        return self.selection_repository.list_orders(
+            employee_id=employee_id,
+            start_date=effective_start,
+            end_date=effective_end,
+        )
 
     def get_my_order(self, employee_id: int, order_id: int) -> EmployeeOrder:
         order = self.selection_repository.get_order(employee_id=employee_id, order_id=order_id)
@@ -486,7 +515,7 @@ class EmployeeOrderingService:
         )
 
     @staticmethod
-    def _menu_item_to_schema(item: VendorMenuItem) -> EmployeeMenuItem:
+    def _menu_item_to_schema(item: VendorMenuItem, remaining: int | None = None) -> EmployeeMenuItem:
         return EmployeeMenuItem(
             id=item.id,
             vendor_id=item.vendor_id,
@@ -496,6 +525,7 @@ class EmployeeOrderingService:
             price_cents=item.price_cents,
             available=item.available,
             daily_quota=item.daily_quota,
+            remaining_quantity=remaining,
             photo_path=item.photo_path,
         )
 

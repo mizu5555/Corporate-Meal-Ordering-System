@@ -213,6 +213,85 @@ def test_my_orders_are_scoped_by_employee() -> None:
     assert resp.json() == []
 
 
+def test_my_orders_default_to_recent_history_and_next_seven_days() -> None:
+    client, _, selection_repo = _setup()
+    today = date.today()
+    too_old = selection_repo.create_order(employee_id=100, vendor_id=1, items=[], meal_date=today - timedelta(days=31))
+    first_history_day = selection_repo.create_order(
+        employee_id=100,
+        vendor_id=1,
+        items=[],
+        meal_date=today - timedelta(days=30),
+    )
+    last_order_day = selection_repo.create_order(employee_id=100, vendor_id=1, items=[], meal_date=today + timedelta(days=6))
+    too_far = selection_repo.create_order(employee_id=100, vendor_id=1, items=[], meal_date=today + timedelta(days=7))
+    selection_repo.create_order(employee_id=200, vendor_id=1, items=[], meal_date=today)
+
+    resp = client.get("/employee/me/orders", headers=_h(100))
+
+    assert resp.status_code == 200
+    assert [order["id"] for order in resp.json()] == [first_history_day.id, last_order_day.id]
+    assert too_old.id not in [order["id"] for order in resp.json()]
+    assert too_far.id not in [order["id"] for order in resp.json()]
+
+
+def test_my_orders_filters_by_requested_date_range() -> None:
+    client, _, selection_repo = _setup()
+    today = date.today()
+    before = selection_repo.create_order(employee_id=100, vendor_id=1, items=[], meal_date=today - timedelta(days=2))
+    inside = selection_repo.create_order(employee_id=100, vendor_id=1, items=[], meal_date=today - timedelta(days=1))
+    after = selection_repo.create_order(employee_id=100, vendor_id=1, items=[], meal_date=today)
+
+    resp = client.get(
+        "/employee/me/orders",
+        headers=_h(100),
+        params={
+            "start_date": (today - timedelta(days=1)).isoformat(),
+            "end_date": (today - timedelta(days=1)).isoformat(),
+        },
+    )
+
+    assert resp.status_code == 200
+    assert [order["id"] for order in resp.json()] == [inside.id]
+    assert before.id not in [order["id"] for order in resp.json()]
+    assert after.id not in [order["id"] for order in resp.json()]
+
+
+def test_my_orders_rejects_inverted_date_range() -> None:
+    client, _, _ = _setup()
+    today = date.today()
+
+    resp = client.get(
+        "/employee/me/orders",
+        headers=_h(100),
+        params={
+            "start_date": today.isoformat(),
+            "end_date": (today - timedelta(days=1)).isoformat(),
+        },
+    )
+
+    assert resp.status_code == 400
+    assert resp.json()["code"] == "validation_error"
+
+
+def test_my_orders_returns_empty_when_requested_range_is_outside_allowed_window() -> None:
+    client, _, selection_repo = _setup()
+    today = date.today()
+    selection_repo.create_order(employee_id=100, vendor_id=1, items=[], meal_date=today)
+
+    resp = client.get(
+        "/employee/me/orders",
+        headers=_h(100),
+        params={
+            "start_date": (today + timedelta(days=7)).isoformat(),
+            "end_date": (today + timedelta(days=7)).isoformat(),
+        },
+    )
+
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
 def test_cancel_pending_order_marks_order_cancelled() -> None:
     client, item_repo, _ = _setup()
     item = item_repo.create(vendor_id=1, name="Rice Bowl", price_cents=120)
@@ -592,3 +671,46 @@ def test_select_meal_requires_employee_id() -> None:
 
     assert resp.status_code == 400
     assert resp.json()["code"] == "validation_error"
+
+
+# --- remaining_quantity in menu response ---
+
+def test_list_menu_includes_remaining_quantity_when_quota_set() -> None:
+    client, item_repo, selection_repo = _setup()
+    item = item_repo.create(vendor_id=1, name="Rice Bowl", price_cents=120, daily_quota=5)
+    # place 2 orders for today to consume some quota
+    selection_repo.create_order(
+        employee_id=100, vendor_id=1, meal_date=date.today(),
+        items=[OrderItemSnapshot(item_id=item.id, item_name="Rice Bowl", quantity=2, unit_price_cents=120)],
+    )
+
+    resp = client.get("/employee/vendors/1/menu", headers=_browse_h())
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body) == 1
+    assert body[0]["remaining_quantity"] == 3  # 5 - 2 = 3
+
+
+def test_list_menu_remaining_quantity_is_null_when_no_quota() -> None:
+    client, item_repo, _ = _setup()
+    item_repo.create(vendor_id=1, name="Rice Bowl", price_cents=120, daily_quota=None)
+
+    resp = client.get("/employee/vendors/1/menu", headers=_browse_h())
+
+    assert resp.status_code == 200
+    assert resp.json()[0]["remaining_quantity"] is None
+
+
+def test_list_menu_shows_zero_remaining_when_quota_exhausted() -> None:
+    client, item_repo, selection_repo = _setup()
+    item = item_repo.create(vendor_id=1, name="Rice Bowl", price_cents=120, daily_quota=2)
+    selection_repo.create_order(
+        employee_id=100, vendor_id=1, meal_date=date.today(),
+        items=[OrderItemSnapshot(item_id=item.id, item_name="Rice Bowl", quantity=2, unit_price_cents=120)],
+    )
+
+    resp = client.get("/employee/vendors/1/menu", headers=_browse_h())
+
+    assert resp.status_code == 200
+    assert resp.json()[0]["remaining_quantity"] == 0

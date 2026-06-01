@@ -28,6 +28,7 @@ class EmployeeMenuItem(BaseModel):
     price_cents: int
     available: bool
     daily_quota: int | None
+    remaining_quantity: int | None = None
     photo_path: str | None
 
 

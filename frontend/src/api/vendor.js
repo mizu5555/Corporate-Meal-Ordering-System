@@ -6,9 +6,9 @@ function withMockFallback(apiCall, mockResult) {
   return apiCall().catch(() => mockResult);
 }
 
-export function getMyMenu() {
+export function getMyMenu({ facilityId } = {}) {
   return withMockFallback(
-    () => apiFetch("/vendor/me/menu"),
+    () => apiFetch(appendFacilityParam("/vendor/me/menu", facilityId)),
     (MOCK_MENU[1] ?? []).map((item) => ({
       ...item,
       created_at: new Date().toISOString(),
@@ -25,8 +25,29 @@ export function getMyOrders({ facilityId } = {}) {
   return apiFetch(appendFacilityParam("/vendor/me/orders", facilityId));
 }
 
+export function getVendorRevenue({ facilityId, today, start, end } = {}) {
+  const params = new URLSearchParams();
+  if (facilityId != null && facilityId !== "") params.set("facility_id", String(facilityId));
+  if (today) params.set("today", today);
+  if (start) params.set("start", start);
+  if (end) params.set("end", end);
+  const qs = params.toString();
+  return apiFetch(`/vendor/me/revenue${qs ? `?${qs}` : ""}`);
+}
+
 export function getMyOrder(orderId) {
   return apiFetch(`/vendor/me/orders/${orderId}`);
+}
+
+export function getMyBilling({ year, month } = {}) {
+  const params = new URLSearchParams();
+  if (year != null) params.set("year", String(year));
+  if (month != null) params.set("month", String(month));
+  const qs = params.toString();
+  return withMockFallback(
+    () => apiFetch(`/vendor/me/billing${qs ? `?${qs}` : ""}`),
+    { year, month, amount_cents: 0, order_count: 0 },
+  );
 }
 
 export function updateOrderStatus(orderId, status) {
@@ -50,38 +71,38 @@ export function confirmPickup(orderId) {
   });
 }
 
-export function createMenuItem(data) {
-  return apiFetch("/vendor/me/menu", {
+export function createMenuItem(data, { facilityId } = {}) {
+  return apiFetch(appendFacilityParam("/vendor/me/menu", facilityId), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
 }
 
-export function updateMenuItem(itemId, data) {
-  return apiFetch(`/vendor/me/menu/${itemId}`, {
+export function updateMenuItem(itemId, data, { facilityId } = {}) {
+  return apiFetch(appendFacilityParam(`/vendor/me/menu/${itemId}`, facilityId), {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
 }
 
-export function deleteMenuItem(itemId) {
-  return apiFetch(`/vendor/me/menu/${itemId}`, { method: "DELETE" });
+export function deleteMenuItem(itemId, { facilityId } = {}) {
+  return apiFetch(appendFacilityParam(`/vendor/me/menu/${itemId}`, facilityId), { method: "DELETE" });
 }
 
-export function uploadMenuItemPhoto(itemId, file) {
+export function uploadMenuItemPhoto(itemId, file, { facilityId } = {}) {
   const form = new FormData();
   form.append("file", file);
   // Do NOT set Content-Type — browser sets multipart/form-data with boundary automatically.
-  return apiFetch(`/vendor/me/menu/${itemId}/photo`, {
+  return apiFetch(appendFacilityParam(`/vendor/me/menu/${itemId}/photo`, facilityId), {
     method: "PUT",
     body: form,
   });
 }
 
-export function deleteMenuItemPhoto(itemId) {
-  return apiFetch(`/vendor/me/menu/${itemId}/photo`, { method: "DELETE" });
+export function deleteMenuItemPhoto(itemId, { facilityId } = {}) {
+  return apiFetch(appendFacilityParam(`/vendor/me/menu/${itemId}/photo`, facilityId), { method: "DELETE" });
 }
 
 export function submitVendorApplication(data) {

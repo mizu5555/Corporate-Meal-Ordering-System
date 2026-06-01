@@ -1,8 +1,10 @@
-import { useState } from "react";
-import { deleteMyOrder, updateMyOrder } from "../../api/employee";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { deleteMyOrder, getMyBilling, updateMyOrder } from "../../api/employee";
 import FacilityScopeLabel from "../../facility/FacilityScopeLabel";
 import { useMyOrders } from "../../hooks/useMyOrders";
-import { formatPrice } from "../../utils/format";
+import { formatMoney, formatPrice } from "../../utils/format";
+import { datesWithoutOrders, getDefaultOrderHistoryRange, getFutureMealDates } from "../../utils/orderHistoryRange";
 
 const STATUS_LABELS = {
   pending: "待確認",
@@ -40,14 +42,43 @@ function draftFromOrder(order) {
   return Object.fromEntries(order.items.map((item) => [item.id, item.quantity]));
 }
 
+function currentPeriod() {
+  const now = new Date();
+  return { year: now.getFullYear(), month: now.getMonth() + 1 };
+}
+
 export default function OrdersPage() {
-  const { orders, setOrders, loading, error } = useMyOrders();
+  const navigate = useNavigate();
+  const orderRange = useMemo(() => getDefaultOrderHistoryRange(), []);
+  const futureMealDates = useMemo(() => getFutureMealDates(), []);
+  const { orders, setOrders, loading, error } = useMyOrders(orderRange);
+  const [billing, setBilling] = useState(null);
+  const [billingError, setBillingError] = useState(false);
   const [editingOrderId, setEditingOrderId] = useState(null);
   const [draftQuantities, setDraftQuantities] = useState({});
   const [busyOrderId, setBusyOrderId] = useState(null);
   const [actionError, setActionError] = useState(null);
 
   const visibleOrders = orders.filter((order) => order.status !== "cancelled");
+  const missingFutureOrderDates = datesWithoutOrders(orders, futureMealDates);
+
+  useEffect(() => {
+    let alive = true;
+    const period = currentPeriod();
+    getMyBilling(period)
+      .then((data) => {
+        if (alive) {
+          setBilling(data);
+          setBillingError(false);
+        }
+      })
+      .catch(() => {
+        if (alive) setBillingError(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   function startEditing(order) {
     setEditingOrderId(order.id);
@@ -102,8 +133,39 @@ export default function OrdersPage() {
 
       {loading && <p className="loading-state">載入訂單中...</p>}
 
+      <div className="panel" style={{ padding: "14px 18px", marginBottom: 20 }}>
+        <p style={{ margin: 0, color: "var(--muted)", fontSize: 13 }}>本月應扣</p>
+        <p style={{ margin: "4px 0 0", fontWeight: 800, fontSize: 22 }}>
+          {billingError ? "暫時無法取得" : formatMoney(billing?.amount_cents ?? 0)}
+        </p>
+        {!billingError && (
+          <p style={{ margin: "4px 0 0", color: "var(--muted)", fontSize: 12 }}>
+            {billing?.order_count ?? 0} 筆已完成訂單
+          </p>
+        )}
+      </div>
+
       {error && <p className="error-state">無法載入訂單，請稍後再試。</p>}
       {actionError && <p className="error-state" style={{ marginBottom: 20 }}>{actionError}</p>}
+
+      {!loading && !error && missingFutureOrderDates.length > 0 && (
+        <div className="panel" style={{ padding: "14px 18px", marginBottom: 20 }}>
+          <p style={{ margin: 0, color: "var(--muted)", fontSize: 13 }}>未來 7 天尚未訂餐</p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 12 }}>
+            {missingFutureOrderDates.map((mealDate) => (
+              <button
+                key={mealDate}
+                className="ghost-button"
+                type="button"
+                onClick={() => navigate(`/employee/random-meal?meal_date=${mealDate}`)}
+                style={{ color: "var(--text)", borderColor: "var(--line)", background: "var(--surface)" }}
+              >
+                {mealDate} 去點餐
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {!loading && !error && visibleOrders.length === 0 && (
         <p className="empty-state">尚無目前訂單。</p>
@@ -144,7 +206,7 @@ export default function OrdersPage() {
                     )}
                   </div>
                   <div style={{ textAlign: "right" }}>
-                    <p style={{ fontWeight: 800, margin: 0 }}>{formatPrice(total)}</p>
+                    <p style={{ fontWeight: 800, margin: 0 }}>{formatMoney(total)}</p>
                     <p style={{ color: "var(--muted)", fontSize: 13, margin: "4px 0 0" }}>
                       {STATUS_LABELS[order.status] ?? order.status}
                     </p>

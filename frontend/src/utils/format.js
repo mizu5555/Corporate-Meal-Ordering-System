@@ -11,10 +11,10 @@ export function formatMoney(cents) {
   return `NT$ ${Number.isInteger(amount) ? amount : amount.toFixed(1)}`;
 }
 
-export function quotaLabel(dailyQuota) {
-  if (dailyQuota === null || dailyQuota === undefined) return null;
-  if (dailyQuota === 0) return "今日售完";
-  return `剩餘 ${dailyQuota} 份`;
+export function quotaLabel(remainingQuantity) {
+  if (remainingQuantity === null || remainingQuantity === undefined) return null;
+  if (remainingQuantity === 0) return null;
+  return `剩餘 ${remainingQuantity} 份`;
 }
 
 export function photoUrl(photoPath, version) {

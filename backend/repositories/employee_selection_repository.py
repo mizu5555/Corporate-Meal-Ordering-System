@@ -118,8 +118,18 @@ class EmployeeSelectionRepository:
 
         return self._order_to_schema(order)
 
-    def list_orders(self, *, employee_id: int) -> list[EmployeeOrder]:
+    def list_orders(
+        self,
+        *,
+        employee_id: int,
+        start_date: date | None = None,
+        end_date: date | None = None,
+    ) -> list[EmployeeOrder]:
         rows = [r for r in self._orders.values() if r.employee_id == employee_id]
+        if start_date is not None:
+            rows = [r for r in rows if (r.meal_date or r.created_at.date()) >= start_date]
+        if end_date is not None:
+            rows = [r for r in rows if (r.meal_date or r.created_at.date()) <= end_date]
         rows.sort(key=lambda r: r.id)
         return [self._order_to_schema(r) for r in rows]
 
