@@ -83,8 +83,11 @@ class EmployeeOrderingService:
             self._assert_facility_access(vendor, employee_id, facility_id=facility_id)
         target_date = meal_date or date.today()
         self._ensure_meal_date_in_window(target_date)
-        items = self.menu_item_repository.list(
-            vendor_id=vendor_id, category_id=category_id, available=available
+        items = self.menu_item_repository.list_effective(
+            vendor_id=vendor_id,
+            meal_date=target_date,
+            category_id=category_id,
+            available=available,
         )
         used_by_item = self.selection_repository.item_quantities_for_date(
             meal_date=target_date, vendor_ids=[vendor_id]
@@ -206,7 +209,9 @@ class EmployeeOrderingService:
         candidates: list[tuple[VendorRecord, VendorMenuItem, int | None]] = []
         for vendor_id in vendor_ids:
             vendor = approved_vendors[vendor_id]
-            for item in self.menu_item_repository.list(vendor_id=vendor_id, available=True):
+            for item in self.menu_item_repository.list_effective(
+                vendor_id=vendor_id, meal_date=payload.meal_date, available=True
+            ):
                 if not self._matches_dietary_tags(
                     item,
                     include_tags=payload.include_tags,
@@ -269,7 +274,9 @@ class EmployeeOrderingService:
         # Build item_by_id: {item_id: (vendor_id, raw_item)}
         item_by_id: dict[int, tuple[int, VendorMenuItem]] = {}
         for vid in visible_ids:
-            for it in self.menu_item_repository.list(vendor_id=vid, available=True):
+            for it in self.menu_item_repository.list_effective(
+                vendor_id=vid, meal_date=target_date, available=True
+            ):
                 if not self._matches_dietary_tags(
                     it,
                     include_tags=include_tags,
@@ -606,7 +613,9 @@ class EmployeeOrderingService:
         )
         snapshots: list[OrderItemSnapshot] = []
         for requested in payload.items:
-            item = self.menu_item_repository.get(vendor_id=vendor_id, item_id=requested.item_id)
+            item = self.menu_item_repository.get_effective(
+                vendor_id=vendor_id, item_id=requested.item_id, meal_date=meal_date
+            )
             if item is None:
                 raise CodedHTTPException(status_code=404, code="not_found", detail="menu item not found")
             used_quantity = used_by_item.get(item.id, 0)

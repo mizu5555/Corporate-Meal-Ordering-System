@@ -27,6 +27,7 @@ import VendorBadgePickupPage from "../pages/vendor/VendorBadgePickupPage";
 import VendorHomePage from "../pages/vendor/VendorHomePage";
 import VendorMenuFormPage from "../pages/vendor/VendorMenuFormPage";
 import VendorMenuListPage from "../pages/vendor/VendorMenuListPage";
+import VendorMenuSchedulePage from "../pages/vendor/VendorMenuSchedulePage";
 import VendorOrderDetailPage from "../pages/vendor/VendorOrderDetailPage";
 import VendorOrdersPage from "../pages/vendor/VendorOrdersPage";
 import VendorRevenuePage from "../pages/vendor/VendorRevenuePage";
@@ -92,6 +93,7 @@ export function AppRouter() {
                   <Route element={<VendorMenuListPage />} path="menu" />
                   <Route element={<VendorMenuFormPage />} path="menu/new" />
                   <Route element={<VendorMenuFormPage />} path="menu/:itemId/edit" />
+                  <Route element={<VendorMenuSchedulePage />} path="menu/:itemId/schedule" />
                   <Route element={<VendorOrdersPage />} path="orders" />
                   <Route element={<VendorBadgePickupPage />} path="pickup" />
                   <Route element={<VendorOrderDetailPage />} path="orders/:orderId" />

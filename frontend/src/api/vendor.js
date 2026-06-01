@@ -113,6 +113,26 @@ export function deleteMenuItemPhoto(itemId, { facilityId } = {}) {
   return apiFetch(appendFacilityParam(`/vendor/me/menu/${itemId}/photo`, facilityId), { method: "DELETE" });
 }
 
+// ── Per-date menu schedule ────────────────────────────────────────────────────
+
+export function getMenuItemSchedule(itemId) {
+  return apiFetch(`/vendor/me/menu/${itemId}/schedule`);
+}
+
+export function upsertMenuItemScheduleDate(itemId, mealDate, data) {
+  return apiFetch(`/vendor/me/menu/${itemId}/schedule/${mealDate}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+}
+
+export function deleteMenuItemScheduleDate(itemId, mealDate) {
+  return apiFetch(`/vendor/me/menu/${itemId}/schedule/${mealDate}`, {
+    method: "DELETE",
+  });
+}
+
 export function getApplicationFacilities() {
   return withMockFallback(
     () => apiFetch("/vendor/applications/facilities"),
