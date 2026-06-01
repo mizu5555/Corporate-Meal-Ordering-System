@@ -1,90 +1,270 @@
-import { useEffect, useState } from "react";
-import { getMyBilling } from "../../api/vendor";
+import { useEffect, useMemo, useState } from "react";
+
+import { getVendorRevenue } from "../../api/vendor";
+import { useFacility } from "../../facility/FacilityContext";
 import FacilityScopeLabel from "../../facility/FacilityScopeLabel";
 import { formatMoney } from "../../utils/format";
 
-function currentMonthValue() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+const RANGES = [
+  { days: 7, label: "Last 7 days" },
+  { days: 30, label: "Last 30 days" },
+];
+
+function todayIso() {
+  return new Date().toISOString().slice(0, 10);
 }
 
-function parseMonthValue(value) {
-  const [year, month] = value.split("-").map(Number);
-  return { year, month };
+function isoDaysBefore(base, days) {
+  const d = new Date(base);
+  d.setDate(d.getDate() - days);
+  return d.toISOString().slice(0, 10);
+}
+
+function presetRange(days) {
+  const end = todayIso();
+  const start = isoDaysBefore(end, days - 1);
+  return { start, end };
+}
+
+function quotaText(value) {
+  if (value == null) return "Unlimited";
+  return String(value);
+}
+
+function remainingText(value) {
+  if (value == null) return "Unlimited";
+  if (value === 0) return "Sold out";
+  return String(value);
+}
+
+function numberText(value) {
+  return new Intl.NumberFormat("en-US").format(value ?? 0);
 }
 
 export default function VendorRevenuePage() {
-  const [monthValue, setMonthValue] = useState(currentMonthValue);
-  const [billing, setBilling] = useState(null);
+  const { selectedFacilityId } = useFacility();
+  const initialRange = useMemo(() => presetRange(30), []);
+  const [startDate, setStartDate] = useState(initialRange.start);
+  const [endDate, setEndDate] = useState(initialRange.end);
+  const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState(null);
+
+  const activePresetDays = useMemo(() => {
+    for (const range of RANGES) {
+      const candidate = presetRange(range.days);
+      if (candidate.start === startDate && candidate.end === endDate) {
+        return range.days;
+      }
+    }
+    return null;
+  }, [startDate, endDate]);
+
+  const rangeInvalid = startDate > endDate;
 
   useEffect(() => {
-    let alive = true;
+    if (rangeInvalid) {
+      setError("Start date must be on or before end date.");
+      setLoading(false);
+      setDashboard(null);
+      return undefined;
+    }
+    let active = true;
     setLoading(true);
-    setError(false);
-    getMyBilling(parseMonthValue(monthValue))
+    setError(null);
+    getVendorRevenue({
+      facilityId: selectedFacilityId,
+      today: todayIso(),
+      start: startDate,
+      end: endDate,
+    })
       .then((data) => {
-        if (alive) setBilling(data);
+        if (active) setDashboard(data);
       })
-      .catch(() => {
-        if (alive) setError(true);
+      .catch((err) => {
+        if (active) setError(err.message ?? "Unable to load revenue data");
       })
       .finally(() => {
-        if (alive) setLoading(false);
+        if (active) setLoading(false);
       });
     return () => {
-      alive = false;
+      active = false;
     };
-  }, [monthValue]);
+  }, [startDate, endDate, selectedFacilityId, rangeInvalid]);
 
-  const hasRevenue = (billing?.order_count ?? 0) > 0;
+  const applyPreset = (days) => {
+    const range = presetRange(days);
+    setStartDate(range.start);
+    setEndDate(range.end);
+  };
 
   return (
     <div>
       <div className="page-header">
         <FacilityScopeLabel label="Revenue facility" />
-        <p className="eyebrow">商家 · 營收</p>
-        <h2>收益總覽</h2>
+        <p className="eyebrow">Vendor / Revenue</p>
+        <h2>Sales dashboard</h2>
+      </div>
+
+      <div className="range-pills" role="group" aria-label="Revenue range" style={{ marginBottom: 12 }}>
+        {RANGES.map((range) => (
+          <button
+            key={range.days}
+            type="button"
+            className={`range-pill${activePresetDays === range.days ? " is-active" : ""}`}
+            onClick={() => applyPreset(range.days)}
+            aria-pressed={activePresetDays === range.days}
+          >
+            {range.label}
+          </button>
+        ))}
       </div>
 
       <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          gap: 16,
-          alignItems: "center",
-          marginBottom: 20,
-          flexWrap: "wrap",
-        }}
+        className="range-custom"
+        role="group"
+        aria-label="Custom date range"
+        style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap", marginBottom: 20 }}
       >
-        <p style={{ margin: 0, color: "var(--muted)" }}>只計入已完成且送達的訂單。</p>
-        <input
-          className="form-input"
-          type="month"
-          value={monthValue}
-          onChange={(event) => setMonthValue(event.target.value)}
-          style={{ width: 180 }}
-        />
+        <label style={{ display: "flex", flexDirection: "column", fontSize: 12 }}>
+          <span>Start</span>
+          <input
+            type="date"
+            value={startDate}
+            max={endDate}
+            onChange={(event) => setStartDate(event.target.value)}
+          />
+        </label>
+        <label style={{ display: "flex", flexDirection: "column", fontSize: 12 }}>
+          <span>End</span>
+          <input
+            type="date"
+            value={endDate}
+            min={startDate}
+            max={todayIso()}
+            onChange={(event) => setEndDate(event.target.value)}
+          />
+        </label>
       </div>
 
-      {loading && <p className="loading-state">載入收益中...</p>}
-      {error && <p className="error-state">無法載入收益資料，請稍後再試。</p>}
+      {loading && <p className="loading-state">Loading revenue data...</p>}
+      {error && <p className="error-state">{error}</p>}
 
-      {!loading && !error && (
-        <div className="panel" style={{ padding: "18px 22px", marginBottom: 24 }}>
-          <p style={{ margin: 0, color: "var(--muted)", fontSize: 13 }}>本月應收</p>
-          <p style={{ margin: "6px 0 0", fontWeight: 800, fontSize: 28 }}>
-            {formatMoney(billing?.amount_cents ?? 0)}
-          </p>
-          <p style={{ margin: "6px 0 0", color: "var(--muted)", fontSize: 13 }}>
-            {billing?.order_count ?? 0} 筆已完成訂單
-          </p>
-        </div>
-      )}
+      {dashboard && !loading && !error && (
+        <section style={{ display: "grid", gap: 18 }}>
+          <article className="panel stat-cards">
+            <div className="stat-card">
+              <span>Orders</span>
+              <strong>{numberText(dashboard.summary.order_count)}</strong>
+            </div>
+            <div className="stat-card">
+              <span>Items sold</span>
+              <strong>{numberText(dashboard.summary.quantity_sold)}</strong>
+            </div>
+            <div className="stat-card">
+              <span>Revenue</span>
+              <strong>{formatMoney(dashboard.summary.revenue_cents)}</strong>
+            </div>
+          </article>
 
-      {!loading && !error && !hasRevenue && (
-        <p className="empty-state">這個月份沒有已完成訂單，因此沒有應收款項。</p>
+          <div
+            style={{
+              display: "grid",
+              gap: 18,
+              gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))",
+            }}
+          >
+            <article className="panel">
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 16,
+                  alignItems: "baseline",
+                  flexWrap: "wrap",
+                  marginBottom: 12,
+                }}
+              >
+                <h3 style={{ margin: 0 }}>Today stock</h3>
+                <p className="panel-copy" style={{ margin: 0 }}>{dashboard.today}</p>
+              </div>
+              <div style={{ overflowX: "auto" }}>
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Item</th>
+                      <th>Quota</th>
+                      <th>Sold</th>
+                      <th>Remaining</th>
+                      <th>Revenue</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dashboard.today_items.map((item) => (
+                      <tr key={item.item_id}>
+                        <td>{item.item_name}</td>
+                        <td>{quotaText(item.daily_quota)}</td>
+                        <td>{numberText(item.sold_quantity)}</td>
+                        <td>{remainingText(item.remaining_quantity)}</td>
+                        <td>{formatMoney(item.revenue_cents)}</td>
+                      </tr>
+                    ))}
+                    {dashboard.today_items.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="table-empty">No menu items yet.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </article>
+
+            <article className="panel">
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 16,
+                  alignItems: "baseline",
+                  flexWrap: "wrap",
+                  marginBottom: 12,
+                }}
+              >
+                <h3 style={{ margin: 0 }}>Dish sales</h3>
+                <p className="panel-copy" style={{ margin: 0 }}>
+                  {dashboard.start} to {dashboard.end}
+                </p>
+              </div>
+              <div style={{ overflowX: "auto" }}>
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Item</th>
+                      <th>Orders</th>
+                      <th>Sold</th>
+                      <th>Revenue</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dashboard.period_items.map((item) => (
+                      <tr key={item.item_id}>
+                        <td>{item.item_name}</td>
+                        <td>{numberText(item.order_count)}</td>
+                        <td>{numberText(item.quantity_sold)}</td>
+                        <td>{formatMoney(item.revenue_cents)}</td>
+                      </tr>
+                    ))}
+                    {dashboard.period_items.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="table-empty">No sales in this range.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </article>
+          </div>
+        </section>
       )}
     </div>
   );
