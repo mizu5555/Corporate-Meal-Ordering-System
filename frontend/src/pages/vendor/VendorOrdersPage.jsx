@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { getMyOrders } from "../../api/vendor";
 import { useFacility } from "../../facility/FacilityContext";
 import FacilityScopeLabel from "../../facility/FacilityScopeLabel";
-import { formatPrice } from "../../utils/format";
+import { formatMoney } from "../../utils/format";
 
 const STATUS_LABEL = {
   pending: "待確認",
@@ -97,7 +97,7 @@ export default function VendorOrdersPage() {
             </div>
             <div className="panel" style={{ flex: 1, padding: "16px 20px" }}>
               <p style={{ margin: 0, color: "var(--muted)", fontSize: 13 }}>預估收入</p>
-              <p style={{ margin: "4px 0 0", fontWeight: 700, fontSize: 22 }}>{formatPrice(totalRevenue)}</p>
+              <p style={{ margin: "4px 0 0", fontWeight: 700, fontSize: 22 }}>{formatMoney(totalRevenue)}</p>
             </div>
           </div>
 
@@ -155,7 +155,7 @@ export default function VendorOrdersPage() {
                   {itemsSummary(order.items)}
                 </p>
                 <p style={{ margin: 0, textAlign: "right", fontWeight: 600 }}>
-                  {formatPrice(order.total_price_cents)}
+                  {formatMoney(order.total_price_cents)}
                 </p>
                 <div style={{ textAlign: "right" }}>
                   <StatusBadge status={order.status} />

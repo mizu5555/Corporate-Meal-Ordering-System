@@ -70,6 +70,17 @@ export function getMyOrders() {
   return withMockFallback(() => apiFetch("/employee/me/orders"), []);
 }
 
+export function getMyBilling({ year, month } = {}) {
+  const params = new URLSearchParams();
+  if (year != null) params.set("year", String(year));
+  if (month != null) params.set("month", String(month));
+  const qs = params.toString();
+  return withMockFallback(
+    () => apiFetch(`/employee/me/billing${qs ? `?${qs}` : ""}`),
+    { year, month, amount_cents: 0, order_count: 0 },
+  );
+}
+
 export function updateMyOrder(orderId, { items, mealDate }) {
   const payload = { items: items.map((item) => ({ item_id: item.itemId, quantity: item.quantity })) };
   if (mealDate != null) payload.meal_date = mealDate;
