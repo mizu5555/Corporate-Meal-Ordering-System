@@ -9,7 +9,16 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date, datetime
 
-from backend.schemas.admin_stats import DayPoint, FacilityStat, ItemSales, OrderSummary, VendorStat
+from backend.schemas.admin_stats import (
+    DayPoint,
+    FacilityStat,
+    ItemSales,
+    OrderSummary,
+    VendorItemPeriodAggregate,
+    VendorItemTodayAggregate,
+    VendorRevenueWindowSummary,
+    VendorStat,
+)
 from backend.schemas.billing import EmployeeTotal, VendorReceivable
 
 
@@ -190,6 +199,92 @@ class ReportingRepository:
         ]
         rows.sort(key=lambda r: r.quantity_sold, reverse=True)
         return rows[:limit]
+
+    @staticmethod
+    def _row_business_day(row: _OrderRow) -> date:
+        return row.meal_date or row.created_at.date()
+
+    def _vendor_rows_in_window(
+        self,
+        vendor_id: int,
+        start: date,
+        end: date,
+        facility_id: int | None,
+    ) -> list[_OrderRow]:
+        rows: list[_OrderRow] = []
+        for r in self._orders:
+            if r.status == "cancelled" or r.vendor_id != vendor_id:
+                continue
+            if facility_id is not None and r.facility_id != facility_id:
+                continue
+            if start <= self._row_business_day(r) <= end:
+                rows.append(r)
+        return rows
+
+    def vendor_today_item_stats(
+        self,
+        vendor_id: int,
+        day: date,
+        *,
+        facility_id: int | None = None,
+    ) -> list[VendorItemTodayAggregate]:
+        acc: dict[int, dict[str, int]] = {}
+        for r in self._vendor_rows_in_window(vendor_id, day, day, facility_id):
+            for item_id, qty, unit_price in r.items:
+                a = acc.setdefault(item_id, {"sold_quantity": 0, "revenue_cents": 0})
+                a["sold_quantity"] += qty
+                a["revenue_cents"] += qty * unit_price
+        return [
+            VendorItemTodayAggregate(
+                item_id=item_id,
+                sold_quantity=a["sold_quantity"],
+                revenue_cents=a["revenue_cents"],
+            )
+            for item_id, a in acc.items()
+        ]
+
+    def vendor_period_item_sales(
+        self,
+        vendor_id: int,
+        start: date,
+        end: date,
+        *,
+        facility_id: int | None = None,
+    ) -> list[VendorItemPeriodAggregate]:
+        acc: dict[int, dict] = {}
+        for r in self._vendor_rows_in_window(vendor_id, start, end, facility_id):
+            for item_id, qty, unit_price in r.items:
+                a = acc.setdefault(
+                    item_id,
+                    {"quantity_sold": 0, "revenue_cents": 0, "order_ids": set()},
+                )
+                a["quantity_sold"] += qty
+                a["revenue_cents"] += qty * unit_price
+                a["order_ids"].add(r.order_id)
+        return [
+            VendorItemPeriodAggregate(
+                item_id=item_id,
+                quantity_sold=a["quantity_sold"],
+                revenue_cents=a["revenue_cents"],
+                order_count=len(a["order_ids"]),
+            )
+            for item_id, a in acc.items()
+        ]
+
+    def vendor_period_summary(
+        self,
+        vendor_id: int,
+        start: date,
+        end: date,
+        *,
+        facility_id: int | None = None,
+    ) -> VendorRevenueWindowSummary:
+        rows = self._vendor_rows_in_window(vendor_id, start, end, facility_id)
+        return VendorRevenueWindowSummary(
+            order_count=len(rows),
+            quantity_sold=sum(self._row_quantity(r) for r in rows),
+            revenue_cents=sum(self._row_revenue(r) for r in rows),
+        )
 
     def employee_monthly_totals(self, year: int, month: int) -> list[EmployeeTotal]:
         acc: dict[int, dict] = {}

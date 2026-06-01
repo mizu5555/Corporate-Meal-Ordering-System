@@ -25,6 +25,16 @@ export function getMyOrders({ facilityId } = {}) {
   return apiFetch(appendFacilityParam("/vendor/me/orders", facilityId));
 }
 
+export function getVendorRevenue({ facilityId, today, start, end } = {}) {
+  const params = new URLSearchParams();
+  if (facilityId != null && facilityId !== "") params.set("facility_id", String(facilityId));
+  if (today) params.set("today", today);
+  if (start) params.set("start", start);
+  if (end) params.set("end", end);
+  const qs = params.toString();
+  return apiFetch(`/vendor/me/revenue${qs ? `?${qs}` : ""}`);
+}
+
 export function getMyOrder(orderId) {
   return apiFetch(`/vendor/me/orders/${orderId}`);
 }
