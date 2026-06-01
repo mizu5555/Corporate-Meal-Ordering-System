@@ -57,7 +57,7 @@ def _validate_application_payload(payload: VendorApplicationCreate, facility_rep
     return payload.model_copy(update={"facility_ids": facility_ids})
 
 
-@router.get("/facilities", response_model=list[Facility])
+@router.get("/facilities")
 def list_application_facilities(
     _user_id: Annotated[int, Depends(require_vendor_manager)],
     facility_repo: Annotated[object, Depends(get_facility_repository)],
