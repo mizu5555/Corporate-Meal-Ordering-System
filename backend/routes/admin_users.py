@@ -16,9 +16,9 @@ def _fetch_users(search: str | None, role: str | None) -> list[dict]:
     params: list = []
 
     if search:
-        conditions.append("(u.email ILIKE %s OR u.display_name ILIKE %s)")
+        conditions.append("(u.email ILIKE %s OR u.display_name ILIKE %s OR u.badge_code ILIKE %s)")
         pattern = f"%{search}%"
-        params.extend([pattern, pattern])
+        params.extend([pattern, pattern, pattern])
 
     if role:
         conditions.append("r.name = %s")
@@ -26,7 +26,7 @@ def _fetch_users(search: str | None, role: str | None) -> list[dict]:
 
     where = " AND ".join(conditions)
     sql = f"""
-        SELECT u.id, u.email, u.display_name, r.name AS role, u.is_active, u.created_at
+        SELECT u.id, u.email, u.display_name, r.name AS role, u.badge_code, u.is_active, u.created_at
         FROM users u
         JOIN roles r ON r.id = u.role_id
         WHERE {where}

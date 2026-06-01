@@ -10,6 +10,7 @@ const ROLE_LABELS = {
   vendor_manager: "Vendor Manager",
   committee_reviewer: "Committee Reviewer",
 };
+const USER_GRID_COLUMNS = "minmax(180px, 1fr) 120px 120px 110px 90px 120px 160px";
 
 function useUsers(search, role) {
   const [users, setUsers] = useState([]);
@@ -162,11 +163,12 @@ export default function AdminPermissionsPage() {
       )}
 
       {!loading && !error && users.length > 0 && (
-        <div className="panel" style={{ padding: 0, overflow: "hidden" }}>
+        <div className="panel" style={{ padding: 0, overflowX: "auto" }}>
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "1fr 120px 120px 90px 120px 160px",
+              gridTemplateColumns: USER_GRID_COLUMNS,
+              minWidth: 900,
               padding: "10px 20px",
               borderBottom: "1px solid var(--line)",
               color: "var(--muted)",
@@ -180,6 +182,7 @@ export default function AdminPermissionsPage() {
             <span style={{ textAlign: "center" }}>角色</span>
             <span style={{ textAlign: "center" }}>狀態</span>
             <span style={{ textAlign: "center" }}>建立日期</span>
+            <span style={{ textAlign: "center" }}>Badge</span>
             <span></span>
             <span style={{ textAlign: "right" }}>操作</span>
           </div>
@@ -189,7 +192,8 @@ export default function AdminPermissionsPage() {
               key={u.id}
               style={{
                 display: "grid",
-                gridTemplateColumns: "1fr 120px 120px 90px 120px 160px",
+                gridTemplateColumns: USER_GRID_COLUMNS,
+                minWidth: 900,
                 alignItems: "center",
                 padding: "14px 20px",
                 borderBottom: idx < users.length - 1 ? "1px solid var(--line)" : "none",
@@ -205,6 +209,9 @@ export default function AdminPermissionsPage() {
                 <StatusBadge isActive={u.is_active} />
               </div>
               <p style={{ margin: 0, fontSize: 13, color: "var(--muted)", textAlign: "center" }}>{formatDate(u.created_at)}</p>
+              <p style={{ margin: 0, fontSize: 13, color: "var(--muted)", textAlign: "center" }}>
+                {u.badge_code || "-"}
+              </p>
               <div />
               <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
                 {!isSelf(u.id) && u.is_active && (
