@@ -1,18 +1,19 @@
 import { useEffect, useState } from "react";
 import { useCart } from "../../cart/CartContext";
 import { formatPrice, photoUrl, quotaLabel } from "../../utils/format";
+import { maxAddQuantity } from "../../cart/quantity";
 
-export default function MealDetailModal({ item, onClose }) {
+export default function MealDetailModal({ item, onClose, mealDate = null, remaining = null }) {
   const photo = photoUrl(item.photo_path);
   const quota = quotaLabel(item.daily_quota);
-  const soldOut = item.daily_quota === 0;
+  const soldOut = item.daily_quota === 0 || remaining === 0;
   const unavailable = !item.available || soldOut;
 
   const [quantity, setQuantity] = useState(1);
   const [added, setAdded] = useState(false);
   const { addItem } = useCart();
 
-  const maxQty = item.daily_quota > 0 ? Math.min(item.daily_quota, 99) : 99;
+  const maxQty = maxAddQuantity({ remaining, dailyQuota: item.daily_quota });
 
   useEffect(() => {
     function onKey(e) {
@@ -23,7 +24,7 @@ export default function MealDetailModal({ item, onClose }) {
   }, [onClose]);
 
   function handleAddToCart() {
-    addItem(item, item.vendor_id, quantity);
+    addItem(item, item.vendor_id, quantity, mealDate);
     setAdded(true);
     setTimeout(() => {
       setAdded(false);
@@ -68,14 +69,23 @@ export default function MealDetailModal({ item, onClose }) {
               )}
             </div>
 
-            {quota && (
+            {remaining != null ? (
               <div className="modal-detail-row">
-                <span className="modal-detail-label">今日配額</span>
-                <span className="badge badge-quota">{quota}</span>
+                <span className="modal-detail-label">
+                  {mealDate ? mealDate : "今日"}
+                </span>
+                <span className="badge badge-quota">{`剩餘 ${remaining} 份`}</span>
               </div>
+            ) : (
+              quota && (
+                <div className="modal-detail-row">
+                  <span className="modal-detail-label">今日配額</span>
+                  <span className="badge badge-quota">{quota}</span>
+                </div>
+              )
             )}
 
-            {item.daily_quota === null && (
+            {remaining == null && item.daily_quota === null && (
               <div className="modal-detail-row">
                 <span className="modal-detail-label">今日配額</span>
                 <span style={{ color: "var(--muted)" }}>無限制</span>
