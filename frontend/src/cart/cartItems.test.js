@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { addCartItem, groupByMealDate } from "./cartItems.js";
+import { addCartItem, groupByMealDate, removeCartItem, updateCartItemQuantity } from "./cartItems.js";
 
 const itemA = { id: 1, name: "雞腿便當" };
 const itemB = { id: 2, name: "排骨飯" };
@@ -41,6 +41,31 @@ test("addCartItem does not mutate the input array", () => {
 test("addCartItem defaults quantity to 1 when omitted", () => {
   const result = addCartItem([], { item: itemA, vendorId: 10, mealDate: "2026-06-03" });
   assert.equal(result[0].quantity, 1);
+});
+
+test("updateCartItemQuantity updates only the matching item + date row", () => {
+  const start = [
+    { item: itemA, vendorId: 10, quantity: 1, mealDate: "2026-06-03" },
+    { item: itemA, vendorId: 10, quantity: 2, mealDate: "2026-06-04" },
+  ];
+  const result = updateCartItemQuantity(start, {
+    itemId: itemA.id,
+    mealDate: "2026-06-04",
+    quantity: 4,
+  });
+  assert.equal(result[0].quantity, 1);
+  assert.equal(result[1].quantity, 4);
+});
+
+test("removeCartItem removes only the matching item + date row", () => {
+  const start = [
+    { item: itemA, vendorId: 10, quantity: 1, mealDate: "2026-06-03" },
+    { item: itemA, vendorId: 10, quantity: 2, mealDate: "2026-06-04" },
+  ];
+  const result = removeCartItem(start, { itemId: itemA.id, mealDate: "2026-06-03" });
+  assert.deepEqual(result, [
+    { item: itemA, vendorId: 10, quantity: 2, mealDate: "2026-06-04" },
+  ]);
 });
 
 test("groupByMealDate returns an empty array for an empty cart", () => {

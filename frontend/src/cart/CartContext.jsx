@@ -1,6 +1,6 @@
 import { createContext, useContext, useState } from "react";
 
-import { addCartItem } from "./cartItems";
+import { addCartItem, removeCartItem, updateCartItemQuantity } from "./cartItems";
 
 const CartContext = createContext(null);
 
@@ -11,17 +11,18 @@ export function CartProvider({ children }) {
     setItems((prev) => addCartItem(prev, { item, vendorId, quantity, mealDate }));
   }
 
-  function removeItem(itemId) {
-    setItems((prev) => prev.filter((i) => i.item.id !== itemId));
+  function removeItem(itemId, mealDate = null) {
+    setItems((prev) => removeCartItem(prev, { itemId, mealDate }));
   }
 
-  function updateQuantity(itemId, quantity) {
+  function updateQuantity(itemId, mealDateOrQuantity = null, maybeQuantity = undefined) {
+    const hasMealDateArg = maybeQuantity !== undefined;
+    const mealDate = hasMealDateArg ? mealDateOrQuantity : null;
+    const quantity = hasMealDateArg ? maybeQuantity : mealDateOrQuantity;
     if (quantity <= 0) {
-      removeItem(itemId);
+      removeItem(itemId, mealDate);
     } else {
-      setItems((prev) =>
-        prev.map((i) => (i.item.id === itemId ? { ...i, quantity } : i))
-      );
+      setItems((prev) => updateCartItemQuantity(prev, { itemId, mealDate, quantity }));
     }
   }
 

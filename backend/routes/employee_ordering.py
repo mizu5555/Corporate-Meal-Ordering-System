@@ -86,6 +86,7 @@ def list_menu(
     category_id: Annotated[int | None, Query()] = None,
     available: Annotated[bool | None, Query()] = True,
     facility_id: Annotated[int | None, Query()] = None,
+    meal_date: Annotated[date | None, Query()] = None,
 ) -> list[EmployeeMenuItem]:
     return service.list_menu(
         vendor_id,
@@ -93,6 +94,7 @@ def list_menu(
         available=available,
         employee_id=employee_id,
         facility_id=facility_id,
+        meal_date=meal_date,
     )
 
 

@@ -102,9 +102,10 @@ export function deleteMyOrder(orderId) {
   });
 }
 
-export function getVendorMenu(vendorId, { available, facilityId } = {}) {
+export function getVendorMenu(vendorId, { available, facilityId, mealDate } = {}) {
   const params = new URLSearchParams();
   if (available != null) params.set("available", String(available));
+  if (mealDate) params.set("meal_date", mealDate);
   const qs = params.toString();
   return withMockFallback(
     () => apiFetch(appendFacilityParam(`/employee/vendors/${vendorId}/menu${qs ? `?${qs}` : ""}`, facilityId)),
