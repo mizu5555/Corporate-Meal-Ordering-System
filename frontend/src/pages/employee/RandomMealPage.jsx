@@ -1,15 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { drawRandomMeal, getRecommendations, submitSelection } from "../../api/employee";
+import { drawRandomMeal, getRecommendations } from "../../api/employee";
+import { useCart } from "../../cart/CartContext";
 import { useFacility } from "../../facility/FacilityContext";
 import FacilityScopeLabel from "../../facility/FacilityScopeLabel";
 import { useVendors } from "../../hooks/useVendors";
+import { toLocalIso } from "../../utils/date";
 import { formatPrice, quotaLabel } from "../../utils/format";
-
-function toLocalIso(date) {
-  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-  return localDate.toISOString().slice(0, 10);
-}
 
 function addDaysIso(days) {
   const date = new Date();
@@ -27,6 +24,7 @@ function drawErrorMessage(err) {
 
 export default function RandomMealPage() {
   const navigate = useNavigate();
+  const { addItem } = useCart();
   const { selectedFacilityId } = useFacility();
   const { vendors, loading, error } = useVendors({ facilityId: selectedFacilityId });
   const minMealDate = addDaysIso(0);
@@ -40,16 +38,12 @@ export default function RandomMealPage() {
   const [draw, setDraw] = useState(null);
   const [drawError, setDrawError] = useState(null);
   const [drawing, setDrawing] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
+  const [addedToCart, setAddedToCart] = useState(false);
 
   // --- 熱門推薦 state ---
   const [recommendations, setRecommendations] = useState([]);
   const [recLoading, setRecLoading] = useState(false);
   const [recError, setRecError] = useState(null);
-  const [recSubmitting, setRecSubmitting] = useState(null); // item id being submitted
-  const [recSubmitted, setRecSubmitted] = useState(null);   // item id successfully submitted
-  const [recSubmitError, setRecSubmitError] = useState(null);
   const [limit, setLimit] = useState(10);
 
   const selectedCount = allVendors ? vendors.length : selectedVendorIds.length;
@@ -64,9 +58,7 @@ export default function RandomMealPage() {
   useEffect(() => {
     setSelectedVendorIds([]);
     setDraw(null);
-    setSubmitted(false);
-    setRecSubmitted(null);
-    setRecSubmitError(null);
+    setAddedToCart(false);
   }, [selectedFacilityId]);
 
   // Fetch recommendations whenever the tab, mealDate, or facilityId changes
@@ -75,8 +67,6 @@ export default function RandomMealPage() {
     let cancelled = false;
     setRecLoading(true);
     setRecError(null);
-    setRecSubmitted(null);
-    setRecSubmitError(null);
     getRecommendations({ facilityId: selectedFacilityId, mealDate, limit })
       .then((data) => {
         if (!cancelled) setRecommendations(data);
@@ -100,13 +90,12 @@ export default function RandomMealPage() {
         : [...current, vendorId],
     );
     setDraw(null);
-    setSubmitted(false);
   }
 
   async function handleDraw() {
     setDrawing(true);
     setDrawError(null);
-    setSubmitted(false);
+    setAddedToCart(false);
     try {
       const result = await drawRandomMeal({
         mealDate,
@@ -122,43 +111,15 @@ export default function RandomMealPage() {
     }
   }
 
-  async function handleConfirm() {
+  function handleAddDrawToCart() {
     if (!draw) return;
-    setSubmitting(true);
-    setDrawError(null);
-    try {
-      await submitSelection(draw.vendor.id, {
-        itemId: draw.item.id,
-        quantity: 1,
-        mealDate,
-        facilityId: selectedFacilityId,
-      });
-      setSubmitted(true);
-    } catch (err) {
-      setDrawError(drawErrorMessage(err));
-    } finally {
-      setSubmitting(false);
-    }
+    addItem(draw.item, draw.vendor.id, 1, mealDate);
+    setAddedToCart(true);
   }
 
-  async function handleRecOrder(rec) {
-    setRecSubmitting(rec.item.id);
-    setRecSubmitError(null);
-    try {
-      await submitSelection(rec.vendor.id, {
-        itemId: rec.item.id,
-        quantity: 1,
-        mealDate,
-        facilityId: selectedFacilityId,
-      });
-      setRecSubmitted(rec.item.id);
-    } catch (err) {
-      setRecSubmitError(
-        err?.message ?? "訂購失敗，請稍後再試。"
-      );
-    } finally {
-      setRecSubmitting(null);
-    }
+  function handleAddRecToCart(rec) {
+    addItem(rec.item, rec.vendor.id, 1, mealDate);
+    setAddedToCart(true);
   }
 
   function recRemainingLabel(rec) {
@@ -173,6 +134,28 @@ export default function RandomMealPage() {
         <p className="eyebrow">員工 / 推薦與隨機抽餐</p>
         <h2>今天吃什麼？</h2>
       </div>
+
+      {addedToCart && (
+        <div
+          className="success-state"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            marginBottom: 16,
+          }}
+        >
+          <span>✅ 已加入購物車</span>
+          <button
+            className="ghost-button"
+            type="button"
+            onClick={() => navigate("/employee/cart")}
+          >
+            去結帳
+          </button>
+        </div>
+      )}
 
       {/* Shared selectors */}
       <section className="random-meal-layout">
@@ -190,7 +173,7 @@ export default function RandomMealPage() {
             onChange={(event) => {
               setMealDate(event.target.value);
               setDraw(null);
-              setSubmitted(false);
+              setAddedToCart(false);
             }}
           />
 
@@ -209,7 +192,7 @@ export default function RandomMealPage() {
                     onChange={(event) => {
                       setAllVendors(event.target.checked);
                       setDraw(null);
-                      setSubmitted(false);
+                      setAddedToCart(false);
                     }}
                   />
                   <span>全部餐廳</span>
@@ -253,14 +236,14 @@ export default function RandomMealPage() {
             <button
               type="button"
               className={`range-pill${tab === "recommend" ? " is-active" : ""}`}
-              onClick={() => setTab("recommend")}
+              onClick={() => { setTab("recommend"); setAddedToCart(false); }}
             >
               熱門推薦
             </button>
             <button
               type="button"
               className={`range-pill${tab === "random" ? " is-active" : ""}`}
-              onClick={() => setTab("random")}
+              onClick={() => { setTab("random"); setAddedToCart(false); }}
             >
               隨機抽餐
             </button>
@@ -288,7 +271,6 @@ export default function RandomMealPage() {
 
               {recLoading && <p className="loading-state compact-state">載入推薦中…</p>}
               {recError && <p className="error-state">{recError}</p>}
-              {recSubmitError && <p className="error-state">{recSubmitError}</p>}
               {!recLoading && !recError && recommendations.length === 0 && (
                 <p className="recommend-empty">目前沒有可推薦的餐點</p>
               )}
@@ -320,27 +302,13 @@ export default function RandomMealPage() {
                         </div>
                       </div>
                       <div className="recommend-card-action">
-                        {recSubmitted === rec.item.id ? (
-                          <>
-                            <p className="eyebrow" style={{ color: "var(--brand)", marginBottom: "6px" }}>已訂購</p>
-                            <button
-                              className="ghost-button"
-                              type="button"
-                              onClick={() => navigate("/employee/orders")}
-                            >
-                              查看訂單
-                            </button>
-                          </>
-                        ) : (
-                          <button
-                            className="primary-button"
-                            type="button"
-                            onClick={() => handleRecOrder(rec)}
-                            disabled={recSubmitting === rec.item.id}
-                          >
-                            {recSubmitting === rec.item.id ? "訂購中…" : "訂購"}
-                          </button>
-                        )}
+                        <button
+                          className="primary-button"
+                          type="button"
+                          onClick={() => handleAddRecToCart(rec)}
+                        >
+                          加入購物車
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -377,37 +345,23 @@ export default function RandomMealPage() {
                     </span>
                   </div>
 
-                  {submitted ? (
-                    <div className="success-state">
-                      <p>已加入訂單（{mealDate}）。</p>
-                      <button
-                        className="ghost-button"
-                        type="button"
-                        onClick={() => navigate("/employee/orders")}
-                      >
-                        查看訂單
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="random-result-actions">
-                      <button
-                        className="ghost-button"
-                        type="button"
-                        onClick={handleDraw}
-                        disabled={drawing || submitting}
-                      >
-                        重新抽
-                      </button>
-                      <button
-                        className="primary-button"
-                        type="button"
-                        onClick={handleConfirm}
-                        disabled={submitting}
-                      >
-                        {submitting ? "送出中…" : "選這份"}
-                      </button>
-                    </div>
-                  )}
+                  <div className="random-result-actions">
+                    <button
+                      className="ghost-button"
+                      type="button"
+                      onClick={handleDraw}
+                      disabled={drawing}
+                    >
+                      重新抽
+                    </button>
+                    <button
+                      className="primary-button"
+                      type="button"
+                      onClick={handleAddDrawToCart}
+                    >
+                      加入購物車
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
