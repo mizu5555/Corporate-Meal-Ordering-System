@@ -2,9 +2,11 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { submitSelection } from "../../api/employee";
 import { useCart } from "../../cart/CartContext";
+import { groupByMealDate } from "../../cart/cartItems";
 import { useFacility } from "../../facility/FacilityContext";
 import FacilityScopeLabel from "../../facility/FacilityScopeLabel";
 import { formatPrice } from "../../utils/format";
+import { todayIso } from "../../utils/date";
 
 function errorMessage(item, err) {
   if (err.code === "ITEM_UNAVAILABLE" || err.code === "item_unavailable") {
@@ -36,6 +38,8 @@ export default function CartPage() {
     0,
   );
 
+  const groups = groupByMealDate(items, todayIso());
+
   async function handleSubmit() {
     setSubmitting(true);
     setResult(null);
@@ -46,6 +50,7 @@ export default function CartPage() {
         await submitSelection(cartItem.vendorId, {
           itemId: cartItem.item.id,
           quantity: cartItem.quantity,
+          mealDate: cartItem.mealDate,
           facilityId: selectedFacilityId,
         });
       } catch (err) {
@@ -131,64 +136,85 @@ export default function CartPage() {
       )}
 
       <div className="panel" style={{ padding: 0, overflow: "hidden" }}>
-        {items.map((cartItem, idx) => (
-          <div
-            key={cartItem.item.id}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 16,
-              padding: "16px 20px",
-              borderBottom: idx < items.length - 1 ? "1px solid var(--line)" : "none",
-            }}
-          >
-            <div style={{ flex: 1 }}>
-              <p style={{ fontWeight: 600, margin: 0 }}>{cartItem.item.name}</p>
-              <p style={{ color: "var(--muted)", fontSize: 13, margin: "2px 0 0" }}>
-                {formatPrice(cartItem.item.price_cents)} / 份
-              </p>
-            </div>
-
-            <div className="quantity-stepper">
-              <button
-                className="stepper-btn"
-                type="button"
-                aria-label="減少數量"
-                onClick={() => updateQuantity(cartItem.item.id, cartItem.quantity - 1)}
-                disabled={cartItem.quantity <= 1}
-              >
-                −
-              </button>
-              <span className="stepper-value">{cartItem.quantity}</span>
-              <button
-                className="stepper-btn"
-                type="button"
-                aria-label="增加數量"
-                onClick={() => updateQuantity(cartItem.item.id, cartItem.quantity + 1)}
-              >
-                ＋
-              </button>
-            </div>
-
-            <p style={{ width: 80, textAlign: "right", fontWeight: 600, margin: 0 }}>
-              {formatPrice(cartItem.item.price_cents * cartItem.quantity)}
-            </p>
-
-            <button
-              type="button"
-              aria-label={`移除 ${cartItem.item.name}`}
-              onClick={() => removeItem(cartItem.item.id)}
+        {groups.map((group) => (
+          <div key={group.key}>
+            <p
               style={{
-                background: "none",
-                border: "none",
-                cursor: "pointer",
+                margin: 0,
+                padding: "10px 20px",
+                fontSize: 13,
+                fontWeight: 600,
                 color: "var(--muted)",
-                fontSize: 18,
-                padding: "4px 8px",
+                background: "var(--surface-2, rgba(0,0,0,0.03))",
+                borderBottom: "1px solid var(--line)",
               }}
             >
-              ×
-            </button>
+              {group.label}
+            </p>
+            {/* TODO(#134): updateQuantity/removeItem are id-only; not date-aware */}
+            {group.items.map((cartItem, idx) => {
+              const isLastInGroup = idx === group.items.length - 1;
+              return (
+              <div
+                key={`${cartItem.item.id}-${cartItem.mealDate ?? "today"}`}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 16,
+                  padding: "16px 20px",
+                  borderBottom: isLastInGroup ? "none" : "1px solid var(--line)",
+                }}
+              >
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontWeight: 600, margin: 0 }}>{cartItem.item.name}</p>
+                  <p style={{ color: "var(--muted)", fontSize: 13, margin: "2px 0 0" }}>
+                    {formatPrice(cartItem.item.price_cents)} / 份
+                  </p>
+                </div>
+
+                <div className="quantity-stepper">
+                  <button
+                    className="stepper-btn"
+                    type="button"
+                    aria-label="減少數量"
+                    onClick={() => updateQuantity(cartItem.item.id, cartItem.quantity - 1)}
+                    disabled={cartItem.quantity <= 1}
+                  >
+                    −
+                  </button>
+                  <span className="stepper-value">{cartItem.quantity}</span>
+                  <button
+                    className="stepper-btn"
+                    type="button"
+                    aria-label="增加數量"
+                    onClick={() => updateQuantity(cartItem.item.id, cartItem.quantity + 1)}
+                  >
+                    ＋
+                  </button>
+                </div>
+
+                <p style={{ width: 80, textAlign: "right", fontWeight: 600, margin: 0 }}>
+                  {formatPrice(cartItem.item.price_cents * cartItem.quantity)}
+                </p>
+
+                <button
+                  type="button"
+                  aria-label={`移除 ${cartItem.item.name}`}
+                  onClick={() => removeItem(cartItem.item.id)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    color: "var(--muted)",
+                    fontSize: 18,
+                    padding: "4px 8px",
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+              );
+            })}
           </div>
         ))}
       </div>
