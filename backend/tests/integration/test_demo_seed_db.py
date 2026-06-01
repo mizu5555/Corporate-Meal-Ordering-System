@@ -29,9 +29,26 @@ def test_demo_seed_is_comprehensive_and_idempotent(monkeypatch):
     orders_1 = _count(cur, "SELECT COUNT(*) AS count FROM orders")
     assert orders_1 >= 10
     assert _count(cur, "SELECT COUNT(*) AS count FROM orders WHERE status='delivered'") >= 5
+    apps_1 = _count(cur, "SELECT COUNT(*) AS count FROM vendor_applications")
 
     seed.run_demo_seed()  # second apply — must NOT duplicate
     assert _count(cur, "SELECT COUNT(*) AS count FROM orders") == orders_1, "not idempotent"
+    assert _count(cur, "SELECT COUNT(*) AS count FROM vendor_applications") == apps_1, "vendor_applications not idempotent"
+
+    # ── Review-state coverage (issue #168) ──────────────────────────────────
+    assert _count(cur, "SELECT COUNT(*) AS count FROM vendor_applications WHERE status='approved'") >= 3
+    assert _count(cur, "SELECT COUNT(*) AS count FROM vendor_applications WHERE status='pending'") >= 1
+    assert _count(cur, "SELECT COUNT(*) AS count FROM vendor_applications WHERE status='rejected'") >= 1
+    assert _count(cur, "SELECT COUNT(*) AS count FROM vendors WHERE status='pending'") >= 1
+    assert _count(cur, "SELECT COUNT(*) AS count FROM vendors WHERE status='rejected'") >= 1
+    assert _count(cur, "SELECT COUNT(*) AS count FROM vendor_applications WHERE status='rejected' AND review_reason IS NOT NULL") >= 1
+    assert _count(cur, "SELECT COUNT(*) AS count FROM audit_logs WHERE action='vendor.review'") >= 4
+    inactive_emps = _count(cur, """
+        SELECT COUNT(*) AS count FROM users u
+        JOIN roles r ON r.id = u.role_id
+        WHERE r.name = 'employee' AND u.is_active = FALSE
+    """)
+    assert inactive_emps >= 2, f"expected >=2 pending employees, got {inactive_emps}"
 
     # ── Facility-consistency assertions ──────────────────────────────────────
     # Every order's facility_id must be in the employee's assigned facilities.
