@@ -24,7 +24,7 @@ function drawErrorMessage(err) {
 
 export default function RandomMealPage() {
   const navigate = useNavigate();
-  const { addItem } = useCart();
+  const { addItem, totalCount } = useCart();
   const { selectedFacilityId } = useFacility();
   const { vendors, loading, error } = useVendors({ facilityId: selectedFacilityId });
   const minMealDate = addDaysIso(0);
@@ -39,6 +39,7 @@ export default function RandomMealPage() {
   const [drawError, setDrawError] = useState(null);
   const [drawing, setDrawing] = useState(false);
   const [addedToCart, setAddedToCart] = useState(false);
+  const [lastAdded, setLastAdded] = useState(null); // name of the most recently added item, for banner feedback
 
   // --- 熱門推薦 state ---
   const [recommendations, setRecommendations] = useState([]);
@@ -114,11 +115,13 @@ export default function RandomMealPage() {
   function handleAddDrawToCart() {
     if (!draw) return;
     addItem(draw.item, draw.vendor.id, 1, mealDate);
+    setLastAdded(draw.item.name);
     setAddedToCart(true);
   }
 
   function handleAddRecToCart(rec) {
     addItem(rec.item, rec.vendor.id, 1, mealDate);
+    setLastAdded(rec.item.name);
     setAddedToCart(true);
   }
 
@@ -146,9 +149,13 @@ export default function RandomMealPage() {
             marginBottom: 16,
           }}
         >
-          <span>✅ 已加入購物車</span>
+          <span>
+            ✅ 已加入購物車
+            {lastAdded ? `：${lastAdded}` : ""}
+            （共 {totalCount} 件）
+          </span>
           <button
-            className="ghost-button"
+            className="primary-button"
             type="button"
             onClick={() => navigate("/employee/cart")}
           >
@@ -346,14 +353,6 @@ export default function RandomMealPage() {
                   </div>
 
                   <div className="random-result-actions">
-                    <button
-                      className="ghost-button"
-                      type="button"
-                      onClick={handleDraw}
-                      disabled={drawing}
-                    >
-                      重新抽
-                    </button>
                     <button
                       className="primary-button"
                       type="button"
