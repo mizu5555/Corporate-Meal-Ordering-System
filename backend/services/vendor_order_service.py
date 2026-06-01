@@ -8,7 +8,14 @@ from backend.core.masking import mask_name
 from backend.repositories.audit_log_repository import AuditLogRepository
 from backend.repositories.employee_selection_repository import EmployeeSelectionRepository
 from backend.repositories.vendor_profile_repository import VendorProfileRepository
-from backend.schemas.employee import EmployeeOrder, OrderStatus, PickupLabel, PickupLabelItem
+from backend.schemas.employee import (
+    BatchOrderResult,
+    BatchOrderStatusResponse,
+    EmployeeOrder,
+    OrderStatus,
+    PickupLabel,
+    PickupLabelItem,
+)
 
 ALLOWED_TRANSITIONS: dict[str, set[str]] = {
     "pending": {"confirmed", "cancelled"},
@@ -133,6 +140,43 @@ class VendorOrderService:
             metadata={"from": old_status, "to": new_status},
         )
         return self._deidentify_order(updated)
+
+    def batch_update_status(
+        self,
+        vendor_id: int,
+        order_ids: list[int],
+        new_status: str,
+        *,
+        actor_user_id: int | None = None,
+    ) -> BatchOrderStatusResponse:
+        """Apply a status transition to multiple orders at once.
+
+        Each order is processed independently: invalid transitions or orders not
+        belonging to this vendor are reported as per-order failures rather than
+        aborting the whole batch.
+        """
+        results: list[BatchOrderResult] = []
+        for order_id in order_ids:
+            try:
+                order = self.update_status(
+                    vendor_id, order_id, new_status, actor_user_id=actor_user_id
+                )
+                results.append(BatchOrderResult(order_id=order_id, success=True, order=order))
+            except CodedHTTPException as exc:
+                results.append(
+                    BatchOrderResult(
+                        order_id=order_id,
+                        success=False,
+                        error=exc.detail,
+                        code=exc.code,
+                    )
+                )
+        succeeded = sum(1 for r in results if r.success)
+        return BatchOrderStatusResponse(
+            results=results,
+            succeeded=succeeded,
+            failed=len(results) - succeeded,
+        )
 
     def list_ready_orders_by_badge(self, vendor_id, badge_code, *, meal_date=None):
         if self._user_repo is None:

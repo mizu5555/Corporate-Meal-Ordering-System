@@ -16,7 +16,14 @@ from backend.repositories.employee_selection_repository import EmployeeSelection
 from backend.repositories.vendor_profile_repository import VendorProfileRepository
 from backend.routes.employee_ordering import get_employee_selection_repository
 from backend.routes.notifications import get_notification_service
-from backend.schemas.employee import EmployeeOrder, OrderStatus, PickupLabel, VendorOrderStatusUpdate
+from backend.schemas.employee import (
+    BatchOrderStatusUpdate,
+    BatchOrderStatusResponse,
+    EmployeeOrder,
+    OrderStatus,
+    PickupLabel,
+    VendorOrderStatusUpdate,
+)
 from backend.services.notification_service import NotificationService
 from backend.services.vendor_order_service import VendorOrderService
 
@@ -77,6 +84,21 @@ def get_vendor_pickup_label(
     service: Annotated[VendorOrderService, Depends(get_vendor_order_service)],
 ) -> PickupLabel:
     return service.get_pickup_label(vendor_id, order_id)
+
+
+@router.post("/batch-status", response_model=BatchOrderStatusResponse)
+def batch_update_order_status(
+    payload: BatchOrderStatusUpdate,
+    vendor_id: Annotated[int, Depends(require_approved_vendor)],
+    actor_user_id: Annotated[int | None, Depends(get_current_user_id)],
+    service: Annotated[VendorOrderService, Depends(get_vendor_order_service)],
+) -> BatchOrderStatusResponse:
+    return service.batch_update_status(
+        vendor_id,
+        payload.order_ids,
+        payload.status,
+        actor_user_id=actor_user_id,
+    )
 
 
 @router.get("/by-badge/{badge_code}", response_model=list[EmployeeOrder])

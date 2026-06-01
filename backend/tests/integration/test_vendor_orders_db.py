@@ -252,3 +252,85 @@ def test_patch_status_404_for_other_vendors_order(client, seeded_ids):
     )
     assert resp.status_code == 404
     assert resp.json()["code"] == "not_found"
+
+
+# ---------------------------------------------------------------------------
+# POST /vendor/me/orders/batch-status
+# ---------------------------------------------------------------------------
+
+
+def test_batch_status_advances_multiple_orders(client, seeded_ids):
+    vendor_id, employee_id = seeded_ids
+    id1 = _insert_order(vendor_id, employee_id)
+    id2 = _insert_order(vendor_id, employee_id)
+
+    resp = client.post(
+        "/vendor/me/orders/batch-status",
+        headers=_vh(vendor_id),
+        json={"order_ids": [id1, id2], "status": "confirmed"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["succeeded"] == 2
+    assert body["failed"] == 0
+
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT id, status FROM orders WHERE id = ANY(%s)", ([id1, id2],)
+        ).fetchall()
+    statuses = {row["id"]: row["status"] for row in rows}
+    assert statuses[id1] == "confirmed"
+    assert statuses[id2] == "confirmed"
+
+
+def test_batch_status_partial_failure_other_vendor(client, seeded_ids):
+    vendor_id, employee_id = seeded_ids
+
+    with get_connection() as conn:
+        other = conn.execute(
+            "INSERT INTO vendors (name, status) VALUES ('IntTest BatchOther', 'approved') RETURNING id"
+        ).fetchone()
+        conn.commit()
+    own_id = _insert_order(vendor_id, employee_id)
+    other_id = _insert_order(other["id"], employee_id)
+
+    resp = client.post(
+        "/vendor/me/orders/batch-status",
+        headers=_vh(vendor_id),
+        json={"order_ids": [own_id, other_id], "status": "confirmed"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["succeeded"] == 1
+    assert body["failed"] == 1
+    results = {r["order_id"]: r for r in body["results"]}
+    assert results[own_id]["success"] is True
+    assert results[other_id]["success"] is False
+    assert results[other_id]["code"] == "not_found"
+
+
+def test_batch_status_partial_failure_invalid_transition(client, seeded_ids):
+    vendor_id, employee_id = seeded_ids
+    id1 = _insert_order(vendor_id, employee_id)
+    id2 = _insert_order(vendor_id, employee_id)
+
+    # advance id2 to confirmed first
+    client.patch(
+        f"/vendor/me/orders/{id2}/status",
+        headers=_vh(vendor_id),
+        json={"status": "confirmed"},
+    )
+
+    resp = client.post(
+        "/vendor/me/orders/batch-status",
+        headers=_vh(vendor_id),
+        json={"order_ids": [id1, id2], "status": "confirmed"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["succeeded"] == 1
+    assert body["failed"] == 1
+    results = {r["order_id"]: r for r in body["results"]}
+    assert results[id1]["success"] is True
+    assert results[id2]["success"] is False
+    assert results[id2]["code"] == "invalid_status_transition"

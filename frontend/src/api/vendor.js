@@ -58,6 +58,14 @@ export function updateOrderStatus(orderId, status) {
   });
 }
 
+export function batchUpdateOrderStatus(orderIds, status) {
+  return apiFetch("/vendor/me/orders/batch-status", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ order_ids: orderIds, status }),
+  });
+}
+
 // Look up a badge's ready orders for the vendor's own shop (quick-pickup flow).
 // No mock fallback: errors (404 badge_not_found) must reach the page so it can
 // distinguish "查無此員工編號" from "no ready orders" ([]).
