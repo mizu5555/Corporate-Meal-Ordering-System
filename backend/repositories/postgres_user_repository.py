@@ -10,7 +10,7 @@ class PostgresUserRepository:
         with get_connection() as conn:
             row = conn.execute(
                 """
-                SELECT u.id, u.display_name, r.name AS role, u.badge_code
+                SELECT u.id, u.display_name, r.name AS role, u.badge_code, u.is_active
                 FROM users u JOIN roles r ON r.id = u.role_id
                 WHERE u.id = %s
                 """,
@@ -22,7 +22,7 @@ class PostgresUserRepository:
         with get_connection() as conn:
             row = conn.execute(
                 """
-                SELECT u.id, u.display_name, r.name AS role, u.badge_code
+                SELECT u.id, u.display_name, r.name AS role, u.badge_code, u.is_active
                 FROM users u JOIN roles r ON r.id = u.role_id
                 WHERE u.badge_code = %s
                 """,
@@ -39,4 +39,5 @@ def _to_record(row) -> UserRecord | None:
         display_name=row["display_name"],
         role=row["role"],
         badge_code=row["badge_code"],
+        is_active=row["is_active"],
     )

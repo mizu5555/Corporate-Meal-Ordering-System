@@ -15,6 +15,7 @@ class UserRecord:
     display_name: str
     role: str
     badge_code: str | None = None
+    is_active: bool = True
 
 
 class UserRepository:
@@ -23,9 +24,15 @@ class UserRepository:
         self._badge_seq = itertools.count(1)
 
     def add(
-        self, *, id: int, display_name: str, role: str, badge_code: str | None = None
+        self, *, id: int, display_name: str, role: str, badge_code: str | None = None, is_active: bool = True
     ) -> UserRecord:
-        record = UserRecord(id=id, display_name=display_name, role=role, badge_code=badge_code)
+        record = UserRecord(
+            id=id,
+            display_name=display_name,
+            role=role,
+            badge_code=badge_code,
+            is_active=is_active,
+        )
         self._by_id[id] = record
         return record
 

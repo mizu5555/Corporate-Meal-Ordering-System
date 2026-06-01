@@ -120,6 +120,30 @@ def test_register_new_user_returns_201_with_token(role: str) -> None:
     assert body["user_id"] == 1
 
 
+def test_register_employee_creates_inactive_pending_account() -> None:
+    registered_user = _user(role="employee", is_active=False)
+    conn_ctx = _conn_ctx(badge_code="EMP-0001")
+    with (
+        patch("backend.routes.auth.get_connection", return_value=conn_ctx),
+        patch("backend.routes.auth._fetch_user", return_value=registered_user),
+    ):
+        resp = client.post(
+            "/auth/register",
+            json={
+                "email": "new@example.com",
+                "password": _PASSWORD,
+                "display_name": "New User",
+                "role": "employee",
+            },
+        )
+
+    assert resp.status_code == 201
+    conn = conn_ctx.__enter__.return_value
+    insert_sql = conn.execute.call_args_list[1].args[0]
+    assert "badge_code, is_active" in insert_sql
+    assert "CASE WHEN r.name = 'employee' THEN FALSE ELSE TRUE END" in insert_sql
+
+
 def test_register_existing_email_returns_409_email_taken() -> None:
     existing_row = MagicMock()
     with patch("backend.routes.auth.get_connection", return_value=_conn_ctx(existing_row=existing_row)):

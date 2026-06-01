@@ -97,11 +97,12 @@ def register(payload: RegisterRequest) -> TokenResponse:
 
         row = conn.execute(
             """
-            INSERT INTO users (email, display_name, role_id, password_hash, badge_code)
+            INSERT INTO users (email, display_name, role_id, password_hash, badge_code, is_active)
             SELECT %s, %s, r.id, %s,
                    CASE WHEN r.name = 'employee'
                         THEN 'EMP-' || LPAD(nextval('employee_badge_seq')::text, 4, '0')
-                        ELSE NULL END
+                        ELSE NULL END,
+                   CASE WHEN r.name = 'employee' THEN FALSE ELSE TRUE END
             FROM roles r
             WHERE r.name = %s
             RETURNING id, badge_code
