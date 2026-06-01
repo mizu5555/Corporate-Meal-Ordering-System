@@ -74,6 +74,9 @@ export default function AdminVendorReviewDetailPage() {
   if (!application) return null;
 
   const isPending = application.status === "pending";
+  const facilityText = (application.served_facilities ?? [])
+    .map((facility) => `${facility.code ?? ""} ${facility.name}`.trim())
+    .join("、");
 
   return (
     <div>
@@ -97,6 +100,7 @@ export default function AdminVendorReviewDetailPage() {
           <InfoRow label="營業時間" value={application.business_hours} />
           <InfoRow label="聯絡電話" value={application.contact_phone} />
           <InfoRow label="聯絡 Email" value={application.contact_email} />
+          <InfoRow label="服務廠區" value={facilityText} />
           <hr style={{ border: "none", borderTop: "1px solid var(--line)", margin: "16px 0" }} />
           <InfoRow label="申請人" value={application.submitter_name} />
           <InfoRow label="Email" value={application.submitter_email} />
