@@ -31,6 +31,8 @@ export default function LoginPage() {
       setError(
         err.code === "invalid_credentials"
           ? "Invalid email or password."
+          : err.code === "account_disabled"
+          ? "Your account is pending admin approval. Please contact your administrator."
           : "Login failed. Please try again.",
       );
     } finally {

@@ -59,10 +59,15 @@ export function AuthProvider({ children }) {
           title: mockRef?.title ?? data.role,
           email,
           vendorId: data.vendor_id ?? null,
+          isActive: data.is_active ?? true,
         };
-        const nextSession = { user, token: data.access_token };
-        writeStoredSession(nextSession);
-        setSession(nextSession);
+        // Inactive employees (pending admin approval) must not receive a session —
+        // all /employee/* routes would 403 anyway.
+        if (user.isActive) {
+          const nextSession = { user, token: data.access_token };
+          writeStoredSession(nextSession);
+          setSession(nextSession);
+        }
         return user;
       },
 
