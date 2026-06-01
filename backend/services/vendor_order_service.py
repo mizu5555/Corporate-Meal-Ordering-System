@@ -82,6 +82,12 @@ class VendorOrderService:
                 code="order_not_ready_for_pickup",
                 detail="only ready orders can be confirmed for pickup",
             )
+        if order.meal_date != date.today():
+            raise CodedHTTPException(
+                status_code=409,
+                code="pickup_wrong_date",
+                detail="pickup is only allowed for today's orders",
+            )
         updated = self._repo.confirm_pickup(
             vendor_id=vendor_id,
             order_id=order_id,

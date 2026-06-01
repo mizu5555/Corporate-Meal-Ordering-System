@@ -105,7 +105,7 @@ export default function VendorOrdersPage() {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "56px 120px 110px 1fr 110px 100px 36px",
+                gridTemplateColumns: "150px 110px 1fr 110px 100px 36px",
                 padding: "10px 20px",
                 borderBottom: "1px solid var(--line)",
                 color: "var(--muted)",
@@ -115,8 +115,7 @@ export default function VendorOrdersPage() {
                 letterSpacing: "0.05em",
               }}
             >
-              <span>#</span>
-              <span>來源</span>
+              <span>日期 · 訂單</span>
               <span>取餐碼</span>
               <span>品項</span>
               <span style={{ textAlign: "right" }}>合計</span>
@@ -131,7 +130,7 @@ export default function VendorOrdersPage() {
                 onClick={() => navigate(`/vendor/orders/${order.id}`)}
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "56px 120px 110px 1fr 110px 100px 36px",
+                  gridTemplateColumns: "150px 110px 1fr 110px 100px 36px",
                   alignItems: "center",
                   width: "100%",
                   padding: "14px 20px",
@@ -145,9 +144,12 @@ export default function VendorOrdersPage() {
                 onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(23,33,43,0.03)")}
                 onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
               >
-                <p style={{ margin: 0, fontSize: 12, color: "var(--muted)" }}>#{order.id}</p>
+                <div>
+                  <p style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>{order.meal_date ?? "—"}</p>
+                  <p style={{ margin: "2px 0 0", fontSize: 11, color: "var(--muted)" }}>#{order.id}</p>
+                </div>
                 <p style={{ margin: 0, fontWeight: 700, fontSize: 13 }}>
-                  {order.pickup_code ?? "-"}
+                  {order.pickup_code ?? "—"}
                 </p>
                 <p style={{ margin: 0, fontWeight: 500, fontSize: 14 }}>
                   {itemsSummary(order.items)}
