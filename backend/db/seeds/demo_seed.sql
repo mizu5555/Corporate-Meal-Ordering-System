@@ -690,6 +690,56 @@ FROM users u, vendors v, facilities f
 WHERE u.email = 'demo.employee3@corpmeal.local' AND v.name = 'Demo Green Bowl' AND f.code = 'F15A'
 ON CONFLICT DO NOTHING;
 
+-- ─────────────────────────────────────────────
+-- 10. VENDOR APPLICATIONS (mirror the real apply→review flow)
+--   Approved: the 3 live vendors, reviewed by admin.
+--   Pending:  Demo Dumpling Bar, awaiting review.
+--   Rejected: Demo Fast Fry, declined with a reason.
+-- Idempotent: one application per vendor (guarded on vendor_id).
+-- ─────────────────────────────────────────────
+INSERT INTO vendor_applications
+  (vendor_id, submitted_by_user_id, status, reviewed_by_user_id, reviewed_at, created_at, updated_at)
+SELECT v.id, v.owner_user_id, 'approved',
+  (SELECT id FROM users WHERE email = 'admin@corpmeal.local'),
+  NOW() - INTERVAL '20 days', NOW() - INTERVAL '22 days', NOW() - INTERVAL '20 days'
+FROM vendors v
+WHERE v.name IN ('Sunny Kitchen', 'Demo Noodle House', 'Demo Green Bowl')
+  AND NOT EXISTS (SELECT 1 FROM vendor_applications a WHERE a.vendor_id = v.id);
+
+INSERT INTO vendor_applications
+  (vendor_id, submitted_by_user_id, status, created_at, updated_at)
+SELECT v.id, v.owner_user_id, 'pending', NOW() - INTERVAL '2 days', NOW() - INTERVAL '2 days'
+FROM vendors v
+WHERE v.name = 'Demo Dumpling Bar'
+  AND NOT EXISTS (SELECT 1 FROM vendor_applications a WHERE a.vendor_id = v.id);
+
+INSERT INTO vendor_applications
+  (vendor_id, submitted_by_user_id, status, review_reason, reviewed_by_user_id, reviewed_at, created_at, updated_at)
+SELECT v.id, v.owner_user_id, 'rejected',
+  'Incomplete food-safety documentation; please resubmit with HACCP certificate.',
+  (SELECT id FROM users WHERE email = 'admin@corpmeal.local'),
+  NOW() - INTERVAL '5 days', NOW() - INTERVAL '8 days', NOW() - INTERVAL '5 days'
+FROM vendors v
+WHERE v.name = 'Demo Fast Fry'
+  AND NOT EXISTS (SELECT 1 FROM vendor_applications a WHERE a.vendor_id = v.id);
+
+-- Audit rows for the reviewed applications, mirroring VendorReviewService
+-- (action 'vendor.review', target_type 'vendor_application'). Idempotent on (action, target_id).
+INSERT INTO audit_logs (actor_user_id, actor_role, action, target_type, target_id, metadata, created_at)
+SELECT
+  (SELECT id FROM users WHERE email = 'admin@corpmeal.local'),
+  'admin', 'vendor.review', 'vendor_application', a.id,
+  jsonb_build_object('decision', a.status),
+  a.reviewed_at
+FROM vendor_applications a
+JOIN vendors v ON v.id = a.vendor_id
+WHERE v.name IN ('Sunny Kitchen', 'Demo Noodle House', 'Demo Green Bowl', 'Demo Fast Fry')
+  AND a.status IN ('approved', 'rejected')
+  AND NOT EXISTS (
+    SELECT 1 FROM audit_logs al
+    WHERE al.action = 'vendor.review' AND al.target_type = 'vendor_application' AND al.target_id = a.id
+  );
+
 -- Advance the sequence past any badge already assigned by seeds/backfill so a
 -- freshly registered employee never collides with a pre-seeded EMP-NNNN
 -- (demo_seed assigns EMP-0002..0004 via explicit UPDATEs, not nextval).
