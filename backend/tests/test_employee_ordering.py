@@ -274,6 +274,24 @@ def test_my_orders_rejects_inverted_date_range() -> None:
     assert resp.json()["code"] == "validation_error"
 
 
+def test_my_orders_returns_empty_when_requested_range_is_outside_allowed_window() -> None:
+    client, _, selection_repo = _setup()
+    today = date.today()
+    selection_repo.create_order(employee_id=100, vendor_id=1, items=[], meal_date=today)
+
+    resp = client.get(
+        "/employee/me/orders",
+        headers=_h(100),
+        params={
+            "start_date": (today + timedelta(days=7)).isoformat(),
+            "end_date": (today + timedelta(days=7)).isoformat(),
+        },
+    )
+
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
 def test_cancel_pending_order_marks_order_cancelled() -> None:
     client, item_repo, _ = _setup()
     item = item_repo.create(vendor_id=1, name="Rice Bowl", price_cents=120)
