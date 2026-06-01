@@ -34,7 +34,7 @@ from backend.schemas.employee import (
     RecommendedItem,
 )
 from backend.schemas.badge import EmployeeBadge
-from backend.schemas.vendor_self import Facility
+from backend.schemas.vendor_self import DietaryTag, Facility, normalize_dietary_tags
 from backend.services.employee_ordering_service import EmployeeOrderingService
 from backend.services.notification_service import NotificationService
 
@@ -57,6 +57,21 @@ def get_employee_ordering_service(
     audit_repo: Annotated[AuditLogRepository, Depends(get_audit_log_repository)],
 ) -> EmployeeOrderingService:
     return EmployeeOrderingService(vendor_repo, item_repo, selection_repo, audit_repo)
+
+
+def _parse_dietary_query(values: list[str] | None) -> list[DietaryTag]:
+    if not values:
+        return []
+    tags = [
+        part.strip()
+        for value in values
+        for part in value.split(",")
+        if part.strip()
+    ]
+    try:
+        return normalize_dietary_tags(tags)
+    except ValueError as exc:
+        raise CodedHTTPException(status_code=422, code="validation_error", detail=str(exc)) from exc
 
 
 @router.get("/vendors", response_model=list[EmployeeVendor])
@@ -128,8 +143,17 @@ def list_recommendations(
     facility_id: int | None = None,
     meal_date: date | None = None,
     limit: Annotated[int, Query(ge=1, le=50)] = 8,
+    include_tags: Annotated[list[str] | None, Query()] = None,
+    exclude_tags: Annotated[list[str] | None, Query()] = None,
 ) -> list[RecommendedItem]:
-    return service.recommend(employee_id=employee_id, facility_id=facility_id, meal_date=meal_date, limit=limit)
+    return service.recommend(
+        employee_id=employee_id,
+        facility_id=facility_id,
+        meal_date=meal_date,
+        limit=limit,
+        include_tags=_parse_dietary_query(include_tags),
+        exclude_tags=_parse_dietary_query(exclude_tags),
+    )
 
 
 @router.post("/random-meals/draw", response_model=RandomMealDraw)

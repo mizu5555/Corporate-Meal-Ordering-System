@@ -1,10 +1,12 @@
 import { formatPrice, photoUrl, quotaLabel } from "../../utils/format";
+import { dietaryTagLabel, normalizeDietaryTags } from "../../utils/dietaryTags";
 
 export default function MenuItemCard({ item, onClick }) {
   const photo = photoUrl(item.photo_path);
   const soldOut = item.remaining_quantity === 0;
   const unavailable = !item.available || soldOut;
   const quota = quotaLabel(item.remaining_quantity);
+  const dietaryTags = normalizeDietaryTags(item.dietary_tags);
 
   return (
     <button
@@ -35,6 +37,11 @@ export default function MenuItemCard({ item, onClick }) {
           {quota && !soldOut && (
             <span className="badge badge-quota">{quota}</span>
           )}
+          {dietaryTags.map((tag) => (
+            <span className="badge badge-quota" key={tag}>
+              {dietaryTagLabel(tag)}
+            </span>
+          ))}
         </div>
       </div>
     </button>

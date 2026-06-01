@@ -23,6 +23,7 @@ class _ItemRecord:
     price_cents: int
     available: bool
     daily_quota: int | None
+    dietary_tags: list[str]
     photo_path: str | None
     created_at: datetime
     updated_at: datetime
@@ -38,6 +39,7 @@ def _to_schema(rec: _ItemRecord) -> MenuItem:
         price_cents=rec.price_cents,
         available=rec.available,
         daily_quota=rec.daily_quota,
+        dietary_tags=list(rec.dietary_tags),
         photo_path=rec.photo_path,
         created_at=rec.created_at,
         updated_at=rec.updated_at,
@@ -59,6 +61,7 @@ class MenuItemRepository:
         category_id: int | None = None,
         available: bool = True,
         daily_quota: int | None = None,
+        dietary_tags: list[str] | None = None,
     ) -> MenuItem:
         now = datetime.now(timezone.utc)
         rec = _ItemRecord(
@@ -70,6 +73,7 @@ class MenuItemRepository:
             price_cents=price_cents,
             available=available,
             daily_quota=daily_quota,
+            dietary_tags=list(dietary_tags or []),
             photo_path=None,
             created_at=now,
             updated_at=now,

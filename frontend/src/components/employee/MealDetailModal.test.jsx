@@ -18,6 +18,7 @@ const baseItem = {
   daily_quota: 10,
   remaining_quantity: 10,
   photo_path: null,
+  dietary_tags: ["vegetarian"],
 };
 
 beforeEach(() => addItem.mockClear());
@@ -28,6 +29,7 @@ describe("MealDetailModal", () => {
     render(<MealDetailModal item={baseItem} mealDate="2026-06-03" remaining={5} onClose={() => {}} />);
 
     expect(screen.getByText("雞腿便當")).toBeInTheDocument();
+    expect(screen.getByText("素食")).toBeInTheDocument();
 
     await user.click(screen.getByLabelText("增加數量")); // 1 -> 2
     await user.click(screen.getByRole("button", { name: "加入購物車" }));

@@ -6,13 +6,38 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Literal, get_args
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
 
 # 所有 user-input 字串型欄位共用：去頭尾空白 + 至少 1 字元（避免純空白）。
 NonBlankStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+
+DietaryTag = Literal["contains_beef", "contains_pork", "vegetarian", "ovo_lacto_vegetarian"]
+SUPPORTED_DIETARY_TAGS = set(get_args(DietaryTag))
+MEAT_DIETARY_TAGS = {"contains_beef", "contains_pork"}
+VEGETARIAN_DIETARY_TAGS = {"vegetarian", "ovo_lacto_vegetarian"}
+
+
+def normalize_dietary_tags(value: object) -> list[DietaryTag]:
+    if value is None:
+        return []
+    if isinstance(value, str) or not isinstance(value, list):
+        raise ValueError("dietary_tags must be a list")
+
+    normalized: list[DietaryTag] = []
+    seen: set[str] = set()
+    for raw_tag in value:
+        if raw_tag not in SUPPORTED_DIETARY_TAGS:
+            raise ValueError(f"unsupported dietary tag: {raw_tag}")
+        if raw_tag not in seen:
+            normalized.append(raw_tag)
+            seen.add(raw_tag)
+
+    if seen & VEGETARIAN_DIETARY_TAGS and seen & MEAT_DIETARY_TAGS:
+        raise ValueError("vegetarian tags cannot be combined with beef or pork tags")
+    return normalized
 
 
 class Facility(BaseModel):
@@ -93,9 +118,15 @@ class MenuItem(BaseModel):
     price_cents: int
     available: bool
     daily_quota: int | None
+    dietary_tags: list[DietaryTag] = Field(default_factory=list)
     photo_path: str | None
     created_at: datetime
     updated_at: datetime
+
+    @field_validator("dietary_tags", mode="before")
+    @classmethod
+    def _normalize_dietary_tags(cls, value: object) -> list[DietaryTag]:
+        return normalize_dietary_tags(value)
 
 
 class MenuItemCreate(BaseModel):
@@ -110,6 +141,12 @@ class MenuItemCreate(BaseModel):
     category_id: int | None = None
     available: bool = True
     daily_quota: int | None = Field(default=None, ge=0)
+    dietary_tags: list[DietaryTag] = Field(default_factory=list)
+
+    @field_validator("dietary_tags", mode="before")
+    @classmethod
+    def _normalize_dietary_tags(cls, value: object) -> list[DietaryTag]:
+        return normalize_dietary_tags(value)
 
 
 class MenuItemUpdate(BaseModel):
@@ -121,6 +158,12 @@ class MenuItemUpdate(BaseModel):
     category_id: int | None = None
     available: bool | None = None
     daily_quota: int | None = Field(default=None, ge=0)
+    dietary_tags: list[DietaryTag] | None = None
+
+    @field_validator("dietary_tags", mode="before")
+    @classmethod
+    def _normalize_dietary_tags(cls, value: object) -> list[DietaryTag]:
+        return normalize_dietary_tags(value)
 
 
 class PhotoUploadResponse(BaseModel):

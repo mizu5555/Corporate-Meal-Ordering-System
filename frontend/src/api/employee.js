@@ -1,6 +1,7 @@
 import { apiFetch } from "./client";
 import { appendFacilityParam, facilityPayload } from "./facilityParams";
 import { MOCK_VENDORS, MOCK_MENU } from "./mockData";
+import { matchesDietaryFilters } from "../utils/dietaryTags";
 
 function withMockFallback(apiCall, mockResult) {
   return apiCall().catch((err) => {
@@ -115,7 +116,7 @@ export function getVendorMenu(vendorId, { available, facilityId, mealDate } = {}
   );
 }
 
-function mockRandomMeal({ mealDate, vendorIds, facilityId }) {
+function mockRandomMeal({ mealDate, vendorIds, facilityId, includeTags, excludeTags }) {
   const selectedIds = vendorIds?.length ? vendorIds.map(Number) : MOCK_VENDORS.map((v) => v.id);
   const visibleVendorIds = selectedIds.filter((vendorId) => {
     if (facilityId == null) return true;
@@ -125,6 +126,7 @@ function mockRandomMeal({ mealDate, vendorIds, facilityId }) {
   const candidates = visibleVendorIds.flatMap((vendorId) =>
     (MOCK_MENU[vendorId] ?? [])
       .filter((item) => item.available && item.daily_quota !== 0)
+      .filter((item) => matchesDietaryFilters(item, { includeTags, excludeTags }))
       .map((item) => ({
         meal_date: mealDate,
         vendor: MOCK_VENDORS.find((v) => v.id === vendorId),
@@ -143,25 +145,29 @@ function mockRandomMeal({ mealDate, vendorIds, facilityId }) {
   return candidates[Math.floor(Math.random() * candidates.length)];
 }
 
-export function getRecommendations({ facilityId, mealDate, limit } = {}) {
+export function getRecommendations({ facilityId, mealDate, limit, includeTags, excludeTags } = {}) {
   const params = new URLSearchParams();
   if (facilityId != null) params.set("facility_id", facilityId);
   if (mealDate) params.set("meal_date", mealDate);
   if (limit) params.set("limit", limit);
+  if (includeTags?.length) params.set("include_tags", includeTags.join(","));
+  if (excludeTags?.length) params.set("exclude_tags", excludeTags.join(","));
   const qs = params.toString();
   return apiFetch(`/employee/recommendations${qs ? `?${qs}` : ""}`);
 }
 
-export function drawRandomMeal({ mealDate, vendorIds, facilityId }) {
+export function drawRandomMeal({ mealDate, vendorIds, facilityId, includeTags, excludeTags }) {
   const payload = { meal_date: mealDate, ...facilityPayload(facilityId) };
   if (vendorIds != null) payload.vendor_ids = vendorIds;
+  if (includeTags?.length) payload.include_tags = includeTags;
+  if (excludeTags?.length) payload.exclude_tags = excludeTags;
   return withMockFallback(
     () => apiFetch("/employee/random-meals/draw", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     }),
-    () => mockRandomMeal({ mealDate, vendorIds, facilityId }),
+    () => mockRandomMeal({ mealDate, vendorIds, facilityId, includeTags, excludeTags }),
   );
 }
 

@@ -6,6 +6,7 @@ import MenuItemCard from "./MenuItemCard";
 const available = {
   id: 1, vendor_id: 2, name: "排骨飯", price_cents: 9000,
   available: true, daily_quota: 5, remaining_quantity: 5, photo_path: null,
+  dietary_tags: ["ovo_lacto_vegetarian"],
 };
 const soldOut = { ...available, id: 2, name: "賣完飯", remaining_quantity: 0 };
 
@@ -16,6 +17,7 @@ describe("MenuItemCard", () => {
     render(<MenuItemCard item={available} onClick={onClick} />);
     expect(screen.getByText("排骨飯")).toBeInTheDocument();
     expect(screen.getByText("供應中")).toBeInTheDocument();
+    expect(screen.getByText("蛋奶素")).toBeInTheDocument();
     await user.click(screen.getByRole("button"));
     expect(onClick).toHaveBeenCalledOnce();
   });

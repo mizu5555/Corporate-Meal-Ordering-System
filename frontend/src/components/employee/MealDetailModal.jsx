@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useCart } from "../../cart/CartContext";
 import { formatPrice, photoUrl, quotaLabel } from "../../utils/format";
 import { maxAddQuantity } from "../../cart/quantity";
+import { dietaryTagLabel, normalizeDietaryTags } from "../../utils/dietaryTags";
 
 export default function MealDetailModal({ item, onClose, mealDate = null, remaining = null }) {
   const photo = photoUrl(item.photo_path);
@@ -11,6 +12,7 @@ export default function MealDetailModal({ item, onClose, mealDate = null, remain
   const soldOut = effectiveRemaining === 0;
   const unavailable = !item.available || soldOut;
   const quota = quotaLabel(effectiveRemaining);
+  const dietaryTags = normalizeDietaryTags(item.dietary_tags);
 
   const [quantity, setQuantity] = useState(1);
   const [added, setAdded] = useState(false);
@@ -92,6 +94,18 @@ export default function MealDetailModal({ item, onClose, mealDate = null, remain
               <div className="modal-detail-row">
                 <span className="modal-detail-label">今日配額</span>
                 <span style={{ color: "var(--muted)" }}>無限制</span>
+              </div>
+            )}
+            {dietaryTags.length > 0 && (
+              <div className="modal-detail-row">
+                <span className="modal-detail-label">飲食標籤</span>
+                <span className="item-badges" style={{ justifyContent: "flex-end" }}>
+                  {dietaryTags.map((tag) => (
+                    <span className="badge badge-quota" key={tag}>
+                      {dietaryTagLabel(tag)}
+                    </span>
+                  ))}
+                </span>
               </div>
             )}
           </div>
