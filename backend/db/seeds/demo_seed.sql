@@ -35,6 +35,25 @@ VALUES (
 )
 ON CONFLICT (email) DO NOTHING;
 
+-- Owners for the pending / rejected demo vendors (so applications have a submitter).
+INSERT INTO users (email, display_name, role_id, password_hash)
+VALUES (
+  'demo.pending@corpmeal.local',
+  'Demo Pending Manager',
+  (SELECT id FROM roles WHERE name = 'vendor_manager'),
+  '$2b$12$V92j2Sanc/Ie9L.w1HsXh.Go4a4oDKcq1sovHfObRIsOJ.5F/hxhG'
+)
+ON CONFLICT (email) DO NOTHING;
+
+INSERT INTO users (email, display_name, role_id, password_hash)
+VALUES (
+  'demo.rejected@corpmeal.local',
+  'Demo Rejected Manager',
+  (SELECT id FROM roles WHERE name = 'vendor_manager'),
+  '$2b$12$V92j2Sanc/Ie9L.w1HsXh.Go4a4oDKcq1sovHfObRIsOJ.5F/hxhG'
+)
+ON CONFLICT (email) DO NOTHING;
+
 -- ─────────────────────────────────────────────
 -- 3. DEMO VENDORS (status 'approved')
 -- ─────────────────────────────────────────────
@@ -53,6 +72,24 @@ SELECT
   'demo.greenbowl@corpmeal.local',
   (SELECT id FROM users WHERE email = 'demo.greenbowl@corpmeal.local')
 WHERE NOT EXISTS (SELECT 1 FROM vendors WHERE name = 'Demo Green Bowl');
+
+-- Pending vendor — awaiting admin review (shows in 商家審核 待審 tab).
+INSERT INTO vendors (name, status, contact_email, owner_user_id)
+SELECT
+  'Demo Dumpling Bar',
+  'pending',
+  'demo.pending@corpmeal.local',
+  (SELECT id FROM users WHERE email = 'demo.pending@corpmeal.local')
+WHERE NOT EXISTS (SELECT 1 FROM vendors WHERE name = 'Demo Dumpling Bar');
+
+-- Rejected vendor — application was declined with a reason (shows in 商家審核 已駁回).
+INSERT INTO vendors (name, status, contact_email, owner_user_id)
+SELECT
+  'Demo Fast Fry',
+  'rejected',
+  'demo.rejected@corpmeal.local',
+  (SELECT id FROM users WHERE email = 'demo.rejected@corpmeal.local')
+WHERE NOT EXISTS (SELECT 1 FROM vendors WHERE name = 'Demo Fast Fry');
 
 -- ─────────────────────────────────────────────
 -- 4. VENDOR FACILITIES
