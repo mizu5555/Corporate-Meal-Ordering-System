@@ -427,3 +427,111 @@ def test_random_draw_skips_unavailable_item_on_date() -> None:
     with pytest.raises(CodedHTTPException) as exc_info:
         svc.draw_random_meal(RandomMealDrawRequest(meal_date=target, vendor_ids=[1]))
     assert exc_info.value.code == "no_random_meal_available"
+
+
+# ── 9. In-memory repo guard clauses (covers missing lines in menu_item_repository.py) ──
+
+
+def test_inmem_update_wrong_vendor_returns_none() -> None:
+    _, item_repo, _ = _make_repos()
+    item = item_repo.create(vendor_id=1, name="X", price_cents=100)
+    result = item_repo.update(vendor_id=2, item_id=item.id, fields={"name": "Y"})
+    assert result is None
+
+
+def test_inmem_delete_wrong_vendor_returns_false() -> None:
+    _, item_repo, _ = _make_repos()
+    item = item_repo.create(vendor_id=1, name="X", price_cents=100)
+    result = item_repo.delete(vendor_id=2, item_id=item.id)
+    assert result is False
+
+
+def test_inmem_delete_cascades_overrides() -> None:
+    """Deleting an item must remove its per-date overrides (line 165)."""
+    _, item_repo, _ = _make_repos()
+    item = item_repo.create(vendor_id=1, name="X", price_cents=100)
+    target = date.today() + timedelta(days=1)
+    item_repo.upsert_date_override(
+        vendor_id=1, item_id=item.id, meal_date=target,
+        available=None, daily_quota=5, price_cents=None,
+    )
+    assert len(item_repo._overrides) == 1
+    item_repo.delete(vendor_id=1, item_id=item.id)
+    assert len(item_repo._overrides) == 0
+
+
+def test_inmem_set_photo_wrong_vendor_is_noop() -> None:
+    _, item_repo, _ = _make_repos()
+    item = item_repo.create(vendor_id=1, name="X", price_cents=100)
+    item_repo.set_photo_path(vendor_id=2, item_id=item.id, photo_path="/test.jpg")
+    result = item_repo.get(vendor_id=1, item_id=item.id)
+    assert result is not None
+    assert result.photo_path is None  # unchanged — guard clause fired
+
+
+def test_inmem_clear_photo_wrong_vendor_is_noop() -> None:
+    _, item_repo, _ = _make_repos()
+    item = item_repo.create(vendor_id=1, name="X", price_cents=100)
+    item_repo.set_photo_path(vendor_id=1, item_id=item.id, photo_path="/test.jpg")
+    item_repo.clear_photo_path(vendor_id=2, item_id=item.id)
+    result = item_repo.get(vendor_id=1, item_id=item.id)
+    assert result is not None
+    assert result.photo_path == "/test.jpg"  # unchanged — guard clause fired
+
+
+def test_inmem_get_effective_wrong_vendor_returns_none() -> None:
+    _, item_repo, _ = _make_repos()
+    item = item_repo.create(vendor_id=1, name="X", price_cents=100)
+    result = item_repo.get_effective(vendor_id=2, item_id=item.id, meal_date=date.today())
+    assert result is None
+
+
+def test_inmem_list_date_overrides_wrong_vendor_returns_empty() -> None:
+    _, item_repo, _ = _make_repos()
+    item = item_repo.create(vendor_id=1, name="X", price_cents=100)
+    result = item_repo.list_date_overrides(vendor_id=2, item_id=item.id)
+    assert result == []
+
+
+def test_inmem_get_date_override_item_not_found() -> None:
+    _, item_repo, _ = _make_repos()
+    result = item_repo.get_date_override(vendor_id=1, item_id=9999, meal_date=date.today())
+    assert result is None
+
+
+def test_inmem_get_date_override_no_override_for_date() -> None:
+    """Item exists but no override for the given date — returns None."""
+    _, item_repo, _ = _make_repos()
+    item = item_repo.create(vendor_id=1, name="X", price_cents=100)
+    result = item_repo.get_date_override(vendor_id=1, item_id=item.id, meal_date=date.today())
+    assert result is None
+
+
+def test_inmem_get_date_override_returns_existing_override() -> None:
+    _, item_repo, _ = _make_repos()
+    item = item_repo.create(vendor_id=1, name="X", price_cents=100)
+    target = date.today() + timedelta(days=1)
+    item_repo.upsert_date_override(
+        vendor_id=1, item_id=item.id, meal_date=target,
+        available=False, daily_quota=None, price_cents=None,
+    )
+    result = item_repo.get_date_override(vendor_id=1, item_id=item.id, meal_date=target)
+    assert result is not None
+    assert result.available is False
+
+
+def test_inmem_upsert_date_override_wrong_vendor_raises() -> None:
+    _, item_repo, _ = _make_repos()
+    item = item_repo.create(vendor_id=1, name="X", price_cents=100)
+    with pytest.raises(KeyError):
+        item_repo.upsert_date_override(
+            vendor_id=2, item_id=item.id, meal_date=date.today() + timedelta(days=1),
+            available=None, daily_quota=5, price_cents=None,
+        )
+
+
+def test_inmem_delete_date_override_wrong_vendor_returns_false() -> None:
+    _, item_repo, _ = _make_repos()
+    item = item_repo.create(vendor_id=1, name="X", price_cents=100)
+    result = item_repo.delete_date_override(vendor_id=2, item_id=item.id, meal_date=date.today())
+    assert result is False
