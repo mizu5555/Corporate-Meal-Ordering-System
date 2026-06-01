@@ -4,15 +4,15 @@ import { formatPrice, photoUrl, quotaLabel } from "../../utils/format";
 
 export default function MealDetailModal({ item, onClose }) {
   const photo = photoUrl(item.photo_path);
-  const quota = quotaLabel(item.daily_quota);
-  const soldOut = item.daily_quota === 0;
+  const soldOut = item.remaining_quantity === 0;
   const unavailable = !item.available || soldOut;
+  const quota = quotaLabel(item.remaining_quantity);
 
   const [quantity, setQuantity] = useState(1);
   const [added, setAdded] = useState(false);
   const { addItem } = useCart();
 
-  const maxQty = item.daily_quota > 0 ? Math.min(item.daily_quota, 99) : 99;
+  const maxQty = item.remaining_quantity > 0 ? Math.min(item.remaining_quantity, 99) : 99;
 
   useEffect(() => {
     function onKey(e) {

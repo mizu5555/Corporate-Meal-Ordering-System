@@ -2,9 +2,9 @@ import { formatPrice, photoUrl, quotaLabel } from "../../utils/format";
 
 export default function MenuItemCard({ item, onClick }) {
   const photo = photoUrl(item.photo_path);
-  const quota = quotaLabel(item.daily_quota);
-  const soldOut = item.daily_quota === 0;
+  const soldOut = item.remaining_quantity === 0;
   const unavailable = !item.available || soldOut;
+  const quota = quotaLabel(item.remaining_quantity);
 
   return (
     <button
