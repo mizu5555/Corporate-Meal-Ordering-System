@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { getMyBilling } from "../../api/vendor";
 import FacilityScopeLabel from "../../facility/FacilityScopeLabel";
-import { formatPrice } from "../../utils/format";
+import { formatMoney } from "../../utils/format";
 
 function currentMonthValue() {
   const now = new Date();
@@ -75,7 +75,7 @@ export default function VendorRevenuePage() {
         <div className="panel" style={{ padding: "18px 22px", marginBottom: 24 }}>
           <p style={{ margin: 0, color: "var(--muted)", fontSize: 13 }}>本月應收</p>
           <p style={{ margin: "6px 0 0", fontWeight: 800, fontSize: 28 }}>
-            {formatPrice(billing?.amount_cents ?? 0)}
+            {formatMoney(billing?.amount_cents ?? 0)}
           </p>
           <p style={{ margin: "6px 0 0", color: "var(--muted)", fontSize: 13 }}>
             {billing?.order_count ?? 0} 筆已完成訂單

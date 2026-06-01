@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { deleteMyOrder, getMyBilling, updateMyOrder } from "../../api/employee";
 import FacilityScopeLabel from "../../facility/FacilityScopeLabel";
 import { useMyOrders } from "../../hooks/useMyOrders";
-import { formatPrice } from "../../utils/format";
+import { formatMoney, formatPrice } from "../../utils/format";
 
 const STATUS_LABELS = {
   pending: "待確認",
@@ -130,7 +130,7 @@ export default function OrdersPage() {
       <div className="panel" style={{ padding: "14px 18px", marginBottom: 20 }}>
         <p style={{ margin: 0, color: "var(--muted)", fontSize: 13 }}>本月應扣</p>
         <p style={{ margin: "4px 0 0", fontWeight: 800, fontSize: 22 }}>
-          {billingError ? "暫時無法取得" : formatPrice(billing?.amount_cents ?? 0)}
+          {billingError ? "暫時無法取得" : formatMoney(billing?.amount_cents ?? 0)}
         </p>
         {!billingError && (
           <p style={{ margin: "4px 0 0", color: "var(--muted)", fontSize: 12 }}>
@@ -181,7 +181,7 @@ export default function OrdersPage() {
                     )}
                   </div>
                   <div style={{ textAlign: "right" }}>
-                    <p style={{ fontWeight: 800, margin: 0 }}>{formatPrice(total)}</p>
+                    <p style={{ fontWeight: 800, margin: 0 }}>{formatMoney(total)}</p>
                     <p style={{ color: "var(--muted)", fontSize: 13, margin: "4px 0 0" }}>
                       {STATUS_LABELS[order.status] ?? order.status}
                     </p>
