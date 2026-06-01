@@ -50,6 +50,10 @@ def test_demo_seed_is_comprehensive_and_idempotent(monkeypatch):
     """)
     assert inactive_emps >= 2, f"expected >=2 pending employees, got {inactive_emps}"
 
+    # ── Menu enrichment (issue #168): dietary tags + a sold-out example ───────
+    assert _count(cur, "SELECT COUNT(*) AS count FROM menu_items WHERE array_length(dietary_tags, 1) > 0") >= 6
+    assert _count(cur, "SELECT COUNT(*) AS count FROM menu_items WHERE daily_quota = 0") >= 1
+
     # ── Facility-consistency assertions ──────────────────────────────────────
     # Every order's facility_id must be in the employee's assigned facilities.
     # Scoped to demo vendors to avoid interference from other tests' orders.

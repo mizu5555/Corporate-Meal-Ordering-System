@@ -288,6 +288,42 @@ BEGIN
 END $$;
 
 -- ─────────────────────────────────────────────
+-- 5b. MENU ENRICHMENT (dietary tags + a sold-out example)
+--     Demonstrates the dietary-tag filter and the 今日售完 (sold-out) UI.
+--     UPDATEs are idempotent; the sold-out item is guarded by NOT EXISTS.
+-- ─────────────────────────────────────────────
+DO $$
+DECLARE
+  v_sunny_id BIGINT;
+  v_cat_sunny BIGINT;
+BEGIN
+  SELECT id INTO v_sunny_id FROM vendors WHERE name = 'Sunny Kitchen' LIMIT 1;
+  IF v_sunny_id IS NOT NULL THEN
+    SELECT id INTO v_cat_sunny
+      FROM menu_categories WHERE vendor_id = v_sunny_id AND name = 'Lunch Boxes';
+    -- Sold-out example: daily_quota = 0 → today's remaining is 0 → shows 今日售完.
+    INSERT INTO menu_items (vendor_id, category_id, name, description, price_cents, daily_quota, available, dietary_tags)
+    SELECT v_sunny_id, v_cat_sunny,
+           'Braised Beef Brisket Box',
+           'Slow-braised beef brisket over rice (today''s batch is sold out)',
+           11000, 0, TRUE, ARRAY['contains_beef']::TEXT[]
+    WHERE NOT EXISTS (
+      SELECT 1 FROM menu_items WHERE vendor_id = v_sunny_id AND name = 'Braised Beef Brisket Box'
+    );
+  END IF;
+END $$;
+
+-- Dietary tags on the existing demo items (idempotent UPDATEs; names are unique across demo vendors).
+UPDATE menu_items SET dietary_tags = ARRAY['contains_pork']::TEXT[]
+  WHERE name IN ('Pork Chop Box', 'Dan Dan Noodles', 'Wonton Noodle Soup');
+UPDATE menu_items SET dietary_tags = ARRAY['contains_beef']::TEXT[]
+  WHERE name = 'Beef Noodle Soup';
+UPDATE menu_items SET dietary_tags = ARRAY['vegetarian']::TEXT[]
+  WHERE name IN ('Veggie Box', 'Quinoa Veggie Bowl', 'Tofu Miso Bowl');
+UPDATE menu_items SET dietary_tags = ARRAY['ovo_lacto_vegetarian']::TEXT[]
+  WHERE name = 'Cold Sesame Noodles';
+
+-- ─────────────────────────────────────────────
 -- 6. DEMO EMPLOYEE USERS
 --    password = "password123"
 -- ─────────────────────────────────────────────
