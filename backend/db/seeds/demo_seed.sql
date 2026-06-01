@@ -35,6 +35,25 @@ VALUES (
 )
 ON CONFLICT (email) DO NOTHING;
 
+-- Owners for the pending / rejected demo vendors (so applications have a submitter).
+INSERT INTO users (email, display_name, role_id, password_hash)
+VALUES (
+  'demo.pending@corpmeal.local',
+  'Demo Pending Manager',
+  (SELECT id FROM roles WHERE name = 'vendor_manager'),
+  '$2b$12$V92j2Sanc/Ie9L.w1HsXh.Go4a4oDKcq1sovHfObRIsOJ.5F/hxhG'
+)
+ON CONFLICT (email) DO NOTHING;
+
+INSERT INTO users (email, display_name, role_id, password_hash)
+VALUES (
+  'demo.rejected@corpmeal.local',
+  'Demo Rejected Manager',
+  (SELECT id FROM roles WHERE name = 'vendor_manager'),
+  '$2b$12$V92j2Sanc/Ie9L.w1HsXh.Go4a4oDKcq1sovHfObRIsOJ.5F/hxhG'
+)
+ON CONFLICT (email) DO NOTHING;
+
 -- ─────────────────────────────────────────────
 -- 3. DEMO VENDORS (status 'approved')
 -- ─────────────────────────────────────────────
@@ -53,6 +72,24 @@ SELECT
   'demo.greenbowl@corpmeal.local',
   (SELECT id FROM users WHERE email = 'demo.greenbowl@corpmeal.local')
 WHERE NOT EXISTS (SELECT 1 FROM vendors WHERE name = 'Demo Green Bowl');
+
+-- Pending vendor — awaiting admin review (shows in 商家審核 待審 tab).
+INSERT INTO vendors (name, status, contact_email, owner_user_id)
+SELECT
+  'Demo Dumpling Bar',
+  'pending',
+  'demo.pending@corpmeal.local',
+  (SELECT id FROM users WHERE email = 'demo.pending@corpmeal.local')
+WHERE NOT EXISTS (SELECT 1 FROM vendors WHERE name = 'Demo Dumpling Bar');
+
+-- Rejected vendor — application was declined with a reason (shows in 商家審核 已駁回).
+INSERT INTO vendors (name, status, contact_email, owner_user_id)
+SELECT
+  'Demo Fast Fry',
+  'rejected',
+  'demo.rejected@corpmeal.local',
+  (SELECT id FROM users WHERE email = 'demo.rejected@corpmeal.local')
+WHERE NOT EXISTS (SELECT 1 FROM vendors WHERE name = 'Demo Fast Fry');
 
 -- ─────────────────────────────────────────────
 -- 4. VENDOR FACILITIES
@@ -251,6 +288,42 @@ BEGIN
 END $$;
 
 -- ─────────────────────────────────────────────
+-- 5b. MENU ENRICHMENT (dietary tags + a sold-out example)
+--     Demonstrates the dietary-tag filter and the 今日售完 (sold-out) UI.
+--     UPDATEs are idempotent; the sold-out item is guarded by NOT EXISTS.
+-- ─────────────────────────────────────────────
+DO $$
+DECLARE
+  v_sunny_id BIGINT;
+  v_cat_sunny BIGINT;
+BEGIN
+  SELECT id INTO v_sunny_id FROM vendors WHERE name = 'Sunny Kitchen' LIMIT 1;
+  IF v_sunny_id IS NOT NULL THEN
+    SELECT id INTO v_cat_sunny
+      FROM menu_categories WHERE vendor_id = v_sunny_id AND name = 'Lunch Boxes';
+    -- Sold-out example: daily_quota = 0 → today's remaining is 0 → shows 今日售完.
+    INSERT INTO menu_items (vendor_id, category_id, name, description, price_cents, daily_quota, available, dietary_tags)
+    SELECT v_sunny_id, v_cat_sunny,
+           'Braised Beef Brisket Box',
+           'Slow-braised beef brisket over rice (today''s batch is sold out)',
+           11000, 0, TRUE, ARRAY['contains_beef']::TEXT[]
+    WHERE NOT EXISTS (
+      SELECT 1 FROM menu_items WHERE vendor_id = v_sunny_id AND name = 'Braised Beef Brisket Box'
+    );
+  END IF;
+END $$;
+
+-- Dietary tags on the existing demo items (idempotent UPDATEs; names are unique across demo vendors).
+UPDATE menu_items SET dietary_tags = ARRAY['contains_pork']::TEXT[]
+  WHERE name IN ('Pork Chop Box', 'Dan Dan Noodles', 'Wonton Noodle Soup');
+UPDATE menu_items SET dietary_tags = ARRAY['contains_beef']::TEXT[]
+  WHERE name = 'Beef Noodle Soup';
+UPDATE menu_items SET dietary_tags = ARRAY['vegetarian']::TEXT[]
+  WHERE name IN ('Veggie Box', 'Quinoa Veggie Bowl', 'Tofu Miso Bowl');
+UPDATE menu_items SET dietary_tags = ARRAY['ovo_lacto_vegetarian']::TEXT[]
+  WHERE name = 'Cold Sesame Noodles';
+
+-- ─────────────────────────────────────────────
 -- 6. DEMO EMPLOYEE USERS
 --    password = "password123"
 -- ─────────────────────────────────────────────
@@ -289,6 +362,30 @@ UPDATE users SET display_name = 'John Smith', badge_code = 'EMP-0003'
 WHERE email = 'demo.employee2@corpmeal.local';
 UPDATE users SET display_name = '李大華', badge_code = 'EMP-0004'
 WHERE email = 'demo.employee3@corpmeal.local';
+
+-- Pending employees — registered but not yet enabled by admin (is_active = FALSE).
+-- They appear in 使用者審核 待審核 tab for the admin to enable in the demo.
+INSERT INTO users (email, display_name, role_id, password_hash, is_active, badge_code)
+VALUES (
+  'demo.pending.emp1@corpmeal.local',
+  '待審 林小美',
+  (SELECT id FROM roles WHERE name = 'employee'),
+  '$2b$12$V92j2Sanc/Ie9L.w1HsXh.Go4a4oDKcq1sovHfObRIsOJ.5F/hxhG',
+  FALSE,
+  'EMP-0005'
+)
+ON CONFLICT (email) DO NOTHING;
+
+INSERT INTO users (email, display_name, role_id, password_hash, is_active, badge_code)
+VALUES (
+  'demo.pending.emp2@corpmeal.local',
+  'Pending Dave Lin',
+  (SELECT id FROM roles WHERE name = 'employee'),
+  '$2b$12$V92j2Sanc/Ie9L.w1HsXh.Go4a4oDKcq1sovHfObRIsOJ.5F/hxhG',
+  FALSE,
+  'EMP-0006'
+)
+ON CONFLICT (email) DO NOTHING;
 
 -- ─────────────────────────────────────────────
 -- 7. EMPLOYEE FACILITIES
@@ -652,6 +749,96 @@ SELECT u.id, v.id, f.id, 'ready', 1500, CURRENT_DATE, to_char(CURRENT_DATE, 'MMD
 FROM users u, vendors v, facilities f
 WHERE u.email = 'demo.employee3@corpmeal.local' AND v.name = 'Demo Green Bowl' AND f.code = 'F15A'
 ON CONFLICT DO NOTHING;
+
+-- ─────────────────────────────────────────────
+-- 10. VENDOR APPLICATIONS (mirror the real apply→review flow)
+--   Approved: the 3 live vendors, reviewed by admin.
+--   Pending:  Demo Dumpling Bar, awaiting review.
+--   Rejected: Demo Fast Fry, declined with a reason.
+-- Idempotent: one application per vendor (guarded on vendor_id).
+-- ─────────────────────────────────────────────
+INSERT INTO vendor_applications
+  (vendor_id, submitted_by_user_id, status, reviewed_by_user_id, reviewed_at, created_at, updated_at)
+SELECT v.id, v.owner_user_id, 'approved',
+  (SELECT id FROM users WHERE email = 'admin@corpmeal.local'),
+  NOW() - INTERVAL '20 days', NOW() - INTERVAL '22 days', NOW() - INTERVAL '20 days'
+FROM vendors v
+WHERE v.name IN ('Sunny Kitchen', 'Demo Noodle House', 'Demo Green Bowl')
+  AND NOT EXISTS (SELECT 1 FROM vendor_applications a WHERE a.vendor_id = v.id);
+
+INSERT INTO vendor_applications
+  (vendor_id, submitted_by_user_id, status, created_at, updated_at)
+SELECT v.id, v.owner_user_id, 'pending', NOW() - INTERVAL '2 days', NOW() - INTERVAL '2 days'
+FROM vendors v
+WHERE v.name = 'Demo Dumpling Bar'
+  AND NOT EXISTS (SELECT 1 FROM vendor_applications a WHERE a.vendor_id = v.id);
+
+INSERT INTO vendor_applications
+  (vendor_id, submitted_by_user_id, status, review_reason, reviewed_by_user_id, reviewed_at, created_at, updated_at)
+SELECT v.id, v.owner_user_id, 'rejected',
+  'Incomplete food-safety documentation; please resubmit with HACCP certificate.',
+  (SELECT id FROM users WHERE email = 'admin@corpmeal.local'),
+  NOW() - INTERVAL '5 days', NOW() - INTERVAL '8 days', NOW() - INTERVAL '5 days'
+FROM vendors v
+WHERE v.name = 'Demo Fast Fry'
+  AND NOT EXISTS (SELECT 1 FROM vendor_applications a WHERE a.vendor_id = v.id);
+
+-- Audit rows for the reviewed applications, mirroring VendorReviewService
+-- (action 'vendor.review', target_type 'vendor_application'). Idempotent on (action, target_id).
+INSERT INTO audit_logs (actor_user_id, actor_role, action, target_type, target_id, metadata, created_at)
+SELECT
+  (SELECT id FROM users WHERE email = 'admin@corpmeal.local'),
+  'admin', 'vendor.review', 'vendor_application', a.id,
+  jsonb_build_object('decision', a.status),
+  a.reviewed_at
+FROM vendor_applications a
+JOIN vendors v ON v.id = a.vendor_id
+WHERE v.name IN ('Sunny Kitchen', 'Demo Noodle House', 'Demo Green Bowl', 'Demo Fast Fry')
+  AND a.status IN ('approved', 'rejected')
+  AND NOT EXISTS (
+    SELECT 1 FROM audit_logs al
+    WHERE al.action = 'vendor.review' AND al.target_type = 'vendor_application' AND al.target_id = a.id
+  );
+
+-- ─────────────────────────────────────────────
+-- 11. AUDIT BACKFILL (order + onboarding history, like real operations)
+--     order.create (actor=employee), order.status_update (actor=vendor),
+--     user.enable (actor=admin). Idempotent on (action, target_type, target_id).
+-- ─────────────────────────────────────────────
+-- One order.create per seeded order (the employee placed it).
+INSERT INTO audit_logs (actor_user_id, actor_role, action, target_type, target_id, metadata, created_at)
+SELECT o.employee_id, 'employee', 'order.create', 'order', o.id,
+  jsonb_build_object('vendor_id', o.vendor_id, 'total_cents', o.total_price_cents),
+  o.created_at
+FROM orders o
+WHERE NOT EXISTS (
+  SELECT 1 FROM audit_logs al
+  WHERE al.action = 'order.create' AND al.target_type = 'order' AND al.target_id = o.id
+);
+
+-- One ready→delivered status_update per delivered order (the vendor advanced it).
+INSERT INTO audit_logs (actor_user_id, actor_role, action, target_type, target_id, metadata, created_at)
+SELECT v.owner_user_id, 'vendor_manager', 'order.status_update', 'order', o.id,
+  jsonb_build_object('from', 'ready', 'to', 'delivered'),
+  o.created_at + INTERVAL '2 hours'
+FROM orders o
+JOIN vendors v ON v.id = o.vendor_id
+WHERE o.status = 'delivered'
+  AND NOT EXISTS (
+    SELECT 1 FROM audit_logs al
+    WHERE al.action = 'order.status_update' AND al.target_type = 'order' AND al.target_id = o.id
+  );
+
+-- user.enable for the active demo employees (admin completed their onboarding).
+INSERT INTO audit_logs (actor_user_id, actor_role, action, target_type, target_id, metadata, created_at)
+SELECT (SELECT id FROM users WHERE email = 'admin@corpmeal.local'),
+  'admin', 'user.enable', 'user', u.id, '{}'::jsonb, u.created_at + INTERVAL '1 hour'
+FROM users u
+WHERE u.email IN ('demo.employee1@corpmeal.local', 'demo.employee2@corpmeal.local', 'demo.employee3@corpmeal.local')
+  AND NOT EXISTS (
+    SELECT 1 FROM audit_logs al
+    WHERE al.action = 'user.enable' AND al.target_type = 'user' AND al.target_id = u.id
+  );
 
 -- Advance the sequence past any badge already assigned by seeds/backfill so a
 -- freshly registered employee never collides with a pre-seeded EMP-NNNN
