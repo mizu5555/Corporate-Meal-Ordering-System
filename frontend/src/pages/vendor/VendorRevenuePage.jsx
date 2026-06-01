@@ -151,7 +151,7 @@ export default function VendorRevenuePage() {
       {error && <p className="error-state">{error}</p>}
 
       {dashboard && !loading && !error && (
-        <section className="dashboard-grid">
+        <section style={{ display: "grid", gap: 18 }}>
           <article className="panel stat-cards">
             <div className="stat-card">
               <span>Orders</span>
@@ -167,73 +167,103 @@ export default function VendorRevenuePage() {
             </div>
           </article>
 
-          <article className="panel">
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "baseline" }}>
-              <h3>Today stock</h3>
-              <p className="panel-copy" style={{ margin: 0 }}>{dashboard.today}</p>
-            </div>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Item</th>
-                  <th>Quota</th>
-                  <th>Sold</th>
-                  <th>Remaining</th>
-                  <th>Revenue</th>
-                </tr>
-              </thead>
-              <tbody>
-                {dashboard.today_items.map((item) => (
-                  <tr key={item.item_id}>
-                    <td>{item.item_name}</td>
-                    <td>{quotaText(item.daily_quota)}</td>
-                    <td>{numberText(item.sold_quantity)}</td>
-                    <td>{remainingText(item.remaining_quantity)}</td>
-                    <td>{formatMoney(item.revenue_cents)}</td>
-                  </tr>
-                ))}
-                {dashboard.today_items.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="table-empty">No menu items yet.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </article>
+          <div
+            style={{
+              display: "grid",
+              gap: 18,
+              gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))",
+            }}
+          >
+            <article className="panel">
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 16,
+                  alignItems: "baseline",
+                  flexWrap: "wrap",
+                  marginBottom: 12,
+                }}
+              >
+                <h3 style={{ margin: 0 }}>Today stock</h3>
+                <p className="panel-copy" style={{ margin: 0 }}>{dashboard.today}</p>
+              </div>
+              <div style={{ overflowX: "auto" }}>
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Item</th>
+                      <th>Quota</th>
+                      <th>Sold</th>
+                      <th>Remaining</th>
+                      <th>Revenue</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dashboard.today_items.map((item) => (
+                      <tr key={item.item_id}>
+                        <td>{item.item_name}</td>
+                        <td>{quotaText(item.daily_quota)}</td>
+                        <td>{numberText(item.sold_quantity)}</td>
+                        <td>{remainingText(item.remaining_quantity)}</td>
+                        <td>{formatMoney(item.revenue_cents)}</td>
+                      </tr>
+                    ))}
+                    {dashboard.today_items.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="table-empty">No menu items yet.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </article>
 
-          <article className="panel">
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "baseline" }}>
-              <h3>Dish sales</h3>
-              <p className="panel-copy" style={{ margin: 0 }}>
-                {dashboard.start} to {dashboard.end}
-              </p>
-            </div>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Item</th>
-                  <th>Orders</th>
-                  <th>Sold</th>
-                  <th>Revenue</th>
-                </tr>
-              </thead>
-              <tbody>
-                {dashboard.period_items.map((item) => (
-                  <tr key={item.item_id}>
-                    <td>{item.item_name}</td>
-                    <td>{numberText(item.order_count)}</td>
-                    <td>{numberText(item.quantity_sold)}</td>
-                    <td>{formatMoney(item.revenue_cents)}</td>
-                  </tr>
-                ))}
-                {dashboard.period_items.length === 0 && (
-                  <tr>
-                    <td colSpan={4} className="table-empty">No sales in this range.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </article>
+            <article className="panel">
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 16,
+                  alignItems: "baseline",
+                  flexWrap: "wrap",
+                  marginBottom: 12,
+                }}
+              >
+                <h3 style={{ margin: 0 }}>Dish sales</h3>
+                <p className="panel-copy" style={{ margin: 0 }}>
+                  {dashboard.start} to {dashboard.end}
+                </p>
+              </div>
+              <div style={{ overflowX: "auto" }}>
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Item</th>
+                      <th>Orders</th>
+                      <th>Sold</th>
+                      <th>Revenue</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dashboard.period_items.map((item) => (
+                      <tr key={item.item_id}>
+                        <td>{item.item_name}</td>
+                        <td>{numberText(item.order_count)}</td>
+                        <td>{numberText(item.quantity_sold)}</td>
+                        <td>{formatMoney(item.revenue_cents)}</td>
+                      </tr>
+                    ))}
+                    {dashboard.period_items.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="table-empty">No sales in this range.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </article>
+          </div>
         </section>
       )}
     </div>
