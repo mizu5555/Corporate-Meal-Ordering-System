@@ -22,6 +22,10 @@ from backend.schemas.admin_stats import (
 from backend.schemas.billing import EmployeeTotal, VendorReceivable
 
 
+def default_badge_code(employee_id: int) -> str:
+    return f"EMP-{employee_id:04d}"
+
+
 @dataclass
 class _OrderRow:
     order_id: int
@@ -37,6 +41,7 @@ class _OrderRow:
     employee_name: str | None = None
     meal_date: date | None = None
     owner_user_id: int | None = None
+    employee_badge_code: str | None = None
 
 
 class ReportingRepository:
@@ -58,6 +63,7 @@ class ReportingRepository:
         employee_name: str | None = None,
         meal_date: date | None = None,
         owner_user_id: int | None = None,
+        employee_badge_code: str | None = None,
     ) -> None:
         self._orders.append(
             _OrderRow(
@@ -73,6 +79,7 @@ class ReportingRepository:
                 employee_name=employee_name,
                 meal_date=meal_date,
                 owner_user_id=owner_user_id,
+                employee_badge_code=employee_badge_code,
             )
         )
 
@@ -292,11 +299,24 @@ class ReportingRepository:
             if r.employee_id is None:
                 continue
             a = acc.setdefault(
-                r.employee_id, {"employee_name": r.employee_name, "amount_cents": 0}
+                r.employee_id,
+                {
+                    "employee_name": r.employee_name,
+                    "badge_code": r.employee_badge_code,
+                    "order_count": 0,
+                    "amount_cents": 0,
+                },
             )
+            a["order_count"] += 1
             a["amount_cents"] += self._row_revenue(r)
         rows = [
-            EmployeeTotal(employee_id=eid, employee_name=a["employee_name"], amount_cents=a["amount_cents"])
+            EmployeeTotal(
+                employee_id=eid,
+                employee_name=a["employee_name"],
+                badge_code=a["badge_code"] or default_badge_code(eid),
+                amount_cents=a["amount_cents"],
+                order_count=a["order_count"],
+            )
             for eid, a in acc.items()
         ]
         rows.sort(key=lambda r: r.amount_cents, reverse=True)

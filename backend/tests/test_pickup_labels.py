@@ -154,7 +154,7 @@ def test_pickup_confirm_requires_ready_order() -> None:
 def test_vendor_can_confirm_ready_pickup() -> None:
     vendor_repo = _seed_vendor_repo()
     selection_repo = EmployeeSelectionRepository()
-    order = selection_repo.create_order(employee_id=100, vendor_id=1, items=[], meal_date=None)
+    order = selection_repo.create_order(employee_id=100, vendor_id=1, items=[], meal_date=date.today())
     selection_repo.update_order_status(vendor_id=1, order_id=order.id, new_status="ready")
 
     resp = _client(vendor_repo, selection_repo).post(
@@ -167,6 +167,22 @@ def test_vendor_can_confirm_ready_pickup() -> None:
     assert body["status"] == "delivered"
     assert body["pickup_confirmed_at"] is not None
     assert body["pickup_confirmed_by_user_id"] == 77
+
+
+def test_pickup_confirm_rejects_non_today_meal_date() -> None:
+    vendor_repo = _seed_vendor_repo()
+    selection_repo = EmployeeSelectionRepository()
+    yesterday = date(2026, 5, 27)
+    order = selection_repo.create_order(employee_id=100, vendor_id=1, items=[], meal_date=yesterday)
+    selection_repo.update_order_status(vendor_id=1, order_id=order.id, new_status="ready")
+
+    resp = _client(vendor_repo, selection_repo).post(
+        f"/vendor/me/orders/{order.id}/pickup-confirm",
+        headers=_vh(1),
+    )
+
+    assert resp.status_code == 409
+    assert resp.json()["code"] == "pickup_wrong_date"
 
 
 def test_vendor_cannot_view_other_vendors_label() -> None:

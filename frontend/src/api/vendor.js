@@ -39,6 +39,17 @@ export function getMyOrder(orderId) {
   return apiFetch(`/vendor/me/orders/${orderId}`);
 }
 
+export function getMyBilling({ year, month } = {}) {
+  const params = new URLSearchParams();
+  if (year != null) params.set("year", String(year));
+  if (month != null) params.set("month", String(month));
+  const qs = params.toString();
+  return withMockFallback(
+    () => apiFetch(`/vendor/me/billing${qs ? `?${qs}` : ""}`),
+    { year, month, amount_cents: 0, order_count: 0 },
+  );
+}
+
 export function updateOrderStatus(orderId, status) {
   return apiFetch(`/vendor/me/orders/${orderId}/status`, {
     method: "PATCH",

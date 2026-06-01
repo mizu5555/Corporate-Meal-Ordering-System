@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date
 
 from backend.db.connection import get_connection
+from backend.repositories.reporting_repository import default_badge_code
 from backend.schemas.admin_stats import (
     DayPoint,
     FacilityStat,
@@ -291,21 +292,28 @@ class PostgresReportingRepository:
         with get_connection() as conn:
             rows = conn.execute(
                 f"""
-                SELECT o.employee_id, u.display_name AS employee_name,
+                SELECT o.employee_id, u.display_name AS employee_name, u.badge_code,
+                       COUNT(DISTINCT o.id) AS order_count,
                        COALESCE(SUM(oi.total_price_cents), 0) AS amount_cents
                 FROM orders o
                 JOIN order_items oi ON oi.order_id = o.id
                 JOIN users u ON u.id = o.employee_id
                 WHERE {_MONTH}
-                GROUP BY o.employee_id, u.display_name
+                GROUP BY o.employee_id, u.display_name, u.badge_code
                 ORDER BY amount_cents DESC
                 """,
                 [year, month],
             ).fetchall()
-        return [
-            EmployeeTotal(
-                employee_id=int(r["employee_id"]), employee_name=r["employee_name"],
-                amount_cents=int(r["amount_cents"]),
+        out: list[EmployeeTotal] = []
+        for r in rows:
+            employee_id = int(r["employee_id"])
+            out.append(
+                EmployeeTotal(
+                    employee_id=employee_id,
+                    employee_name=r["employee_name"],
+                    badge_code=r["badge_code"] or default_badge_code(employee_id),
+                    order_count=int(r["order_count"]),
+                    amount_cents=int(r["amount_cents"]),
+                )
             )
-            for r in rows
-        ]
+        return out

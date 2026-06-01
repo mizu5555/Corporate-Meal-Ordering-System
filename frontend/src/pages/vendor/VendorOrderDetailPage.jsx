@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getMyOrder, updateOrderStatus } from "../../api/vendor";
-import { formatPrice } from "../../utils/format";
+import { formatMoney, formatPrice } from "../../utils/format";
 
 const STATUS_LABEL = {
   pending: "待確認",
@@ -166,7 +166,7 @@ export default function VendorOrderDetailPage() {
                 {formatPrice(item.unit_price_cents)}
               </p>
               <p style={{ margin: 0, textAlign: "right", fontWeight: 600 }}>
-                {formatPrice(item.total_price_cents)}
+                {formatMoney(item.total_price_cents)}
               </p>
             </div>
           ))}
@@ -184,7 +184,7 @@ export default function VendorOrderDetailPage() {
           >
             <p style={{ margin: 0, fontWeight: 700 }}>合計</p>
             <p style={{ margin: 0, fontWeight: 800, fontSize: 18, color: "var(--brand)" }}>
-              {formatPrice(order.total_price_cents)}
+              {formatMoney(order.total_price_cents)}
             </p>
           </div>
         </div>
