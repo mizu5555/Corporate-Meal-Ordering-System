@@ -16,4 +16,13 @@ export default defineConfig({
       "/uploads":  "http://localhost:8000",
     },
   },
+  test: {
+    environment: "jsdom",
+    globals: true,
+    setupFiles: "./src/test/setup.js",
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "html"],
+    },
+  },
 });
