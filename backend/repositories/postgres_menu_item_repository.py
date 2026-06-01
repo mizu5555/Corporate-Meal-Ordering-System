@@ -20,18 +20,19 @@ class PostgresMenuItemRepository:
         category_id: int | None = None,
         available: bool = True,
         daily_quota: int | None = None,
+        dietary_tags: list[str] | None = None,
     ) -> MenuItem:
         with get_connection() as conn:
             row = conn.execute(
                 """
                 INSERT INTO menu_items (
                     vendor_id, category_id, name, description,
-                    price_cents, available, daily_quota
+                    price_cents, available, daily_quota, dietary_tags
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING
                     id, vendor_id, category_id, name, description,
-                    price_cents, available, daily_quota, photo_path,
+                    price_cents, available, daily_quota, dietary_tags, photo_path,
                     created_at, updated_at
                 """,
                 (
@@ -42,6 +43,7 @@ class PostgresMenuItemRepository:
                     price_cents,
                     available,
                     daily_quota,
+                    dietary_tags or [],
                 ),
             ).fetchone()
 
@@ -69,7 +71,7 @@ class PostgresMenuItemRepository:
                 f"""
                 SELECT
                     id, vendor_id, category_id, name, description,
-                    price_cents, available, daily_quota, photo_path,
+                    price_cents, available, daily_quota, dietary_tags, photo_path,
                     created_at, updated_at
                 FROM menu_items
                 WHERE {" AND ".join(where)}
@@ -86,7 +88,7 @@ class PostgresMenuItemRepository:
                 """
                 SELECT
                     id, vendor_id, category_id, name, description,
-                    price_cents, available, daily_quota, photo_path,
+                    price_cents, available, daily_quota, dietary_tags, photo_path,
                     created_at, updated_at
                 FROM menu_items
                 WHERE vendor_id = %s AND id = %s
@@ -108,6 +110,7 @@ class PostgresMenuItemRepository:
             "price_cents": "price_cents",
             "available": "available",
             "daily_quota": "daily_quota",
+            "dietary_tags": "dietary_tags",
         }
         updates = [
             (allowed_columns[key], value)
@@ -129,7 +132,7 @@ class PostgresMenuItemRepository:
                 WHERE vendor_id = %s AND id = %s
                 RETURNING
                     id, vendor_id, category_id, name, description,
-                    price_cents, available, daily_quota, photo_path,
+                    price_cents, available, daily_quota, dietary_tags, photo_path,
                     created_at, updated_at
                 """,
                 values,

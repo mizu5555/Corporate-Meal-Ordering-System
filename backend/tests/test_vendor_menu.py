@@ -53,7 +53,12 @@ def test_create_menu_item_and_get(tmp_path: Path) -> None:
     resp = client.post(
         "/vendor/me/menu",
         headers=_h(),
-        json={"name": "Rice Bowl", "price_cents": 120, "daily_quota": 50},
+        json={
+            "name": "Rice Bowl",
+            "price_cents": 120,
+            "daily_quota": 50,
+            "dietary_tags": ["contains_beef"],
+        },
     )
     assert resp.status_code == 201
     item_id = resp.json()["id"]
@@ -61,6 +66,61 @@ def test_create_menu_item_and_get(tmp_path: Path) -> None:
     got = client.get(f"/vendor/me/menu/{item_id}", headers=_h()).json()
     assert got["name"] == "Rice Bowl"
     assert got["daily_quota"] == 50
+    assert got["dietary_tags"] == ["contains_beef"]
+
+
+def test_create_patch_and_list_round_trip_dietary_tags(tmp_path: Path) -> None:
+    client, _, _ = _setup(tmp_path)
+    created = client.post(
+        "/vendor/me/menu",
+        headers=_h(),
+        json={
+            "name": "Veggie Bowl",
+            "price_cents": 120,
+            "dietary_tags": ["vegetarian"],
+        },
+    )
+    assert created.status_code == 201
+    item_id = created.json()["id"]
+
+    patched = client.patch(
+        f"/vendor/me/menu/{item_id}",
+        headers=_h(),
+        json={"dietary_tags": ["ovo_lacto_vegetarian"]},
+    )
+
+    assert patched.status_code == 200
+    assert patched.json()["dietary_tags"] == ["ovo_lacto_vegetarian"]
+    listed = client.get("/vendor/me/menu", headers=_h()).json()
+    assert listed[0]["dietary_tags"] == ["ovo_lacto_vegetarian"]
+
+
+def test_invalid_dietary_tag_rejected_422(tmp_path: Path) -> None:
+    client, _, _ = _setup(tmp_path)
+
+    resp = client.post(
+        "/vendor/me/menu",
+        headers=_h(),
+        json={"name": "Rice Bowl", "price_cents": 120, "dietary_tags": ["keto"]},
+    )
+
+    assert resp.status_code == 422
+
+
+def test_vegetarian_cannot_be_combined_with_meat_tags(tmp_path: Path) -> None:
+    client, _, _ = _setup(tmp_path)
+
+    resp = client.post(
+        "/vendor/me/menu",
+        headers=_h(),
+        json={
+            "name": "Confusing Bowl",
+            "price_cents": 120,
+            "dietary_tags": ["vegetarian", "contains_beef"],
+        },
+    )
+
+    assert resp.status_code == 422
 
 
 def test_daily_quota_round_trip_null_and_zero(tmp_path: Path) -> None:

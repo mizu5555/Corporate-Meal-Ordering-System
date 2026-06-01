@@ -133,6 +133,20 @@ export function deleteMenuItemScheduleDate(itemId, mealDate) {
   });
 }
 
+export function getApplicationFacilities() {
+  return withMockFallback(
+    () => apiFetch("/vendor/applications/facilities"),
+    Array.from(
+      new Map(
+        MOCK_VENDORS.flatMap((vendor) => vendor.served_facilities ?? []).map((facility) => [
+          facility.id,
+          facility,
+        ]),
+      ).values(),
+    ),
+  );
+}
+
 export function submitVendorApplication(data) {
   return apiFetch("/vendor/applications", {
     method: "POST",

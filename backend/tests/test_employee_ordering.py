@@ -105,7 +105,14 @@ def test_pending_vendor_is_hidden_from_employee() -> None:
 
 def test_list_menu_defaults_to_available_items() -> None:
     client, item_repo, _ = _setup()
-    item_repo.create(vendor_id=1, category_id=7, name="Rice Bowl", price_cents=120, available=True)
+    item_repo.create(
+        vendor_id=1,
+        category_id=7,
+        name="Rice Bowl",
+        price_cents=120,
+        available=True,
+        dietary_tags=["vegetarian"],
+    )
     item_repo.create(vendor_id=1, category_id=7, name="Sold Out Soup", price_cents=80, available=False)
     item_repo.create(vendor_id=1, category_id=8, name="Tea", price_cents=40, available=True)
 
@@ -113,6 +120,7 @@ def test_list_menu_defaults_to_available_items() -> None:
 
     assert resp.status_code == 200
     assert [item["name"] for item in resp.json()] == ["Rice Bowl"]
+    assert resp.json()[0]["dietary_tags"] == ["vegetarian"]
 
 
 def test_select_meal_records_quantity_and_total_price() -> None:
@@ -515,6 +523,61 @@ def test_draw_random_meal_returns_409_when_no_meals_remain() -> None:
         "/employee/random-meals/draw",
         headers=_browse_h(),
         json={"meal_date": meal_date, "vendor_ids": [1]},
+    )
+
+    assert resp.status_code == 409
+    assert resp.json()["code"] == "no_random_meal_available"
+
+
+def test_draw_random_meal_excludes_disallowed_dietary_tags() -> None:
+    client, item_repo, _ = _setup()
+    beef = item_repo.create(
+        vendor_id=1,
+        name="Beef Bowl",
+        price_cents=120,
+        dietary_tags=["contains_beef"],
+    )
+    vegetarian = item_repo.create(
+        vendor_id=1,
+        name="Vegetarian Bowl",
+        price_cents=120,
+        dietary_tags=["vegetarian"],
+    )
+
+    resp = client.post(
+        "/employee/random-meals/draw",
+        headers=_browse_h(),
+        json={
+            "meal_date": _meal_date(),
+            "vendor_ids": [1],
+            "exclude_tags": ["contains_beef", "contains_pork"],
+        },
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["item"]["id"] == vegetarian.id
+    assert resp.json()["item"]["id"] != beef.id
+    assert resp.json()["item"]["dietary_tags"] == ["vegetarian"]
+
+
+def test_draw_random_meal_returns_409_when_dietary_filters_remove_all_candidates() -> None:
+    client, item_repo, _ = _setup()
+    item_repo.create(
+        vendor_id=1,
+        name="Beef Bowl",
+        price_cents=120,
+        dietary_tags=["contains_beef"],
+    )
+
+    resp = client.post(
+        "/employee/random-meals/draw",
+        headers=_browse_h(),
+        json={
+            "meal_date": _meal_date(),
+            "vendor_ids": [1],
+            "include_tags": ["vegetarian"],
+            "exclude_tags": ["contains_beef"],
+        },
     )
 
     assert resp.status_code == 409

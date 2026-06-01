@@ -182,3 +182,57 @@ def test_no_vendors_returns_empty() -> None:
     results = svc.recommend(limit=8)
 
     assert results == []
+
+
+def test_include_tag_filters_recommendations_before_ranking() -> None:
+    vendor_repo = _base_vendor_repo()
+    item_repo = MenuItemRepository()
+    selection_repo = EmployeeSelectionRepository()
+    reporting_repo = ReportingRepository()
+
+    beef = item_repo.create(
+        vendor_id=1,
+        name="Popular Beef Bowl",
+        price_cents=120,
+        daily_quota=50,
+        dietary_tags=["contains_beef"],
+    )
+    vegetarian = item_repo.create(
+        vendor_id=1,
+        name="Vegetarian Bowl",
+        price_cents=100,
+        daily_quota=50,
+        dietary_tags=["vegetarian"],
+    )
+
+    _seed_sale(reporting_repo, order_id=1, vendor_id=1, items=[(beef.id, 20, 120)])
+    _seed_sale(reporting_repo, order_id=2, vendor_id=1, items=[(vegetarian.id, 2, 100)])
+
+    svc = _make_service(vendor_repo, item_repo, selection_repo, reporting_repo)
+    results = svc.recommend(limit=8, include_tags=["vegetarian"])
+
+    assert [r.item.id for r in results] == [vegetarian.id]
+
+
+def test_exclude_tags_filter_recommendations_before_ranking() -> None:
+    vendor_repo = _base_vendor_repo()
+    item_repo = MenuItemRepository()
+    selection_repo = EmployeeSelectionRepository()
+    reporting_repo = ReportingRepository()
+
+    pork = item_repo.create(
+        vendor_id=1,
+        name="Popular Pork Bowl",
+        price_cents=120,
+        daily_quota=50,
+        dietary_tags=["contains_pork"],
+    )
+    rice = item_repo.create(vendor_id=1, name="Rice Bowl", price_cents=100, daily_quota=50)
+
+    _seed_sale(reporting_repo, order_id=1, vendor_id=1, items=[(pork.id, 20, 120)])
+    _seed_sale(reporting_repo, order_id=2, vendor_id=1, items=[(rice.id, 2, 100)])
+
+    svc = _make_service(vendor_repo, item_repo, selection_repo, reporting_repo)
+    results = svc.recommend(limit=8, exclude_tags=["contains_beef", "contains_pork"])
+
+    assert [r.item.id for r in results] == [rice.id]

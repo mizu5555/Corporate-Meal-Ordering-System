@@ -74,6 +74,7 @@ class VendorMenuService:
             category_id=payload.category_id,
             available=payload.available,
             daily_quota=payload.daily_quota,
+            dietary_tags=payload.dietary_tags,
         )
 
     def update(
