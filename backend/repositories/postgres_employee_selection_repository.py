@@ -401,18 +401,33 @@ class PostgresEmployeeSelectionRepository:
             ).fetchall()
         return [_selection_to_schema(r) for r in rows]
 
-    def list_orders(self, *, employee_id: int) -> list[EmployeeOrder]:
+    def list_orders(
+        self,
+        *,
+        employee_id: int,
+        start_date: date | None = None,
+        end_date: date | None = None,
+    ) -> list[EmployeeOrder]:
+        where = ["employee_id = %s"]
+        values: list[object] = [employee_id]
+        if start_date is not None:
+            where.append("COALESCE(meal_date, created_at::date) >= %s")
+            values.append(start_date)
+        if end_date is not None:
+            where.append("COALESCE(meal_date, created_at::date) <= %s")
+            values.append(end_date)
+
         with get_connection() as conn:
             order_rows = conn.execute(
-                """
+                f"""
                 SELECT id, employee_id, vendor_id, facility_id, meal_date, status,
                        total_price_cents, pickup_code, pickup_confirmed_at,
                        pickup_confirmed_by_user_id, created_at, updated_at, cancelled_at
                 FROM orders
-                WHERE employee_id = %s
+                WHERE {" AND ".join(where)}
                 ORDER BY id
                 """,
-                (employee_id,),
+                values,
             ).fetchall()
             return [self._hydrate_order(conn, row) for row in order_rows]
 

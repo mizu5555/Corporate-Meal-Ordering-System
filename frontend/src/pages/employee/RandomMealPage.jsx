@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { drawRandomMeal, getRecommendations, submitSelection } from "../../api/employee";
 import { useFacility } from "../../facility/FacilityContext";
 import FacilityScopeLabel from "../../facility/FacilityScopeLabel";
@@ -27,11 +27,16 @@ function drawErrorMessage(err) {
 
 export default function RandomMealPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { selectedFacilityId } = useFacility();
   const { vendors, loading, error } = useVendors({ facilityId: selectedFacilityId });
   const minMealDate = addDaysIso(0);
   const maxMealDate = addDaysIso(6);
-  const [mealDate, setMealDate] = useState(minMealDate);
+  const requestedMealDate = new URLSearchParams(location.search).get("meal_date");
+  const initialMealDate = requestedMealDate && requestedMealDate >= minMealDate && requestedMealDate <= maxMealDate
+    ? requestedMealDate
+    : minMealDate;
+  const [mealDate, setMealDate] = useState(initialMealDate);
   const [tab, setTab] = useState("recommend");
 
   // --- 隨機抽餐 state ---

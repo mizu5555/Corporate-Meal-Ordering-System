@@ -179,8 +179,10 @@ def list_my_selections(
 def list_my_orders(
     employee_id: Annotated[int, Depends(require_employee)],
     service: Annotated[EmployeeOrderingService, Depends(get_employee_ordering_service)],
+    start_date: Annotated[date | None, Query()] = None,
+    end_date: Annotated[date | None, Query()] = None,
 ) -> list[EmployeeOrder]:
-    return service.list_my_orders(employee_id)
+    return service.list_my_orders(employee_id, start_date=start_date, end_date=end_date)
 
 
 @router.get("/me/orders/{order_id}", response_model=EmployeeOrder)
