@@ -1044,6 +1044,23 @@ p {
 .random-result-card {
   display: grid;
   gap: 14px;
+  max-width: 520px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.55);
+  cursor: pointer;
+  transition: transform 140ms ease, box-shadow 140ms ease;
+}
+
+.random-result-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(78, 49, 23, 0.1);
+}
+
+.random-result-card:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
 }
 
 .random-price {
