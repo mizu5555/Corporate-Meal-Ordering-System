@@ -6,16 +6,26 @@ import { useFacility } from "../../facility/FacilityContext";
 import FacilityScopeLabel from "../../facility/FacilityScopeLabel";
 import { useVendor } from "../../hooks/useVendor";
 import { useVendorMenu } from "../../hooks/useVendorMenu";
+import { todayIso, toLocalIso } from "../../utils/date";
 
 const FILTERS = [
   { label: "全部菜單", value: undefined },
   { label: "供應中", value: true },
 ];
 
+function addDaysIso(days) {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return toLocalIso(date);
+}
+
 export default function VendorMenuPage() {
   const { vendorId } = useParams();
   const navigate = useNavigate();
 
+  const minMealDate = todayIso();
+  const maxMealDate = addDaysIso(6);
+  const [mealDate, setMealDate] = useState(minMealDate);
   const [availableFilter, setAvailableFilter] = useState(undefined);
   const [selectedItem, setSelectedItem] = useState(null);
   const { selectedFacilityId } = useFacility();
@@ -24,6 +34,7 @@ export default function VendorMenuPage() {
   const { items, loading: menuLoading, error } = useVendorMenu(vendorId, {
     available: availableFilter,
     facilityId: selectedFacilityId,
+    mealDate,
   });
 
   const loading = vendorLoading || menuLoading;
@@ -51,6 +62,26 @@ export default function VendorMenuPage() {
           {vendor.business_hours && <span> &nbsp;·&nbsp; 🕐 {vendor.business_hours}</span>}
         </p>
       )}
+
+      <div className="menu-toolbar">
+        <div className="menu-date-control">
+          <label className="field-label" htmlFor="vendor-menu-meal-date">
+            Meal date
+          </label>
+          <input
+            className="date-input"
+            id="vendor-menu-meal-date"
+            max={maxMealDate}
+            min={minMealDate}
+            type="date"
+            value={mealDate}
+            onChange={(event) => {
+              setMealDate(event.target.value);
+              setSelectedItem(null);
+            }}
+          />
+        </div>
+      </div>
 
       <div className="filter-bar">
         {FILTERS.map((f) => (
@@ -92,6 +123,7 @@ export default function VendorMenuPage() {
       {selectedItem && (
         <MealDetailModal
           item={selectedItem}
+          mealDate={mealDate}
           onClose={() => setSelectedItem(null)}
         />
       )}

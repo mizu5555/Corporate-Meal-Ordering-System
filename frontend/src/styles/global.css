@@ -473,6 +473,20 @@ p {
   margin-bottom: 24px;
 }
 
+.menu-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: end;
+  margin-bottom: 18px;
+}
+
+.menu-date-control {
+  display: grid;
+  gap: 8px;
+  width: min(100%, 260px);
+}
+
 .filter-pill {
   padding: 8px 18px;
   border: 1px solid var(--line);

@@ -181,7 +181,7 @@ export default function CartPage() {
                     className="stepper-btn"
                     type="button"
                     aria-label="減少數量"
-                    onClick={() => updateQuantity(cartItem.item.id, cartItem.quantity - 1)}
+                    onClick={() => updateQuantity(cartItem.item.id, cartItem.mealDate, cartItem.quantity - 1)}
                     disabled={cartItem.quantity <= 1}
                   >
                     −
@@ -191,7 +191,7 @@ export default function CartPage() {
                     className="stepper-btn"
                     type="button"
                     aria-label="增加數量"
-                    onClick={() => updateQuantity(cartItem.item.id, cartItem.quantity + 1)}
+                    onClick={() => updateQuantity(cartItem.item.id, cartItem.mealDate, cartItem.quantity + 1)}
                   >
                     ＋
                   </button>
@@ -204,7 +204,7 @@ export default function CartPage() {
                 <button
                   type="button"
                   aria-label={`移除 ${cartItem.item.name}`}
-                  onClick={() => removeItem(cartItem.item.id)}
+                  onClick={() => removeItem(cartItem.item.id, cartItem.mealDate)}
                   style={{
                     background: "none",
                     border: "none",

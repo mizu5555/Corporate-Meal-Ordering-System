@@ -692,6 +692,49 @@ def test_list_menu_includes_remaining_quantity_when_quota_set() -> None:
     assert body[0]["remaining_quantity"] == 3  # 5 - 2 = 3
 
 
+def test_list_menu_remaining_quantity_uses_requested_meal_date() -> None:
+    client, item_repo, selection_repo = _setup()
+    item = item_repo.create(vendor_id=1, name="Rice Bowl", price_cents=120, daily_quota=5)
+    today = date.today()
+    future = today + timedelta(days=2)
+    selection_repo.create_order(
+        employee_id=100,
+        vendor_id=1,
+        meal_date=future,
+        items=[OrderItemSnapshot(item_id=item.id, item_name="Rice Bowl", quantity=4, unit_price_cents=120)],
+    )
+
+    today_resp = client.get(
+        "/employee/vendors/1/menu",
+        headers=_browse_h(),
+        params={"meal_date": today.isoformat()},
+    )
+    future_resp = client.get(
+        "/employee/vendors/1/menu",
+        headers=_browse_h(),
+        params={"meal_date": future.isoformat()},
+    )
+
+    assert today_resp.status_code == 200
+    assert future_resp.status_code == 200
+    assert today_resp.json()[0]["remaining_quantity"] == 5
+    assert future_resp.json()[0]["remaining_quantity"] == 1
+
+
+def test_list_menu_rejects_meal_date_outside_next_seven_days() -> None:
+    client, item_repo, _ = _setup()
+    item_repo.create(vendor_id=1, name="Rice Bowl", price_cents=120, daily_quota=5)
+
+    resp = client.get(
+        "/employee/vendors/1/menu",
+        headers=_browse_h(),
+        params={"meal_date": _meal_date(7)},
+    )
+
+    assert resp.status_code == 400
+    assert resp.json()["code"] == "validation_error"
+
+
 def test_list_menu_remaining_quantity_is_null_when_no_quota() -> None:
     client, item_repo, _ = _setup()
     item_repo.create(vendor_id=1, name="Rice Bowl", price_cents=120, daily_quota=None)

@@ -16,6 +16,21 @@ export function addCartItem(items, { item, vendorId, quantity = 1, mealDate = nu
   return [...items, { item, vendorId, quantity, mealDate }];
 }
 
+export function removeCartItem(items, { itemId, mealDate = null }) {
+  const key = dedupKey(itemId, mealDate);
+  return items.filter((i) => dedupKey(i.item.id, i.mealDate) !== key);
+}
+
+export function updateCartItemQuantity(items, { itemId, mealDate = null, quantity }) {
+  if (quantity <= 0) {
+    return removeCartItem(items, { itemId, mealDate });
+  }
+  const key = dedupKey(itemId, mealDate);
+  return items.map((i) =>
+    dedupKey(i.item.id, i.mealDate) === key ? { ...i, quantity } : i,
+  );
+}
+
 function mealDateLabel(iso) {
   const [, mm, dd] = iso.split("-");
   // Intentional format: month without leading zero, day keeps it (e.g. "用餐日 6/03").

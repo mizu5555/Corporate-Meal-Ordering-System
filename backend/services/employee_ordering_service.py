@@ -76,15 +76,18 @@ class EmployeeOrderingService:
         available: bool | None = True,
         employee_id: int | None = None,
         facility_id: int | None = None,
+        meal_date: date | None = None,
     ) -> list[EmployeeMenuItem]:
         vendor = self._vendor_to_schema(self._get_approved_vendor(vendor_id))
         if employee_id is not None:
             self._assert_facility_access(vendor, employee_id, facility_id=facility_id)
+        target_date = meal_date or date.today()
+        self._ensure_meal_date_in_window(target_date)
         items = self.menu_item_repository.list(
             vendor_id=vendor_id, category_id=category_id, available=available
         )
         used_by_item = self.selection_repository.item_quantities_for_date(
-            meal_date=date.today(), vendor_ids=[vendor_id]
+            meal_date=target_date, vendor_ids=[vendor_id]
         )
         return [
             self._menu_item_to_schema(item, remaining=self._remaining_quantity(item, used_by_item.get(item.id, 0)))

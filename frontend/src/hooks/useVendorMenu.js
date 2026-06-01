@@ -6,19 +6,19 @@ export function useVendorMenu(vendorId, filters = {}) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const { available, facilityId } = filters;
+  const { available, facilityId, mealDate } = filters;
 
   useEffect(() => {
     if (!vendorId) return;
     let cancelled = false;
     setLoading(true);
     setError(null);
-    getVendorMenu(vendorId, { available, facilityId })
+    getVendorMenu(vendorId, { available, facilityId, mealDate })
       .then((data) => { if (!cancelled) setItems(data); })
       .catch((err) => { if (!cancelled) setError(err); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [vendorId, available, facilityId]);
+  }, [vendorId, available, facilityId, mealDate]);
 
   return { items, loading, error };
 }
