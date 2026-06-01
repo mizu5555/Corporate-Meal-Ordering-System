@@ -54,6 +54,11 @@ def test_demo_seed_is_comprehensive_and_idempotent(monkeypatch):
     assert _count(cur, "SELECT COUNT(*) AS count FROM menu_items WHERE array_length(dietary_tags, 1) > 0") >= 6
     assert _count(cur, "SELECT COUNT(*) AS count FROM menu_items WHERE daily_quota = 0") >= 1
 
+    # ── Audit backfill (issue #168): order + onboarding history ───────────────
+    assert _count(cur, "SELECT COUNT(*) AS count FROM audit_logs WHERE action='order.create'") >= 10
+    assert _count(cur, "SELECT COUNT(*) AS count FROM audit_logs WHERE action='order.status_update'") >= 1
+    assert _count(cur, "SELECT COUNT(*) AS count FROM audit_logs WHERE action='user.enable'") >= 3
+
     # ── Facility-consistency assertions ──────────────────────────────────────
     # Every order's facility_id must be in the employee's assigned facilities.
     # Scoped to demo vendors to avoid interference from other tests' orders.

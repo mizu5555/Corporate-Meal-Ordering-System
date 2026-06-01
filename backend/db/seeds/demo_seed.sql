@@ -800,6 +800,46 @@ WHERE v.name IN ('Sunny Kitchen', 'Demo Noodle House', 'Demo Green Bowl', 'Demo 
     WHERE al.action = 'vendor.review' AND al.target_type = 'vendor_application' AND al.target_id = a.id
   );
 
+-- ─────────────────────────────────────────────
+-- 11. AUDIT BACKFILL (order + onboarding history, like real operations)
+--     order.create (actor=employee), order.status_update (actor=vendor),
+--     user.enable (actor=admin). Idempotent on (action, target_type, target_id).
+-- ─────────────────────────────────────────────
+-- One order.create per seeded order (the employee placed it).
+INSERT INTO audit_logs (actor_user_id, actor_role, action, target_type, target_id, metadata, created_at)
+SELECT o.employee_id, 'employee', 'order.create', 'order', o.id,
+  jsonb_build_object('vendor_id', o.vendor_id, 'total_cents', o.total_price_cents),
+  o.created_at
+FROM orders o
+WHERE NOT EXISTS (
+  SELECT 1 FROM audit_logs al
+  WHERE al.action = 'order.create' AND al.target_type = 'order' AND al.target_id = o.id
+);
+
+-- One ready→delivered status_update per delivered order (the vendor advanced it).
+INSERT INTO audit_logs (actor_user_id, actor_role, action, target_type, target_id, metadata, created_at)
+SELECT v.owner_user_id, 'vendor_manager', 'order.status_update', 'order', o.id,
+  jsonb_build_object('from', 'ready', 'to', 'delivered'),
+  o.created_at + INTERVAL '2 hours'
+FROM orders o
+JOIN vendors v ON v.id = o.vendor_id
+WHERE o.status = 'delivered'
+  AND NOT EXISTS (
+    SELECT 1 FROM audit_logs al
+    WHERE al.action = 'order.status_update' AND al.target_type = 'order' AND al.target_id = o.id
+  );
+
+-- user.enable for the active demo employees (admin completed their onboarding).
+INSERT INTO audit_logs (actor_user_id, actor_role, action, target_type, target_id, metadata, created_at)
+SELECT (SELECT id FROM users WHERE email = 'admin@corpmeal.local'),
+  'admin', 'user.enable', 'user', u.id, '{}'::jsonb, u.created_at + INTERVAL '1 hour'
+FROM users u
+WHERE u.email IN ('demo.employee1@corpmeal.local', 'demo.employee2@corpmeal.local', 'demo.employee3@corpmeal.local')
+  AND NOT EXISTS (
+    SELECT 1 FROM audit_logs al
+    WHERE al.action = 'user.enable' AND al.target_type = 'user' AND al.target_id = u.id
+  );
+
 -- Advance the sequence past any badge already assigned by seeds/backfill so a
 -- freshly registered employee never collides with a pre-seeded EMP-NNNN
 -- (demo_seed assigns EMP-0002..0004 via explicit UPDATEs, not nextval).
