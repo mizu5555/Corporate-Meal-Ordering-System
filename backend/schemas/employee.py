@@ -107,6 +107,25 @@ class EmployeeOrder(BaseModel):
     cancelled_at: datetime | None = None
 
 
+class BatchOrderStatusUpdate(BaseModel):
+    order_ids: list[int] = Field(min_length=1)
+    status: OrderStatus
+
+
+class BatchOrderResult(BaseModel):
+    order_id: int
+    success: bool
+    order: EmployeeOrder | None = None
+    error: str | None = None
+    code: str | None = None
+
+
+class BatchOrderStatusResponse(BaseModel):
+    results: list[BatchOrderResult]
+    succeeded: int
+    failed: int
+
+
 class PickupLabelItem(BaseModel):
     item_name: str
     quantity: int

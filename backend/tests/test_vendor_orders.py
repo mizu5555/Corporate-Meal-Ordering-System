@@ -264,3 +264,102 @@ def test_patch_status_404_for_other_vendors_order() -> None:
     )
     assert resp.status_code == 404
     assert resp.json()["code"] == "not_found"
+
+
+# --- batch-status ---
+
+
+def test_batch_status_advances_all_valid_orders() -> None:
+    vendor_repo = _seed_vendor_repo()
+    selection_repo = EmployeeSelectionRepository()
+    o1 = selection_repo.create_order(employee_id=10, vendor_id=1, items=[], meal_date=None)
+    o2 = selection_repo.create_order(employee_id=11, vendor_id=1, items=[], meal_date=None)
+
+    resp = _client(vendor_repo, selection_repo).post(
+        "/vendor/me/orders/batch-status",
+        headers=_vh(1),
+        json={"order_ids": [o1.id, o2.id], "status": "confirmed"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["succeeded"] == 2
+    assert body["failed"] == 0
+    results = {r["order_id"]: r for r in body["results"]}
+    assert results[o1.id]["success"] is True
+    assert results[o1.id]["order"]["status"] == "confirmed"
+    assert results[o2.id]["success"] is True
+
+
+def test_batch_status_skips_orders_not_owned_by_vendor() -> None:
+    vendor_repo = _seed_vendor_repo()
+    selection_repo = EmployeeSelectionRepository()
+    own = selection_repo.create_order(employee_id=10, vendor_id=1, items=[], meal_date=None)
+    other = selection_repo.create_order(employee_id=20, vendor_id=2, items=[], meal_date=None)
+
+    resp = _client(vendor_repo, selection_repo).post(
+        "/vendor/me/orders/batch-status",
+        headers=_vh(1),
+        json={"order_ids": [own.id, other.id], "status": "confirmed"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["succeeded"] == 1
+    assert body["failed"] == 1
+    results = {r["order_id"]: r for r in body["results"]}
+    assert results[own.id]["success"] is True
+    assert results[other.id]["success"] is False
+    assert results[other.id]["code"] == "not_found"
+
+
+def test_batch_status_reports_invalid_transition_per_order() -> None:
+    vendor_repo = _seed_vendor_repo()
+    selection_repo = EmployeeSelectionRepository()
+    o1 = selection_repo.create_order(employee_id=10, vendor_id=1, items=[], meal_date=None)
+    o2 = selection_repo.create_order(employee_id=11, vendor_id=1, items=[], meal_date=None)
+    # advance o2 to confirmed so it cannot be confirmed again
+    selection_repo.update_order_status(vendor_id=1, order_id=o2.id, new_status="confirmed")
+
+    resp = _client(vendor_repo, selection_repo).post(
+        "/vendor/me/orders/batch-status",
+        headers=_vh(1),
+        json={"order_ids": [o1.id, o2.id], "status": "confirmed"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["succeeded"] == 1
+    assert body["failed"] == 1
+    results = {r["order_id"]: r for r in body["results"]}
+    assert results[o1.id]["success"] is True
+    assert results[o2.id]["success"] is False
+    assert results[o2.id]["code"] == "invalid_status_transition"
+
+
+def test_batch_status_deidentifies_returned_orders() -> None:
+    """Batch responses must not leak employee_id / badge / masked_name."""
+    vendor_repo = _seed_vendor_repo()
+    selection_repo = EmployeeSelectionRepository()
+    o1 = selection_repo.create_order(employee_id=10, vendor_id=1, items=[], meal_date=None)
+
+    resp = _client(vendor_repo, selection_repo).post(
+        "/vendor/me/orders/batch-status",
+        headers=_vh(1),
+        json={"order_ids": [o1.id], "status": "confirmed"},
+    )
+    assert resp.status_code == 200
+    order = resp.json()["results"][0]["order"]
+    assert order.get("employee_id") is None
+    assert order.get("employee_badge_code") is None
+    assert order.get("masked_name") is None
+
+
+def test_batch_status_requires_vendor_manager_role() -> None:
+    vendor_repo = _seed_vendor_repo()
+    selection_repo = EmployeeSelectionRepository()
+    o1 = selection_repo.create_order(employee_id=10, vendor_id=1, items=[], meal_date=None)
+
+    resp = _client(vendor_repo, selection_repo).post(
+        "/vendor/me/orders/batch-status",
+        headers={"x-user-role": "employee", "x-vendor-id": "1"},
+        json={"order_ids": [o1.id], "status": "confirmed"},
+    )
+    assert resp.status_code == 403
