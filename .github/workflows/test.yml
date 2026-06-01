@@ -26,6 +26,27 @@ jobs:
       - name: Run unit tests
         run: pytest backend/tests --ignore=backend/tests/integration -q
 
+  frontend-test:
+    runs-on: ubuntu-latest
+    # Opt the JS actions into the Node 24 runtime now to silence GitHub's
+    # "Node.js 20 actions are deprecated" annotation on this job.
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install dependencies
+        # --no-audit/--no-fund/--loglevel=error keep the log clean: the only audit
+        # finding is the dev-server-only esbuild advisory (vite dev is never run in
+        # CI or production), and transitive deprecation notices are not actionable here.
+        run: npm ci --no-audit --no-fund --loglevel=error
+        working-directory: ./frontend
+      - name: Run frontend tests
+        run: npm test
+        working-directory: ./frontend
+
   integration:
     runs-on: ubuntu-latest
     # No `needs: unit` — the unit and integration suites are independent, so they
@@ -111,7 +132,7 @@ jobs:
           fi
 
   build-push:
-    needs: [integration, meta]
+    needs: [integration, meta, frontend-test]
     if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     strategy:

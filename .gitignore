@@ -13,6 +13,7 @@ htmlcov/
 node_modules/
 dist/
 build/
+coverage/
 *.log
 docs/superpowers/
 .local-notes/
