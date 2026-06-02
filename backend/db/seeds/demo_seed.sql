@@ -354,38 +354,65 @@ VALUES (
 )
 ON CONFLICT (email) DO NOTHING;
 
--- Badge backfill for demo employees (idempotent). Mixed CJK/Western names show
--- vendor-facing name masking works for both.
-UPDATE users SET display_name = '王小明', badge_code = 'EMP-0002'
-WHERE email = 'demo.employee1@corpmeal.local';
-UPDATE users SET display_name = 'John Smith', badge_code = 'EMP-0003'
-WHERE email = 'demo.employee2@corpmeal.local';
-UPDATE users SET display_name = '李大華', badge_code = 'EMP-0004'
-WHERE email = 'demo.employee3@corpmeal.local';
-
 -- Pending employees — registered but not yet enabled by admin (is_active = FALSE).
 -- They appear in 使用者審核 待審核 tab for the admin to enable in the demo.
-INSERT INTO users (email, display_name, role_id, password_hash, is_active, badge_code)
+INSERT INTO users (email, display_name, role_id, password_hash, is_active)
 VALUES (
   'demo.pending.emp1@corpmeal.local',
   '待審 林小美',
   (SELECT id FROM roles WHERE name = 'employee'),
   '$2b$12$V92j2Sanc/Ie9L.w1HsXh.Go4a4oDKcq1sovHfObRIsOJ.5F/hxhG',
-  FALSE,
-  'EMP-0005'
+  FALSE
 )
 ON CONFLICT (email) DO NOTHING;
 
-INSERT INTO users (email, display_name, role_id, password_hash, is_active, badge_code)
+INSERT INTO users (email, display_name, role_id, password_hash, is_active)
 VALUES (
   'demo.pending.emp2@corpmeal.local',
   'Pending Dave Lin',
   (SELECT id FROM roles WHERE name = 'employee'),
   '$2b$12$V92j2Sanc/Ie9L.w1HsXh.Go4a4oDKcq1sovHfObRIsOJ.5F/hxhG',
-  FALSE,
-  'EMP-0006'
+  FALSE
 )
 ON CONFLICT (email) DO NOTHING;
+
+-- Bring the employee badge sequence in sync before assigning any missing demo
+-- badges. This keeps the seed idempotent even if a previous startup crashed
+-- before the end-of-file setval() or if real users were registered in between.
+SELECT setval(
+    'employee_badge_seq',
+    GREATEST(
+        (SELECT COALESCE(MAX(CAST(SUBSTRING(badge_code FROM 'EMP-([0-9]+)$') AS INTEGER)), 0)
+         FROM users WHERE badge_code ~ '^EMP-[0-9]+$'),
+        1
+    )
+);
+
+-- Badge backfill for demo employees (idempotent). Preserve any existing
+-- badge_code on reruns; only mint a new code for demo accounts still missing
+-- one. Mixed CJK/Western names show vendor-facing name masking works for both.
+UPDATE users
+SET display_name = '王小明',
+    badge_code = COALESCE(badge_code, 'EMP-' || LPAD(nextval('employee_badge_seq')::text, 4, '0'))
+WHERE email = 'demo.employee1@corpmeal.local';
+
+UPDATE users
+SET display_name = 'John Smith',
+    badge_code = COALESCE(badge_code, 'EMP-' || LPAD(nextval('employee_badge_seq')::text, 4, '0'))
+WHERE email = 'demo.employee2@corpmeal.local';
+
+UPDATE users
+SET display_name = '李大華',
+    badge_code = COALESCE(badge_code, 'EMP-' || LPAD(nextval('employee_badge_seq')::text, 4, '0'))
+WHERE email = 'demo.employee3@corpmeal.local';
+
+UPDATE users
+SET badge_code = COALESCE(badge_code, 'EMP-' || LPAD(nextval('employee_badge_seq')::text, 4, '0'))
+WHERE email = 'demo.pending.emp1@corpmeal.local';
+
+UPDATE users
+SET badge_code = COALESCE(badge_code, 'EMP-' || LPAD(nextval('employee_badge_seq')::text, 4, '0'))
+WHERE email = 'demo.pending.emp2@corpmeal.local';
 
 -- ─────────────────────────────────────────────
 -- 7. EMPLOYEE FACILITIES

@@ -96,3 +96,59 @@ def test_demo_seed_is_comprehensive_and_idempotent(monkeypatch):
     )
 
     conn.close()
+
+
+def test_demo_seed_handles_existing_badge_collisions(monkeypatch):
+    from psycopg import connect
+    from psycopg.rows import dict_row
+    from backend.core.config import settings
+    from backend.db.migrate import run_migrations
+    from backend.db import seed
+
+    run_migrations()
+    monkeypatch.setattr(settings, "seed_demo_data", True)
+
+    conn = connect(os.environ["DATABASE_URL"], row_factory=dict_row, autocommit=True)
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        INSERT INTO users (email, display_name, role_id, password_hash, badge_code, is_active)
+        VALUES (
+            'collision.employee@corpmeal.local',
+            'Collision Employee',
+            (SELECT id FROM roles WHERE name = 'employee'),
+            %s,
+            'EMP-0005',
+            TRUE
+        )
+        ON CONFLICT (email) DO NOTHING
+        """,
+        ('$2b$12$V92j2Sanc/Ie9L.w1HsXh.Go4a4oDKcq1sovHfObRIsOJ.5F/hxhG',),
+    )
+
+    seed.run_demo_seed()
+
+    cur.execute(
+        """
+        SELECT email, badge_code
+        FROM users
+        WHERE email IN (
+            'demo.employee1@corpmeal.local',
+            'demo.employee2@corpmeal.local',
+            'demo.employee3@corpmeal.local',
+            'demo.pending.emp1@corpmeal.local',
+            'demo.pending.emp2@corpmeal.local'
+        )
+        ORDER BY email
+        """
+    )
+    demo_users = cur.fetchall()
+    badge_codes = [row["badge_code"] for row in demo_users]
+
+    assert len(demo_users) == 5
+    assert all(code is not None for code in badge_codes)
+    assert len(set(badge_codes)) == 5
+    assert "EMP-0005" not in badge_codes
+
+    conn.close()
