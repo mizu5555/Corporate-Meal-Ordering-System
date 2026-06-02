@@ -274,12 +274,23 @@ export default function OrdersPage() {
                           <div className="employee-order-meta">
                             <span>訂單 #{order.id}</span>
                             <span>建立時間 {formatDate(order.created_at)}</span>
-                            {order.facility_id != null && (
-                              <span style={{ color: "var(--muted)" }}>
-                                {facilityDisplayName(facilityById.get(order.facility_id)) ?? `廠區 #${order.facility_id}`}
-                              </span>
-                            )}
                           </div>
+                          {order.facility_id != null && (
+                            <span style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                              padding: "3px 10px",
+                              borderRadius: 999,
+                              background: "rgba(47, 100, 200, 0.08)",
+                              color: "#2b5cc8",
+                              fontSize: "0.78rem",
+                              fontWeight: 600,
+                              width: "fit-content",
+                            }}>
+                              📍 {facilityDisplayName(facilityById.get(order.facility_id)) ?? `廠區 #${order.facility_id}`}
+                            </span>
+                          )}
                           {order.pickup_code && (
                             <p className="employee-order-pickup">
                               取餐碼 {order.pickup_code}
