@@ -128,3 +128,73 @@ def test_set_vendor_facilities_unknown_vendor_raises_404() -> None:
 
     assert exc_info.value.status_code == 404
     assert exc_info.value.code == "not_found"
+
+
+# ------------------------------------------------------------------
+# get_employee_facilities / set_employee_facilities
+# ------------------------------------------------------------------
+
+def test_set_and_get_employee_facilities() -> None:
+    svc, facility_repo, _, audit_repo = _make_service()
+
+    f1 = facility_repo.create_facility("E01", "Employee Facility 1")
+    f2 = facility_repo.create_facility("E02", "Employee Facility 2")
+
+    result = svc.set_employee_facilities(10, [f1.id, f2.id], actor_user_id=99, actor_role="admin")
+
+    assert {f.id for f in result} == {f1.id, f2.id}
+
+    entries = audit_repo.list(action="facility.assign")
+    assert len(entries) == 1
+    entry = entries[0]
+    assert entry.target_type == "employee"
+    assert entry.target_id == 10
+    assert entry.actor_user_id == 99
+    assert entry.actor_role == "admin"
+    assert entry.metadata["employee_id"] == 10
+    assert set(entry.metadata["facility_ids"]) == {f1.id, f2.id}
+
+    fetched = svc.get_employee_facilities(10)
+    assert {f.id for f in fetched} == {f1.id, f2.id}
+
+
+def test_set_employee_facilities_replaces_previous() -> None:
+    svc, facility_repo, _, _ = _make_service()
+
+    f1 = facility_repo.create_facility("E01", "Emp Fac 1")
+    f2 = facility_repo.create_facility("E02", "Emp Fac 2")
+
+    svc.set_employee_facilities(10, [f1.id])
+    svc.set_employee_facilities(10, [f2.id])
+
+    fetched = svc.get_employee_facilities(10)
+    assert len(fetched) == 1
+    assert fetched[0].id == f2.id
+
+
+def test_set_employee_facilities_empty_clears_assignment() -> None:
+    svc, facility_repo, _, _ = _make_service()
+
+    f = facility_repo.create_facility("E01", "Emp Fac 1")
+    svc.set_employee_facilities(10, [f.id])
+    svc.set_employee_facilities(10, [])
+
+    assert svc.get_employee_facilities(10) == []
+
+
+def test_set_employee_facilities_invalid_facility_raises_404() -> None:
+    svc, _, _, _ = _make_service()
+
+    with pytest.raises(CodedHTTPException) as exc_info:
+        svc.set_employee_facilities(10, [9999])
+
+    assert exc_info.value.status_code == 404
+    assert exc_info.value.code == "not_found"
+
+
+def test_get_employee_facilities_unknown_employee_returns_empty() -> None:
+    svc, _, _, _ = _make_service()
+
+    # No facility assignment means unrestricted — returns empty list, not 404
+    result = svc.get_employee_facilities(9999)
+    assert result == []
