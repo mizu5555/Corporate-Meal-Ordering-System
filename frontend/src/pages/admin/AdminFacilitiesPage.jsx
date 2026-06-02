@@ -124,87 +124,54 @@ function FacilitiesPanel() {
   );
 }
 
-// ── Panel B: 商家服務廠區指派 ────────────────────────────────────────────────
+// ── Shared button style helper ────────────────────────────────────────────────
 
-function VendorFacilitiesPanel() {
-  const [vendors, setVendors] = useState([]);
-  const [vendorsLoading, setVendorsLoading] = useState(true);
-  const [vendorsError, setVendorsError] = useState(null);
+function inlineBtnStyle(variant) {
+  const base = {
+    padding: "5px 14px",
+    borderRadius: "var(--radius-md)",
+    border: "none",
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer",
+  };
+  if (variant === "save")
+    return { ...base, background: "rgba(47,125,74,0.12)", color: "var(--success)" };
+  if (variant === "config")
+    return { ...base, background: "rgba(47,100,200,0.10)", color: "#2b5cc8" };
+  return { ...base, background: "var(--line)", color: "var(--text)" };
+}
 
-  const [allFacilities, setAllFacilities] = useState([]);
-  const [facLoading, setFacLoading] = useState(true);
-  const [facError, setFacError] = useState(null);
+// ── Panel B: 商家服務廠區一覽 ─────────────────────────────────────────────────
 
-  const [selectedVendorId, setSelectedVendorId] = useState("");
-  const [checkedIds, setCheckedIds] = useState(new Set());
-  const [assignLoading, setAssignLoading] = useState(false);
-  const [assignError, setAssignError] = useState(null);
-  const [saveSuccess, setSaveSuccess] = useState(false);
+const VENDOR_GRID = "minmax(180px, 1fr) 1fr 120px";
+
+function VendorFacilityEditor({ vendorId, allFacilities, onClose, onSaved }) {
+  const [checkedIds, setCheckedIds]             = useState(new Set());
   const [recommendationLimit, setRecommendationLimit] = useState(3);
-  const [limitLoading, setLimitLoading] = useState(false);
-  const [limitError, setLimitError] = useState(null);
-  const [limitSuccess, setLimitSuccess] = useState(false);
+  const [loading, setLoading]                   = useState(true);
+  const [saving, setSaving]                     = useState(false);
+  const [error, setError]                       = useState(null);
+  const [success, setSuccess]                   = useState(false);
 
-  // Load approved vendors
   useEffect(() => {
     let active = true;
-    setVendorsLoading(true);
-    setVendorsError(null);
-    getVendorApplications("approved")
-      .then((data) => { if (active) setVendors(data); })
-      .catch(() => { if (active) setVendorsError("無法載入商家清單。"); })
-      .finally(() => { if (active) setVendorsLoading(false); });
+    setLoading(true);
+    setError(null);
+    setSuccess(false);
+    Promise.all([
+      getVendorFacilities(vendorId),
+      getVendorRecommendationLimit(vendorId),
+    ])
+      .then(([facs, limitData]) => {
+        if (!active) return;
+        setCheckedIds(new Set(facs.map((f) => f.id)));
+        setRecommendationLimit(limitData.daily_recommendation_limit ?? 3);
+      })
+      .catch(() => { if (active) setError("無法載入商家設定"); })
+      .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, []);
-
-  // Load all facilities
-  useEffect(() => {
-    let active = true;
-    setFacLoading(true);
-    setFacError(null);
-    getFacilities()
-      .then((data) => { if (active) setAllFacilities(data); })
-      .catch(() => { if (active) setFacError("無法載入廠區清單。"); })
-      .finally(() => { if (active) setFacLoading(false); });
-    return () => { active = false; };
-  }, []);
-
-  // When vendor changes, fetch its current facilities
-  useEffect(() => {
-    if (!selectedVendorId) {
-      setCheckedIds(new Set());
-      setRecommendationLimit(3);
-      return;
-    }
-    let active = true;
-    setAssignLoading(true);
-    setAssignError(null);
-    setSaveSuccess(false);
-    getVendorFacilities(Number(selectedVendorId))
-      .then((data) => {
-        if (active) setCheckedIds(new Set(data.map((f) => f.id)));
-      })
-      .catch(() => {
-        if (active) setAssignError("無法載入商家已指派廠區。");
-      })
-      .finally(() => {
-        if (active) setAssignLoading(false);
-      });
-    setLimitLoading(true);
-    setLimitError(null);
-    setLimitSuccess(false);
-    getVendorRecommendationLimit(Number(selectedVendorId))
-      .then((data) => {
-        if (active) setRecommendationLimit(data.daily_recommendation_limit ?? 3);
-      })
-      .catch(() => {
-        if (active) setLimitError("無法載入今日推薦上限");
-      })
-      .finally(() => {
-        if (active) setLimitLoading(false);
-      });
-    return () => { active = false; };
-  }, [selectedVendorId]);
+  }, [vendorId]);
 
   function toggleFacility(id) {
     setCheckedIds((prev) => {
@@ -213,134 +180,263 @@ function VendorFacilitiesPanel() {
       else next.add(id);
       return next;
     });
-    setSaveSuccess(false);
+    setSuccess(false);
   }
 
-  function handleSave(e) {
-    e.preventDefault();
-    if (!selectedVendorId) return;
-    setAssignLoading(true);
-    setAssignError(null);
-    setSaveSuccess(false);
-    setVendorFacilities(Number(selectedVendorId), Array.from(checkedIds))
-      .then(() => setSaveSuccess(true))
-      .catch(() => setAssignError("儲存失敗，請稍後再試。"))
-      .finally(() => setAssignLoading(false));
+  async function handleSave() {
+    setSaving(true);
+    setError(null);
+    setSuccess(false);
+    try {
+      await Promise.all([
+        setVendorFacilities(vendorId, Array.from(checkedIds)),
+        setVendorRecommendationLimit(vendorId, recommendationLimit),
+      ]);
+      setSuccess(true);
+      onSaved?.();
+    } catch {
+      setError("儲存失敗，請稍後再試。");
+    } finally {
+      setSaving(false);
+    }
   }
 
-  function handleLimitSave(e) {
-    e.preventDefault();
-    if (!selectedVendorId) return;
-    setLimitLoading(true);
-    setLimitError(null);
-    setLimitSuccess(false);
-    setVendorRecommendationLimit(Number(selectedVendorId), Number(recommendationLimit))
-      .then((data) => {
-        setRecommendationLimit(data.daily_recommendation_limit);
-        setLimitSuccess(true);
+  return (
+    <div
+      style={{
+        gridColumn: "1 / -1",
+        padding: "14px 20px 16px",
+        borderTop: "1px dashed var(--line)",
+        background: "rgba(47,100,200,0.03)",
+      }}
+    >
+      {loading && <p style={{ margin: 0, fontSize: 13, color: "var(--muted)" }}>載入中…</p>}
+
+      {!loading && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {/* Facility checkboxes */}
+          <div>
+            <p style={{ margin: "0 0 8px", fontSize: 13, fontWeight: 600, color: "#2b5cc8" }}>
+              服務廠區（可多選；空選表示不限廠區）
+            </p>
+            {allFacilities.length === 0 ? (
+              <p style={{ margin: 0, fontSize: 13, color: "var(--muted)" }}>
+                尚無廠區可指派，請先在廠區面板新增。
+              </p>
+            ) : (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px 24px" }}>
+                {allFacilities.map((f) => (
+                  <label
+                    key={f.id}
+                    style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 13 }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checkedIds.has(f.id)}
+                      onChange={() => toggleFacility(f.id)}
+                    />
+                    <span>{f.code}　{f.name}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Recommendation limit */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>今日推薦上限：</span>
+            <select
+              value={recommendationLimit}
+              onChange={(e) => { setRecommendationLimit(Number(e.target.value)); setSuccess(false); }}
+              style={{
+                padding: "5px 10px",
+                borderRadius: "var(--radius-md)",
+                border: "1px solid var(--line)",
+                background: "var(--surface-strong)",
+                fontSize: 13,
+                cursor: "pointer",
+              }}
+            >
+              <option value={1}>每天最多 1 道</option>
+              <option value={2}>每天最多 2 道</option>
+              <option value={3}>每天最多 3 道</option>
+            </select>
+          </div>
+
+          {/* Actions */}
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <button type="button" onClick={handleSave} disabled={saving} style={inlineBtnStyle("save")}>
+              {saving ? "儲存中…" : "儲存"}
+            </button>
+            <button type="button" onClick={onClose} style={inlineBtnStyle()}>
+              關閉
+            </button>
+            {success && (
+              <span style={{ fontSize: 13, color: "var(--success)", fontWeight: 600 }}>✓ 已儲存</span>
+            )}
+            {error && (
+              <span style={{ fontSize: 13, color: "var(--brand)" }}>{error}</span>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function VendorFacilitiesPanel() {
+  const [vendors, setVendors]                   = useState([]);
+  const [allFacilities, setAllFacilities]       = useState([]);
+  const [facilityMap, setFacilityMap]           = useState({});  // vendor_id -> Facility[]
+  const [loading, setLoading]                   = useState(true);
+  const [error, setError]                       = useState(null);
+  const [expandedVendorId, setExpandedVendorId] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError(null);
+    Promise.all([getVendorApplications("approved"), getFacilities()])
+      .then(([vendorData, facilityData]) => {
+        if (!active) return;
+        setVendors(vendorData);
+        setAllFacilities(facilityData);
+        // Progressively load each vendor's facility assignments
+        vendorData.forEach((v) => {
+          getVendorFacilities(v.vendor_id)
+            .then((facs) => {
+              if (active) setFacilityMap((prev) => ({ ...prev, [v.vendor_id]: facs }));
+            })
+            .catch(() => {});
+        });
       })
-      .catch(() => setLimitError("儲存今日推薦上限失敗"))
-      .finally(() => setLimitLoading(false));
+      .catch(() => { if (active) setError("無法載入資料"); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
+
+  function toggleExpand(vendorId) {
+    setExpandedVendorId((prev) => (prev === vendorId ? null : vendorId));
   }
 
-  const isLoading = vendorsLoading || facLoading;
-  const hasError = vendorsError || facError;
+  function refreshVendorFacilities(vendorId) {
+    getVendorFacilities(vendorId)
+      .then((facs) => setFacilityMap((prev) => ({ ...prev, [vendorId]: facs })))
+      .catch(() => {});
+  }
 
   return (
     <article className="panel">
       <p className="eyebrow">廠區管理</p>
       <h2>商家服務廠區</h2>
 
-      {isLoading && <p className="panel-copy">載入中…</p>}
-      {hasError && <p className="error-state">{vendorsError ?? facError}</p>}
+      {loading && <p className="panel-copy">載入中…</p>}
+      {error && <p className="error-state">{error}</p>}
 
-      {!isLoading && !hasError && (
-        <>
-          <label style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 16 }}>
-            <span style={{ fontSize: "0.8rem" }}>選擇商家（已核准）</span>
-            <select
-              className="form-input"
-              value={selectedVendorId}
-              onChange={(e) => setSelectedVendorId(e.target.value)}
-              style={{ maxWidth: 280 }}
-            >
-              <option value="">— 請選擇 —</option>
-              {vendors.map((v) => (
-                <option key={v.vendor_id} value={v.vendor_id}>
-                  {v.vendor_name}
-                </option>
-              ))}
-            </select>
-          </label>
+      {!loading && !error && vendors.length === 0 && (
+        <p className="panel-copy">目前沒有已核准的商家。</p>
+      )}
 
-          {selectedVendorId && (
-            <>
-            <form onSubmit={handleLimitSave} style={{ marginBottom: 18 }}>
-              <label style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 10, maxWidth: 280 }}>
-                <span style={{ fontSize: "0.8rem" }}>今日推薦上限</span>
-                <select
-                  className="form-input"
-                  value={recommendationLimit}
-                  onChange={(e) => {
-                    setRecommendationLimit(Number(e.target.value));
-                    setLimitSuccess(false);
-                  }}
-                  disabled={limitLoading}
-                >
-                  <option value={1}>每天最多 1 道</option>
-                  <option value={2}>每天最多 2 道</option>
-                  <option value={3}>每天最多 3 道</option>
-                </select>
-              </label>
-              <button
-                type="submit"
-                className="range-pill is-active"
-                disabled={limitLoading}
+      {!loading && !error && vendors.length > 0 && (
+        <div
+          style={{
+            border: "1px solid var(--line)",
+            borderRadius: "var(--radius-md)",
+            overflow: "hidden",
+            marginTop: 12,
+          }}
+        >
+          {/* Header */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: VENDOR_GRID,
+              padding: "8px 16px",
+              background: "var(--surface-strong)",
+              borderBottom: "1px solid var(--line)",
+              fontSize: 12,
+              fontWeight: 600,
+              color: "var(--muted)",
+              textTransform: "uppercase",
+              letterSpacing: "0.05em",
+            }}
+          >
+            <span>商家名稱</span>
+            <span>服務廠區</span>
+            <span style={{ textAlign: "right" }}>操作</span>
+          </div>
+
+          {vendors.map((v, idx) => {
+            const isExpanded   = expandedVendorId === v.vendor_id;
+            const isLast       = idx === vendors.length - 1;
+            const vFacilities  = facilityMap[v.vendor_id];   // undefined = still loading
+
+            return (
+              <div
+                key={v.vendor_id}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: VENDOR_GRID,
+                  borderBottom: (!isLast || isExpanded) ? "1px solid var(--line)" : "none",
+                  alignItems: "center",
+                }}
               >
-                儲存推薦上限
-              </button>
-              {limitError && <p className="error-state" style={{ marginTop: 8 }}>{limitError}</p>}
-              {limitSuccess && <p className="panel-copy" style={{ marginTop: 8, color: "var(--accent)" }}>已儲存推薦上限</p>}
-            </form>
+                {/* Vendor name */}
+                <div style={{ padding: "12px 16px", fontSize: 14, fontWeight: 500 }}>
+                  {v.vendor_name}
+                </div>
 
-            <form onSubmit={handleSave}>
-              {assignLoading && <p className="panel-copy">載入中…</p>}
-              {!assignLoading && (
-                <>
-                  {allFacilities.length === 0 ? (
-                    <p className="panel-copy">尚無廠區可指派，請先在上方新增廠區。</p>
+                {/* Facility chips */}
+                <div style={{ padding: "12px 8px", fontSize: 13 }}>
+                  {vFacilities === undefined ? (
+                    <span style={{ color: "var(--muted)", fontSize: 12 }}>…</span>
+                  ) : vFacilities.length === 0 ? (
+                    <span style={{ color: "var(--muted)", fontSize: 12 }}>不限廠區</span>
                   ) : (
-                    <fieldset style={{ border: "none", padding: 0, marginBottom: 12 }}>
-                      <legend style={{ fontSize: "0.85rem", marginBottom: 8 }}>服務廠區（可多選）</legend>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: "8px 20px" }}>
-                        {allFacilities.map((f) => (
-                          <label key={f.id} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
-                            <input
-                              type="checkbox"
-                              checked={checkedIds.has(f.id)}
-                              onChange={() => toggleFacility(f.id)}
-                            />
-                            <span>{f.code}　{f.name}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </fieldset>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                      {vFacilities.map((f) => (
+                        <span
+                          key={f.id}
+                          style={{
+                            padding: "2px 9px",
+                            borderRadius: 99,
+                            fontSize: 12,
+                            fontWeight: 600,
+                            background: "rgba(47,100,200,0.10)",
+                            color: "#2b5cc8",
+                          }}
+                        >
+                          {f.code}
+                        </span>
+                      ))}
+                    </div>
                   )}
+                </div>
+
+                {/* Action */}
+                <div style={{ padding: "12px 16px", textAlign: "right" }}>
                   <button
-                    type="submit"
-                    className="range-pill is-active"
-                    disabled={assignLoading}
+                    type="button"
+                    onClick={() => toggleExpand(v.vendor_id)}
+                    style={inlineBtnStyle(isExpanded ? "default" : "config")}
                   >
-                    儲存
+                    {isExpanded ? "收起" : "設定"}
                   </button>
-                </>
-              )}
-              {assignError && <p className="error-state" style={{ marginTop: 8 }}>{assignError}</p>}
-              {saveSuccess && <p className="panel-copy" style={{ marginTop: 8, color: "var(--accent)" }}>已儲存。</p>}
-            </form>
-            </>
-          )}
-        </>
+                </div>
+
+                {/* Inline editor */}
+                {isExpanded && (
+                  <VendorFacilityEditor
+                    vendorId={v.vendor_id}
+                    allFacilities={allFacilities}
+                    onClose={() => setExpandedVendorId(null)}
+                    onSaved={() => refreshVendorFacilities(v.vendor_id)}
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
       )}
     </article>
   );
