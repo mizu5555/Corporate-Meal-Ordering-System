@@ -66,6 +66,102 @@ def test_middleware_unique_per_request() -> None:
 
 
 # ---------------------------------------------------------------------------
+# RequestIDMiddleware — per-request access logging (issue #183)
+# ---------------------------------------------------------------------------
+class _CaptureHandler(logging.Handler):
+    """Collect records emitted to the access logger, independent of root state."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.records: list[logging.LogRecord] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.records.append(record)
+
+
+def _capture_access_logs():
+    """Attach a capture handler to the 'backend.request' access logger."""
+    cap = _CaptureHandler()
+    lg = logging.getLogger("backend.request")
+    lg.addHandler(cap)
+    lg.setLevel(logging.INFO)
+    return cap, lg
+
+
+def _add_temp_route(path: str, fn) -> None:
+    from fastapi import APIRouter
+
+    router = APIRouter()
+    router.get(path)(fn)
+    app.include_router(router)
+
+
+def _drop_temp_route(path: str) -> None:
+    app.router.routes = [
+        r for r in app.router.routes if getattr(r, "path", "") != path
+    ]
+
+
+def test_middleware_emits_one_access_log_per_request() -> None:
+    cap, lg = _capture_access_logs()
+    _add_temp_route("/_obs_test/ping", lambda: {"ok": "1"})
+    try:
+        TestClient(app).get("/_obs_test/ping")
+    finally:
+        _drop_temp_route("/_obs_test/ping")
+        lg.removeHandler(cap)
+
+    assert len(cap.records) == 1, "expected exactly one access log line per request"
+    rec = cap.records[0]
+    assert rec.method == "GET"
+    assert rec.path == "/_obs_test/ping"
+    assert rec.status_code == 200
+    assert isinstance(rec.duration_ms, (int, float))
+    assert rec.duration_ms >= 0
+    assert rec.levelno == logging.INFO
+
+
+def test_middleware_skips_health_and_metrics() -> None:
+    cap, lg = _capture_access_logs()
+    try:
+        client = TestClient(app)
+        client.get("/health")
+        client.get("/metrics")
+    finally:
+        lg.removeHandler(cap)
+
+    assert cap.records == [], "/health and /metrics must not produce access logs"
+
+
+def test_middleware_access_log_warns_on_4xx() -> None:
+    cap, lg = _capture_access_logs()
+    try:
+        TestClient(app).get("/_obs_test/no-such-route-xyz")
+    finally:
+        lg.removeHandler(cap)
+
+    assert len(cap.records) == 1
+    assert cap.records[0].status_code == 404
+    assert cap.records[0].levelno == logging.WARNING
+
+
+def test_middleware_access_log_errors_on_5xx() -> None:
+    from starlette.responses import Response as StarletteResponse
+
+    cap, lg = _capture_access_logs()
+    _add_temp_route("/_obs_test/boom", lambda: StarletteResponse(status_code=503))
+    try:
+        TestClient(app).get("/_obs_test/boom")
+    finally:
+        _drop_temp_route("/_obs_test/boom")
+        lg.removeHandler(cap)
+
+    assert len(cap.records) == 1
+    assert cap.records[0].status_code == 503
+    assert cap.records[0].levelno == logging.ERROR
+
+
+# ---------------------------------------------------------------------------
 # JsonFormatter
 # ---------------------------------------------------------------------------
 def test_json_formatter_stable_field_shape() -> None:
