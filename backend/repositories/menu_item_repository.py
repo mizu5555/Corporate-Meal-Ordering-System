@@ -36,6 +36,7 @@ class _OverrideRecord:
     available: bool | None
     daily_quota: int | None
     price_cents: int | None
+    is_recommended: bool | None
     created_at: datetime
     updated_at: datetime
 
@@ -50,6 +51,7 @@ def _to_schema(rec: _ItemRecord) -> MenuItem:
         price_cents=rec.price_cents,
         available=rec.available,
         daily_quota=rec.daily_quota,
+        is_recommended=False,
         dietary_tags=list(rec.dietary_tags),
         photo_path=rec.photo_path,
         created_at=rec.created_at,
@@ -64,6 +66,7 @@ def _to_override_schema(rec: _OverrideRecord) -> MenuItemDateOverride:
         available=rec.available,
         daily_quota=rec.daily_quota,
         price_cents=rec.price_cents,
+        is_recommended=rec.is_recommended,
         created_at=rec.created_at,
         updated_at=rec.updated_at,
     )
@@ -80,6 +83,8 @@ def _apply_override(item: MenuItem, override: _OverrideRecord | None) -> MenuIte
         updates["daily_quota"] = override.daily_quota
     if override.price_cents is not None:
         updates["price_cents"] = override.price_cents
+    if override.is_recommended is not None:
+        updates["is_recommended"] = override.is_recommended
     return item.model_copy(update=updates) if updates else item
 
 
@@ -251,6 +256,7 @@ class MenuItemRepository:
         available: bool | None,
         daily_quota: int | None,
         price_cents: int | None,
+        is_recommended: bool | None = None,
     ) -> MenuItemDateOverride:
         rec = self._rows.get(item_id)
         if rec is None or rec.vendor_id != vendor_id:
@@ -263,6 +269,7 @@ class MenuItemRepository:
             available=available,
             daily_quota=daily_quota,
             price_cents=price_cents,
+            is_recommended=is_recommended,
             created_at=existing.created_at if existing else now,
             updated_at=now,
         )

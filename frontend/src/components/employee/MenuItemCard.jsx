@@ -27,6 +27,9 @@ export default function MenuItemCard({ item, onClick }) {
         <p className="item-name">{item.name}</p>
         <p className="item-price">{formatPrice(item.price_cents)}</p>
         <div className="item-badges">
+          {item.is_recommended && (
+            <span className="badge badge-recommended">今日推薦</span>
+          )}
           {unavailable ? (
             <span className="badge badge-unavailable">
               {soldOut ? "今日售完" : "暫停供應"}

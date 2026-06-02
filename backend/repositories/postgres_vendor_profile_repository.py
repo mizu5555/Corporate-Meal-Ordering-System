@@ -19,9 +19,9 @@ class PostgresVendorProfileRepository:
                 """
                 INSERT INTO vendors (
                     id, name, status, address, business_hours,
-                    contact_phone, contact_email
+                    contact_phone, contact_email, daily_recommendation_limit
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (id) DO UPDATE SET
                     name = EXCLUDED.name,
                     status = EXCLUDED.status,
@@ -29,6 +29,7 @@ class PostgresVendorProfileRepository:
                     business_hours = EXCLUDED.business_hours,
                     contact_phone = EXCLUDED.contact_phone,
                     contact_email = EXCLUDED.contact_email,
+                    daily_recommendation_limit = EXCLUDED.daily_recommendation_limit,
                     updated_at = NOW()
                 """,
                 (
@@ -39,6 +40,7 @@ class PostgresVendorProfileRepository:
                     record.business_hours,
                     record.contact_phone,
                     record.contact_email,
+                    record.daily_recommendation_limit,
                 ),
             )
 
@@ -69,7 +71,7 @@ class PostgresVendorProfileRepository:
                 """
                 SELECT
                     id, name, status, address, business_hours,
-                    contact_phone, contact_email
+                    contact_phone, contact_email, daily_recommendation_limit
                 FROM vendors
                 WHERE id = %s
                 """,
@@ -84,7 +86,7 @@ class PostgresVendorProfileRepository:
         query = """
             SELECT
                 id, name, status, address, business_hours,
-                contact_phone, contact_email
+                contact_phone, contact_email, daily_recommendation_limit
             FROM vendors
         """
         params: list[str] = []
@@ -105,6 +107,7 @@ class PostgresVendorProfileRepository:
             "business_hours": "business_hours",
             "contact_phone": "contact_phone",
             "contact_email": "contact_email",
+            "daily_recommendation_limit": "daily_recommendation_limit",
         }
         updates = [
             (allowed_columns[key], value)
@@ -126,7 +129,7 @@ class PostgresVendorProfileRepository:
                 WHERE id = %s
                 RETURNING
                     id, name, status, address, business_hours,
-                    contact_phone, contact_email
+                    contact_phone, contact_email, daily_recommendation_limit
                 """,
                 values,
             ).fetchone()

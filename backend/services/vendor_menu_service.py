@@ -144,6 +144,8 @@ class VendorMenuService:
         """Create or replace the per-date override for item/meal_date."""
         self.get(vendor_id, item_id)  # raises 404 if not owned
         self._assert_date_in_window(meal_date)
+        if payload.is_recommended is True:
+            self._assert_recommendation_limit(vendor_id, item_id, meal_date)
         return self.menu_item_repository.upsert_date_override(
             vendor_id=vendor_id,
             item_id=item_id,
@@ -151,6 +153,7 @@ class VendorMenuService:
             available=payload.available,
             daily_quota=payload.daily_quota,
             price_cents=payload.price_cents,
+            is_recommended=payload.is_recommended,
         )
 
     def delete_date_override(self, vendor_id: int, item_id: int, meal_date: date) -> None:
@@ -170,6 +173,32 @@ class VendorMenuService:
                 status_code=400,
                 code="validation_error",
                 detail="meal_date must be within the next 7 days",
+            )
+
+    def _assert_recommendation_limit(self, vendor_id: int, item_id: int, meal_date: date) -> None:
+        limit = 3
+        if self.vendor_repository is not None:
+            vendor = self.vendor_repository.get(vendor_id)
+            if vendor is not None:
+                limit = vendor.daily_recommendation_limit
+        current_recommendations = [
+            item
+            for item in self.menu_item_repository.list_effective(
+                vendor_id=vendor_id,
+                meal_date=meal_date,
+                available=None,
+            )
+            if item.id != item_id and item.is_recommended
+        ]
+        if len(current_recommendations) >= limit:
+            names = ", ".join(item.name for item in current_recommendations)
+            detail = f"daily recommendation limit is {limit}"
+            if names:
+                detail = f"{detail}; current recommendations: {names}"
+            raise CodedHTTPException(
+                status_code=409,
+                code="daily_recommendation_limit_exceeded",
+                detail=detail,
             )
 
     def _assert_category_belongs_to(self, vendor_id: int, category_id: int) -> None:

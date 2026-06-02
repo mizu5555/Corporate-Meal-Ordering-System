@@ -5,7 +5,9 @@ import {
   getFacilities,
   getVendorApplications,
   getVendorFacilities,
+  getVendorRecommendationLimit,
   setVendorFacilities,
+  setVendorRecommendationLimit,
 } from "../../api/admin";
 
 // ── Panel A: 廠區列表 + 新增表單 ────────────────────────────────────────────
@@ -135,6 +137,10 @@ function VendorFacilitiesPanel() {
   const [assignLoading, setAssignLoading] = useState(false);
   const [assignError, setAssignError] = useState(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [recommendationLimit, setRecommendationLimit] = useState(3);
+  const [limitLoading, setLimitLoading] = useState(false);
+  const [limitError, setLimitError] = useState(null);
+  const [limitSuccess, setLimitSuccess] = useState(false);
 
   // Load approved vendors
   useEffect(() => {
@@ -164,6 +170,7 @@ function VendorFacilitiesPanel() {
   useEffect(() => {
     if (!selectedVendorId) {
       setCheckedIds(new Set());
+      setRecommendationLimit(3);
       return;
     }
     let active = true;
@@ -179,6 +186,19 @@ function VendorFacilitiesPanel() {
       })
       .finally(() => {
         if (active) setAssignLoading(false);
+      });
+    setLimitLoading(true);
+    setLimitError(null);
+    setLimitSuccess(false);
+    getVendorRecommendationLimit(Number(selectedVendorId))
+      .then((data) => {
+        if (active) setRecommendationLimit(data.daily_recommendation_limit ?? 3);
+      })
+      .catch(() => {
+        if (active) setLimitError("無法載入今日推薦上限");
+      })
+      .finally(() => {
+        if (active) setLimitLoading(false);
       });
     return () => { active = false; };
   }, [selectedVendorId]);
@@ -203,6 +223,21 @@ function VendorFacilitiesPanel() {
       .then(() => setSaveSuccess(true))
       .catch(() => setAssignError("儲存失敗，請稍後再試。"))
       .finally(() => setAssignLoading(false));
+  }
+
+  function handleLimitSave(e) {
+    e.preventDefault();
+    if (!selectedVendorId) return;
+    setLimitLoading(true);
+    setLimitError(null);
+    setLimitSuccess(false);
+    setVendorRecommendationLimit(Number(selectedVendorId), Number(recommendationLimit))
+      .then((data) => {
+        setRecommendationLimit(data.daily_recommendation_limit);
+        setLimitSuccess(true);
+      })
+      .catch(() => setLimitError("儲存今日推薦上限失敗"))
+      .finally(() => setLimitLoading(false));
   }
 
   const isLoading = vendorsLoading || facLoading;
@@ -236,6 +271,35 @@ function VendorFacilitiesPanel() {
           </label>
 
           {selectedVendorId && (
+            <>
+            <form onSubmit={handleLimitSave} style={{ marginBottom: 18 }}>
+              <label style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 10, maxWidth: 280 }}>
+                <span style={{ fontSize: "0.8rem" }}>今日推薦上限</span>
+                <select
+                  className="form-input"
+                  value={recommendationLimit}
+                  onChange={(e) => {
+                    setRecommendationLimit(Number(e.target.value));
+                    setLimitSuccess(false);
+                  }}
+                  disabled={limitLoading}
+                >
+                  <option value={1}>每天最多 1 道</option>
+                  <option value={2}>每天最多 2 道</option>
+                  <option value={3}>每天最多 3 道</option>
+                </select>
+              </label>
+              <button
+                type="submit"
+                className="range-pill is-active"
+                disabled={limitLoading}
+              >
+                儲存推薦上限
+              </button>
+              {limitError && <p className="error-state" style={{ marginTop: 8 }}>{limitError}</p>}
+              {limitSuccess && <p className="panel-copy" style={{ marginTop: 8, color: "var(--accent)" }}>已儲存推薦上限</p>}
+            </form>
+
             <form onSubmit={handleSave}>
               {assignLoading && <p className="panel-copy">載入中…</p>}
               {!assignLoading && (
@@ -271,6 +335,7 @@ function VendorFacilitiesPanel() {
               {assignError && <p className="error-state" style={{ marginTop: 8 }}>{assignError}</p>}
               {saveSuccess && <p className="panel-copy" style={{ marginTop: 8, color: "var(--accent)" }}>已儲存。</p>}
             </form>
+            </>
           )}
         </>
       )}

@@ -27,6 +27,7 @@ class VendorProfileService:
             business_hours=record.business_hours,
             contact_phone=record.contact_phone,
             contact_email=record.contact_email,
+            daily_recommendation_limit=record.daily_recommendation_limit,
             served_facilities=self.repository.list_facilities(vendor_id),
         )
 

@@ -8,10 +8,12 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   deleteMenuItemScheduleDate,
+  getMyProfile,
   getMenuItemSchedule,
   upsertMenuItemScheduleDate,
 } from "../../api/vendor";
 import { useVendorMenu } from "../../vendor/VendorMenuContext";
+import { toLocalIso } from "../../utils/date";
 import { formatPrice } from "../../utils/format";
 
 const WINDOW_DAYS = 7;
@@ -23,17 +25,13 @@ function addDays(d, n) {
   return r;
 }
 
-function toIso(d) {
-  return d.toISOString().slice(0, 10);
-}
-
 /** Build the 7-day window starting from today. */
 function buildWindow() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   return Array.from({ length: WINDOW_DAYS }, (_, i) => {
     const d = addDays(today, i);
-    return { iso: toIso(d), label: `${d.getMonth() + 1}/${d.getDate()} (${WEEKDAY[d.getDay()]})` };
+    return { iso: toLocalIso(d), label: `${d.getMonth() + 1}/${d.getDate()} (${WEEKDAY[d.getDay()]})` };
   });
 }
 
@@ -56,6 +54,7 @@ function DayEditor({ item, override, onSave, onDelete, onClose }) {
       hasOverride && override.price_cents != null
         ? String(override.price_cents / 100)
         : String(item.price_cents / 100),
+    is_recommended: hasOverride ? Boolean(override.is_recommended) : false,
     // track which fields the vendor actually wants to override
     override_available: hasOverride && override.available != null,
     override_quota: hasOverride && override.daily_quota != null,
@@ -80,9 +79,15 @@ function DayEditor({ item, override, onSave, onDelete, onClose }) {
       price_cents: form.override_price
         ? Math.round(parseFloat(form.price_cents) * 100)
         : null,
+      is_recommended: form.is_recommended,
     };
     // If nothing is being overridden, treat as delete
-    if (payload.available === null && payload.daily_quota === null && payload.price_cents === null) {
+    if (
+      payload.available === null &&
+      payload.daily_quota === null &&
+      payload.price_cents === null &&
+      payload.is_recommended === false
+    ) {
       await handleDelete();
       return;
     }
@@ -188,6 +193,17 @@ function DayEditor({ item, override, onSave, onDelete, onClose }) {
         />
       )}
 
+      <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+        <input
+          type="checkbox"
+          name="is_recommended"
+          checked={form.is_recommended}
+          onChange={handleChange}
+          style={{ width: 16, height: 16 }}
+        />
+        <span style={{ fontWeight: 600, fontSize: 13 }}>標記為今日推薦</span>
+      </label>
+
       <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
         <button
           className="primary-button"
@@ -234,6 +250,7 @@ function DayCard({ day, item, override, isEditing, onEdit, onSave, onDelete, onC
     override?.daily_quota != null ? override.daily_quota : item.daily_quota;
   const effectivePrice =
     override?.price_cents != null ? override.price_cents : item.price_cents;
+  const effectiveRecommended = override?.is_recommended === true;
   const hasOverride = override != null;
 
   return (
@@ -284,6 +301,9 @@ function DayCard({ day, item, override, isEditing, onEdit, onSave, onDelete, onC
           <span style={{ fontSize: 13, color: "var(--muted)", alignSelf: "center" }}>
             {formatPrice(effectivePrice)}
           </span>
+          {effectiveRecommended && (
+            <span className="badge badge-recommended">今日推薦</span>
+          )}
         </div>
       )}
 
@@ -311,8 +331,21 @@ export default function VendorMenuSchedulePage() {
   const [loadingSchedule, setLoadingSchedule] = useState(true);
   const [scheduleError, setScheduleError] = useState(null);
   const [editingDate, setEditingDate] = useState(null);
+  const [recommendationLimit, setRecommendationLimit] = useState(3);
 
   const item = getItem(Number(itemId));
+
+  useEffect(() => {
+    let active = true;
+    getMyProfile()
+      .then((profile) => {
+        if (active) setRecommendationLimit(profile.daily_recommendation_limit ?? 3);
+      })
+      .catch(() => {
+        if (active) setRecommendationLimit(3);
+      });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     if (menuLoading) return;
@@ -378,7 +411,7 @@ export default function VendorMenuSchedulePage() {
           <p style={{ margin: "4px 0 0", color: "var(--muted)", fontSize: 13 }}>
             基礎值：{item.available ? "供應中" : "暫停"} ·{" "}
             {item.daily_quota != null ? `配額 ${item.daily_quota}` : "不限份數"} ·{" "}
-            {formatPrice(item.price_cents)}
+            {formatPrice(item.price_cents)} · 今日推薦每日最多 {recommendationLimit} 道
           </p>
         </div>
         <button className="ghost-button" type="button" onClick={() => navigate("/vendor/menu")}>

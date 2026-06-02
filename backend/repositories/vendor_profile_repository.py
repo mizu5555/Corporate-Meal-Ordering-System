@@ -23,6 +23,7 @@ class VendorRecord:
     business_hours: str | None = None
     contact_phone: str | None = None
     contact_email: str | None = None
+    daily_recommendation_limit: int = 3
 
 
 class VendorProfileRepository:
