@@ -1,6 +1,7 @@
 import { apiFetch } from "./client";
 import { appendFacilityParam, facilityPayload } from "./facilityParams";
 import { MOCK_VENDORS, MOCK_MENU } from "./mockData";
+import { matchesDietaryFilters } from "../utils/dietaryTags";
 
 function withMockFallback(apiCall, mockResult) {
   return apiCall().catch((err) => {
@@ -66,8 +67,23 @@ export function getMySelections() {
   return withMockFallback(() => apiFetch("/employee/me/selections"), []);
 }
 
-export function getMyOrders() {
-  return withMockFallback(() => apiFetch("/employee/me/orders"), []);
+export function getMyOrders({ startDate, endDate } = {}) {
+  const params = new URLSearchParams();
+  if (startDate) params.set("start_date", startDate);
+  if (endDate) params.set("end_date", endDate);
+  const qs = params.toString();
+  return withMockFallback(() => apiFetch(`/employee/me/orders${qs ? `?${qs}` : ""}`), []);
+}
+
+export function getMyBilling({ year, month } = {}) {
+  const params = new URLSearchParams();
+  if (year != null) params.set("year", String(year));
+  if (month != null) params.set("month", String(month));
+  const qs = params.toString();
+  return withMockFallback(
+    () => apiFetch(`/employee/me/billing${qs ? `?${qs}` : ""}`),
+    { year, month, amount_cents: 0, order_count: 0 },
+  );
 }
 
 export function updateMyOrder(orderId, { items, mealDate }) {
@@ -87,9 +103,10 @@ export function deleteMyOrder(orderId) {
   });
 }
 
-export function getVendorMenu(vendorId, { available, facilityId } = {}) {
+export function getVendorMenu(vendorId, { available, facilityId, mealDate } = {}) {
   const params = new URLSearchParams();
   if (available != null) params.set("available", String(available));
+  if (mealDate) params.set("meal_date", mealDate);
   const qs = params.toString();
   return withMockFallback(
     () => apiFetch(appendFacilityParam(`/employee/vendors/${vendorId}/menu${qs ? `?${qs}` : ""}`, facilityId)),
@@ -99,7 +116,7 @@ export function getVendorMenu(vendorId, { available, facilityId } = {}) {
   );
 }
 
-function mockRandomMeal({ mealDate, vendorIds, facilityId }) {
+function mockRandomMeal({ mealDate, vendorIds, facilityId, includeTags, excludeTags }) {
   const selectedIds = vendorIds?.length ? vendorIds.map(Number) : MOCK_VENDORS.map((v) => v.id);
   const visibleVendorIds = selectedIds.filter((vendorId) => {
     if (facilityId == null) return true;
@@ -109,6 +126,7 @@ function mockRandomMeal({ mealDate, vendorIds, facilityId }) {
   const candidates = visibleVendorIds.flatMap((vendorId) =>
     (MOCK_MENU[vendorId] ?? [])
       .filter((item) => item.available && item.daily_quota !== 0)
+      .filter((item) => matchesDietaryFilters(item, { includeTags, excludeTags }))
       .map((item) => ({
         meal_date: mealDate,
         vendor: MOCK_VENDORS.find((v) => v.id === vendorId),
@@ -127,24 +145,36 @@ function mockRandomMeal({ mealDate, vendorIds, facilityId }) {
   return candidates[Math.floor(Math.random() * candidates.length)];
 }
 
-export function getRecommendations({ facilityId, mealDate, limit } = {}) {
+export function getRecommendations({ facilityId, mealDate, limit, includeTags, excludeTags } = {}) {
   const params = new URLSearchParams();
   if (facilityId != null) params.set("facility_id", facilityId);
   if (mealDate) params.set("meal_date", mealDate);
   if (limit) params.set("limit", limit);
+  if (includeTags?.length) params.set("include_tags", includeTags.join(","));
+  if (excludeTags?.length) params.set("exclude_tags", excludeTags.join(","));
   const qs = params.toString();
   return apiFetch(`/employee/recommendations${qs ? `?${qs}` : ""}`);
 }
 
-export function drawRandomMeal({ mealDate, vendorIds, facilityId }) {
+export function drawRandomMeal({ mealDate, vendorIds, facilityId, includeTags, excludeTags }) {
   const payload = { meal_date: mealDate, ...facilityPayload(facilityId) };
   if (vendorIds != null) payload.vendor_ids = vendorIds;
+  if (includeTags?.length) payload.include_tags = includeTags;
+  if (excludeTags?.length) payload.exclude_tags = excludeTags;
   return withMockFallback(
     () => apiFetch("/employee/random-meals/draw", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     }),
-    () => mockRandomMeal({ mealDate, vendorIds, facilityId }),
+    () => mockRandomMeal({ mealDate, vendorIds, facilityId, includeTags, excludeTags }),
   );
+}
+
+export function changePassword(currentPassword, newPassword) {
+  return apiFetch("/auth/me/password", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  });
 }

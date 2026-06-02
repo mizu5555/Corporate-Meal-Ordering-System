@@ -29,9 +29,35 @@ def test_demo_seed_is_comprehensive_and_idempotent(monkeypatch):
     orders_1 = _count(cur, "SELECT COUNT(*) AS count FROM orders")
     assert orders_1 >= 10
     assert _count(cur, "SELECT COUNT(*) AS count FROM orders WHERE status='delivered'") >= 5
+    apps_1 = _count(cur, "SELECT COUNT(*) AS count FROM vendor_applications")
 
     seed.run_demo_seed()  # second apply — must NOT duplicate
     assert _count(cur, "SELECT COUNT(*) AS count FROM orders") == orders_1, "not idempotent"
+    assert _count(cur, "SELECT COUNT(*) AS count FROM vendor_applications") == apps_1, "vendor_applications not idempotent"
+
+    # ── Review-state coverage (issue #168) ──────────────────────────────────
+    assert _count(cur, "SELECT COUNT(*) AS count FROM vendor_applications WHERE status='approved'") >= 3
+    assert _count(cur, "SELECT COUNT(*) AS count FROM vendor_applications WHERE status='pending'") >= 1
+    assert _count(cur, "SELECT COUNT(*) AS count FROM vendor_applications WHERE status='rejected'") >= 1
+    assert _count(cur, "SELECT COUNT(*) AS count FROM vendors WHERE status='pending'") >= 1
+    assert _count(cur, "SELECT COUNT(*) AS count FROM vendors WHERE status='rejected'") >= 1
+    assert _count(cur, "SELECT COUNT(*) AS count FROM vendor_applications WHERE status='rejected' AND review_reason IS NOT NULL") >= 1
+    assert _count(cur, "SELECT COUNT(*) AS count FROM audit_logs WHERE action='vendor.review'") >= 4
+    inactive_emps = _count(cur, """
+        SELECT COUNT(*) AS count FROM users u
+        JOIN roles r ON r.id = u.role_id
+        WHERE r.name = 'employee' AND u.is_active = FALSE
+    """)
+    assert inactive_emps >= 2, f"expected >=2 pending employees, got {inactive_emps}"
+
+    # ── Menu enrichment (issue #168): dietary tags + a sold-out example ───────
+    assert _count(cur, "SELECT COUNT(*) AS count FROM menu_items WHERE array_length(dietary_tags, 1) > 0") >= 6
+    assert _count(cur, "SELECT COUNT(*) AS count FROM menu_items WHERE daily_quota = 0") >= 1
+
+    # ── Audit backfill (issue #168): order + onboarding history ───────────────
+    assert _count(cur, "SELECT COUNT(*) AS count FROM audit_logs WHERE action='order.create'") >= 10
+    assert _count(cur, "SELECT COUNT(*) AS count FROM audit_logs WHERE action='order.status_update'") >= 1
+    assert _count(cur, "SELECT COUNT(*) AS count FROM audit_logs WHERE action='user.enable'") >= 3
 
     # ── Facility-consistency assertions ──────────────────────────────────────
     # Every order's facility_id must be in the employee's assigned facilities.
@@ -69,4 +95,89 @@ def test_demo_seed_is_comprehensive_and_idempotent(monkeypatch):
         f"{vendor_facility_violations} demo order(s) have a facility_id not served by the vendor"
     )
 
+    conn.close()
+
+
+def test_demo_seed_handles_existing_badge_collisions(monkeypatch):
+    from psycopg import connect
+    from psycopg.rows import dict_row
+    from backend.core.config import settings
+    from backend.db.migrate import run_migrations
+    from backend.db import seed
+
+    run_migrations()
+    monkeypatch.setattr(settings, "seed_demo_data", True)
+
+    conn = connect(os.environ["DATABASE_URL"], row_factory=dict_row, autocommit=True)
+    cur = conn.cursor()
+
+    # First apply ensures the demo users exist. Then simulate the class of bug we
+    # care about: the badge sequence lags behind while a real employee has
+    # already claimed the next code. On the second apply the seed must resync
+    # the sequence before minting replacement demo badges.
+    seed.run_demo_seed()
+
+    cur.execute(
+        """
+        UPDATE users
+        SET badge_code = NULL
+        WHERE email IN ('demo.pending.emp1@corpmeal.local', 'demo.pending.emp2@corpmeal.local')
+        """
+    )
+
+    cur.execute(
+        """
+        SELECT COALESCE(MAX(CAST(SUBSTRING(badge_code FROM 'EMP-([0-9]+)$') AS INTEGER)), 0) AS max_badge
+        FROM users
+        WHERE badge_code ~ '^EMP-[0-9]+$'
+        """
+    )
+    previous_max = cur.fetchone()["max_badge"]
+    collision_num = previous_max + 1
+    collision_code = f"EMP-{collision_num:04d}"
+
+    cur.execute("DELETE FROM users WHERE email = 'collision.employee@corpmeal.local'")
+    cur.execute(
+        """
+        INSERT INTO users (email, display_name, role_id, password_hash, badge_code, is_active)
+        VALUES (
+            'collision.employee@corpmeal.local',
+            'Collision Employee',
+            (SELECT id FROM roles WHERE name = 'employee'),
+            %s,
+            %s,
+            TRUE
+        )
+        ON CONFLICT (email) DO NOTHING
+        """,
+        (
+            '$2b$12$V92j2Sanc/Ie9L.w1HsXh.Go4a4oDKcq1sovHfObRIsOJ.5F/hxhG',
+            collision_code,
+        ),
+    )
+
+    cur.execute("SELECT setval('employee_badge_seq', %s)", (previous_max,))
+
+    seed.run_demo_seed()
+
+    cur.execute(
+        """
+        SELECT email, badge_code
+        FROM users
+        WHERE email IN (
+            'demo.pending.emp1@corpmeal.local',
+            'demo.pending.emp2@corpmeal.local'
+        )
+        ORDER BY email
+        """
+    )
+    pending_demo_users = cur.fetchall()
+    badge_codes = [row["badge_code"] for row in pending_demo_users]
+
+    assert len(pending_demo_users) == 2
+    assert all(code is not None for code in badge_codes)
+    assert len(set(badge_codes)) == 2
+    assert collision_code not in badge_codes
+
+    cur.execute("DELETE FROM users WHERE email = 'collision.employee@corpmeal.local'")
     conn.close()

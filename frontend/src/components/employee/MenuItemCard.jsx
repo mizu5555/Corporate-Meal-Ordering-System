@@ -1,10 +1,12 @@
 import { formatPrice, photoUrl, quotaLabel } from "../../utils/format";
+import { dietaryTagLabel, normalizeDietaryTags } from "../../utils/dietaryTags";
 
 export default function MenuItemCard({ item, onClick }) {
   const photo = photoUrl(item.photo_path);
-  const quota = quotaLabel(item.daily_quota);
-  const soldOut = item.daily_quota === 0;
+  const soldOut = item.remaining_quantity === 0;
   const unavailable = !item.available || soldOut;
+  const quota = quotaLabel(item.remaining_quantity);
+  const dietaryTags = normalizeDietaryTags(item.dietary_tags);
 
   return (
     <button
@@ -25,6 +27,9 @@ export default function MenuItemCard({ item, onClick }) {
         <p className="item-name">{item.name}</p>
         <p className="item-price">{formatPrice(item.price_cents)}</p>
         <div className="item-badges">
+          {item.is_recommended && (
+            <span className="badge badge-recommended">今日推薦</span>
+          )}
           {unavailable ? (
             <span className="badge badge-unavailable">
               {soldOut ? "今日售完" : "暫停供應"}
@@ -35,6 +40,11 @@ export default function MenuItemCard({ item, onClick }) {
           {quota && !soldOut && (
             <span className="badge badge-quota">{quota}</span>
           )}
+          {dietaryTags.map((tag) => (
+            <span className="badge badge-quota" key={tag}>
+              {dietaryTagLabel(tag)}
+            </span>
+          ))}
         </div>
       </div>
     </button>

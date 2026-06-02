@@ -11,6 +11,13 @@ const STATUS_LABELS = {
   cancelled: "已取消",
 };
 
+function isToday(mealDateStr) {
+  if (!mealDateStr) return false;
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  return mealDateStr.slice(0, 10) === todayStr;
+}
+
 function formatItems(items) {
   return (items ?? []).map((item) => `${item.item_name} x${item.quantity}`).join("、");
 }
@@ -301,6 +308,10 @@ export function VendorBadgePickupPage() {
               <div className="data-actions">
                 {order.status === "delivered" ? (
                   <span className="panel-copy">已領餐</span>
+                ) : !isToday(order.meal_date) ? (
+                  <button className="button-secondary" disabled type="button" title={`此訂單為 ${order.meal_date} 的餐點，無法今日取餐`}>
+                    非今日餐點
+                  </button>
                 ) : (
                   <button
                     className="button-primary"

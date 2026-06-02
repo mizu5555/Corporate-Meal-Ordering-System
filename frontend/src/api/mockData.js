@@ -86,6 +86,8 @@ export const MOCK_MENU = {
       price_cents: 9000,
       available: true,
       daily_quota: 50,
+      is_recommended: true,
+      dietary_tags: ["contains_beef"],
       photo_path: null,
     },
     {
@@ -97,6 +99,7 @@ export const MOCK_MENU = {
       price_cents: 8500,
       available: true,
       daily_quota: 30,
+      dietary_tags: ["contains_pork"],
       photo_path: null,
     },
     {
@@ -108,6 +111,7 @@ export const MOCK_MENU = {
       price_cents: 7500,
       available: true,
       daily_quota: null,
+      dietary_tags: ["vegetarian"],
       photo_path: null,
     },
     {
@@ -119,6 +123,7 @@ export const MOCK_MENU = {
       price_cents: 8000,
       available: true,
       daily_quota: 0,
+      dietary_tags: ["ovo_lacto_vegetarian"],
       photo_path: null,
     },
   ],
@@ -132,6 +137,8 @@ export const MOCK_MENU = {
       price_cents: 10000,
       available: true,
       daily_quota: 40,
+      is_recommended: true,
+      dietary_tags: ["contains_beef"],
       photo_path: null,
     },
     {
@@ -143,6 +150,7 @@ export const MOCK_MENU = {
       price_cents: 13500,
       available: true,
       daily_quota: 20,
+      dietary_tags: ["contains_pork"],
       photo_path: null,
     },
     {
@@ -154,6 +162,7 @@ export const MOCK_MENU = {
       price_cents: 9500,
       available: false,
       daily_quota: 15,
+      dietary_tags: [],
       photo_path: null,
     },
   ],
@@ -167,6 +176,7 @@ export const MOCK_MENU = {
       price_cents: 8500,
       available: true,
       daily_quota: 60,
+      dietary_tags: ["vegetarian"],
       photo_path: null,
     },
     {
@@ -178,6 +188,7 @@ export const MOCK_MENU = {
       price_cents: 9000,
       available: true,
       daily_quota: 35,
+      dietary_tags: ["ovo_lacto_vegetarian"],
       photo_path: null,
     },
   ],

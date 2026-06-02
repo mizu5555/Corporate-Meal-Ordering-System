@@ -16,7 +16,9 @@ pipeline {
   environment {
     PROJECT_PREFIX = 'mealorder'
     PREVIEW_LIMIT  = '3'
-    PUBLIC_BASE    = 'https://nol.cs.nycu.edu.tw'
+    // Public base URL comes from a Jenkins global env var (configured on the
+    // controller), never hardcoded here — this repo is public.
+    PUBLIC_BASE    = "${env.PUBLIC_BASE_URL ?: ''}"
   }
 
   stages {

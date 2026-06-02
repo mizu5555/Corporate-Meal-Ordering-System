@@ -1,0 +1,23 @@
+# Horizontal-scaling override for the backend. Layer it on top of the base
+# compose to run multiple backend replicas behind the Caddy gateway:
+#
+#     docker compose -f docker-compose.yml -f docker-compose.scale.yml up --build
+#
+# The base `backend` publishes host port 8000 for direct dev access; that
+# cannot be shared by multiple replicas, so we drop it here (`!reset []`).
+# Traffic reaches the backend through the gateway (https://localhost), which
+# round-robins across replicas via the `api` network alias — see the
+# `(api_upstream)` snippet in infra/caddy/Caddyfile.
+#
+# Replicas are only safe in DB mode (the base compose always sets DATABASE_URL,
+# so the route factories use the Postgres repositories and state lives in
+# Postgres, not in process memory). The shared `uploads` volume keeps menu
+# photos consistent across replicas.
+#
+# To change the instance count without editing this file:
+#     docker compose -f docker-compose.yml -f docker-compose.scale.yml up -d --scale backend=3
+services:
+  backend:
+    ports: !reset []
+    deploy:
+      replicas: 2

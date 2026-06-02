@@ -23,6 +23,7 @@ def _make_user_row(
     email: str = "employee@example.com",
     display_name: str = "Test User",
     role: str = "employee",
+    badge_code: str | None = "EMP-0001",
     is_active: bool = True,
 ) -> dict:
     return {
@@ -30,6 +31,7 @@ def _make_user_row(
         "email": email,
         "display_name": display_name,
         "role": role,
+        "badge_code": badge_code,
         "is_active": is_active,
         "created_at": _NOW,
     }
@@ -92,6 +94,7 @@ def test_list_users_returns_200_with_user_list() -> None:
     assert body["total"] == 1
     assert body["users"][0]["email"] == "employee@example.com"
     assert body["users"][0]["role"] == "employee"
+    assert body["users"][0]["badge_code"] == "EMP-0001"
     assert body["users"][0]["is_active"] is True
 
 
@@ -109,6 +112,9 @@ def test_list_users_search_param_is_forwarded() -> None:
         resp = client.get("/admin/users?search=employee", headers=_ADMIN_HEADERS)
 
     assert resp.status_code == 200
+    execute_call = mock_conn.return_value.__enter__.return_value.execute.call_args
+    assert "u.badge_code ILIKE %s" in execute_call.args[0]
+    assert execute_call.args[1] == ["%employee%", "%employee%", "%employee%"]
 
 
 def test_list_users_role_filter_param_is_forwarded() -> None:
@@ -118,6 +124,32 @@ def test_list_users_role_filter_param_is_forwarded() -> None:
 
     assert resp.status_code == 200
     assert resp.json()["users"][0]["role"] == "vendor_manager"
+
+
+def test_list_users_is_active_false_filter_returns_pending_employees() -> None:
+    """?is_active=false should surface employees awaiting admin approval."""
+    rows = [_make_user_row(is_active=False)]
+    with patch("backend.routes.admin_users.get_connection", return_value=_list_conn(rows)) as mock_conn:
+        resp = client.get("/admin/users?is_active=false", headers=_ADMIN_HEADERS)
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 1
+    assert body["users"][0]["is_active"] is False
+    execute_call = mock_conn.return_value.__enter__.return_value.execute.call_args
+    assert "u.is_active = %s" in execute_call.args[0]
+    assert False in execute_call.args[1]
+
+
+def test_list_users_is_active_true_filter_excludes_pending() -> None:
+    rows = [_make_user_row(is_active=True)]
+    with patch("backend.routes.admin_users.get_connection", return_value=_list_conn(rows)) as mock_conn:
+        resp = client.get("/admin/users?is_active=true", headers=_ADMIN_HEADERS)
+
+    assert resp.status_code == 200
+    execute_call = mock_conn.return_value.__enter__.return_value.execute.call_args
+    assert "u.is_active = %s" in execute_call.args[0]
+    assert True in execute_call.args[1]
 
 
 # ---------------------------------------------------------------------------

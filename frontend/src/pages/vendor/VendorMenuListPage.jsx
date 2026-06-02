@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import FacilityScopeLabel from "../../facility/FacilityScopeLabel";
+import { dietaryTagLabel, normalizeDietaryTags } from "../../utils/dietaryTags";
 import { formatPrice, photoUrl } from "../../utils/format";
 import { useVendorMenu } from "../../vendor/VendorMenuContext";
 
@@ -251,6 +252,15 @@ export default function VendorMenuListPage() {
                     {item.description}
                   </p>
                 )}
+                {normalizeDietaryTags(item.dietary_tags).length > 0 && (
+                  <div className="item-badges" style={{ marginTop: 6 }}>
+                    {normalizeDietaryTags(item.dietary_tags).map((tag) => (
+                      <span className="badge badge-quota" key={tag}>
+                        {dietaryTagLabel(tag)}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Price */}
@@ -272,6 +282,15 @@ export default function VendorMenuListPage() {
 
               {/* Actions */}
               <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                <button
+                  className="ghost-button"
+                  type="button"
+                  style={{ minHeight: 36, padding: "0 14px", fontSize: 13 }}
+                  onClick={() => navigate(`/vendor/menu/${item.id}/schedule`)}
+                  title="設定每日排程"
+                >
+                  排程
+                </button>
                 <button
                   className="ghost-button"
                   type="button"

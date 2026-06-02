@@ -149,3 +149,30 @@ def test_recommendations_items_have_from_sales_field() -> None:
     for rec in body:
         assert "from_sales" in rec
     assert body[0]["from_sales"] is True
+
+
+def test_recommendations_accepts_comma_separated_dietary_filters() -> None:
+    reporting_repo = ReportingRepository()
+    svc, item_repo = _make_service_with_reporting(reporting_repo)
+
+    beef = item_repo.create(
+        vendor_id=1,
+        name="Beef Bowl",
+        price_cents=120,
+        daily_quota=10,
+        dietary_tags=["contains_beef"],
+    )
+    rice = item_repo.create(vendor_id=1, name="Rice Bowl", price_cents=100, daily_quota=10)
+    _seed_sale(reporting_repo, order_id=1, vendor_id=1, items=[(beef.id, 10, 120)])
+    _seed_sale(reporting_repo, order_id=2, vendor_id=1, items=[(rice.id, 1, 100)])
+
+    app.dependency_overrides[get_employee_ordering_service] = lambda: svc
+    client = TestClient(app)
+
+    resp = client.get(
+        "/employee/recommendations?exclude_tags=contains_beef,contains_pork",
+        headers=_h(100),
+    )
+
+    assert resp.status_code == 200
+    assert [rec["item"]["id"] for rec in resp.json()] == [rice.id]

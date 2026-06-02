@@ -27,6 +27,7 @@ from backend.routes import (
     vendor_menu,
     vendor_orders,
     vendor_profile,
+    vendor_revenue,
 )
 
 
@@ -71,6 +72,7 @@ def create_app() -> FastAPI:
     app.include_router(vendor_categories.router)
     app.include_router(vendor_menu.router)
     app.include_router(vendor_orders.router)
+    app.include_router(vendor_revenue.router)
     app.include_router(employee_ordering.router)
     app.include_router(notifications.router)
     app.include_router(audit_logs.router)

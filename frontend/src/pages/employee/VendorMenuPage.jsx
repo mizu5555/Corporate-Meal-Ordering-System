@@ -6,16 +6,26 @@ import { useFacility } from "../../facility/FacilityContext";
 import FacilityScopeLabel from "../../facility/FacilityScopeLabel";
 import { useVendor } from "../../hooks/useVendor";
 import { useVendorMenu } from "../../hooks/useVendorMenu";
+import { todayIso, toLocalIso } from "../../utils/date";
 
 const FILTERS = [
   { label: "全部菜單", value: undefined },
   { label: "供應中", value: true },
 ];
 
+function addDaysIso(days) {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return toLocalIso(date);
+}
+
 export default function VendorMenuPage() {
   const { vendorId } = useParams();
   const navigate = useNavigate();
 
+  const minMealDate = todayIso();
+  const maxMealDate = addDaysIso(6);
+  const [mealDate, setMealDate] = useState(minMealDate);
   const [availableFilter, setAvailableFilter] = useState(undefined);
   const [selectedItem, setSelectedItem] = useState(null);
   const { selectedFacilityId } = useFacility();
@@ -24,9 +34,18 @@ export default function VendorMenuPage() {
   const { items, loading: menuLoading, error } = useVendorMenu(vendorId, {
     available: availableFilter,
     facilityId: selectedFacilityId,
+    mealDate,
   });
 
   const loading = vendorLoading || menuLoading;
+  const isToday = mealDate === minMealDate;
+  const recommendationTitle = isToday ? "今日推薦" : "當日推薦";
+  const recommendedItems = items.filter(
+    (item) => item.is_recommended && item.available && item.remaining_quantity !== 0,
+  );
+  const regularItems = recommendedItems.length > 0
+    ? items.filter((item) => !recommendedItems.some((recommended) => recommended.id === item.id))
+    : items;
 
   return (
     <div>
@@ -51,6 +70,26 @@ export default function VendorMenuPage() {
           {vendor.business_hours && <span> &nbsp;·&nbsp; 🕐 {vendor.business_hours}</span>}
         </p>
       )}
+
+      <div className="menu-toolbar">
+        <div className="menu-date-control">
+          <label className="field-label" htmlFor="vendor-menu-meal-date">
+            Meal date
+          </label>
+          <input
+            className="date-input"
+            id="vendor-menu-meal-date"
+            max={maxMealDate}
+            min={minMealDate}
+            type="date"
+            value={mealDate}
+            onChange={(event) => {
+              setMealDate(event.target.value);
+              setSelectedItem(null);
+            }}
+          />
+        </div>
+      </div>
 
       <div className="filter-bar">
         {FILTERS.map((f) => (
@@ -78,20 +117,50 @@ export default function VendorMenuPage() {
       )}
 
       {!loading && !error && items.length > 0 && (
-        <div className="menu-grid">
-          {items.map((item) => (
-            <MenuItemCard
-              key={item.id}
-              item={item}
-              onClick={() => setSelectedItem(item)}
-            />
-          ))}
-        </div>
+        <>
+          {recommendedItems.length > 0 && (
+            <section className="today-recommendations">
+              <div className="section-heading">
+                <p className="eyebrow">{isToday ? "Today" : "Meal Date"}</p>
+                <h3>{recommendationTitle}</h3>
+              </div>
+              <div className="menu-grid">
+                {recommendedItems.map((item) => (
+                  <MenuItemCard
+                    key={item.id}
+                    item={item}
+                    onClick={() => setSelectedItem(item)}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {regularItems.length > 0 && (
+            <section className={recommendedItems.length > 0 ? "regular-menu-section" : undefined}>
+              {recommendedItems.length > 0 && (
+                <div className="section-heading">
+                  <h3>全部餐點</h3>
+                </div>
+              )}
+              <div className="menu-grid">
+                {regularItems.map((item) => (
+                  <MenuItemCard
+                    key={item.id}
+                    item={item}
+                    onClick={() => setSelectedItem(item)}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+        </>
       )}
 
       {selectedItem && (
         <MealDetailModal
           item={selectedItem}
+          mealDate={mealDate}
           onClose={() => setSelectedItem(null)}
         />
       )}

@@ -6,9 +6,14 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, status
 
 from backend.core.facilities import get_facility_repository
+from backend.core.errors import CodedHTTPException
 from backend.core.rbac import get_current_user_id, get_current_user_role, require_roles
 from backend.core.vendor_identity import get_vendor_profile_repository
 from backend.schemas.facility_admin import FacilityCreate, VendorFacilitiesUpdate
+from backend.schemas.vendor import (
+    VendorDailyRecommendationLimit,
+    VendorDailyRecommendationLimitUpdate,
+)
 from backend.schemas.vendor_self import Facility
 from backend.services.facility_admin_service import FacilityAdminService
 
@@ -71,4 +76,40 @@ def set_vendor_facilities(
         body.facility_ids,
         actor_user_id=actor_id,
         actor_role=actor_role,
+    )
+
+
+@router.get("/vendors/{vendor_id}/recommendation-limit", response_model=VendorDailyRecommendationLimit)
+def get_vendor_recommendation_limit(
+    vendor_id: int,
+    _role: Annotated[str, Depends(require_roles("admin"))],
+    vendor_repo: Annotated[object, Depends(get_vendor_profile_repository)],
+) -> VendorDailyRecommendationLimit:
+    vendor = vendor_repo.get(vendor_id)
+    if vendor is None:
+        raise CodedHTTPException(status_code=404, code="not_found", detail="vendor not found")
+    return VendorDailyRecommendationLimit(
+        vendor_id=vendor_id,
+        daily_recommendation_limit=vendor.daily_recommendation_limit,
+    )
+
+
+@router.put("/vendors/{vendor_id}/recommendation-limit", response_model=VendorDailyRecommendationLimit)
+def set_vendor_recommendation_limit(
+    vendor_id: int,
+    body: VendorDailyRecommendationLimitUpdate,
+    _role: Annotated[str, Depends(require_roles("admin"))],
+    vendor_repo: Annotated[object, Depends(get_vendor_profile_repository)],
+) -> VendorDailyRecommendationLimit:
+    vendor = vendor_repo.get(vendor_id)
+    if vendor is None:
+        raise CodedHTTPException(status_code=404, code="not_found", detail="vendor not found")
+    updated = vendor_repo.update(
+        vendor_id,
+        {"daily_recommendation_limit": body.daily_recommendation_limit},
+    )
+    assert updated is not None
+    return VendorDailyRecommendationLimit(
+        vendor_id=vendor_id,
+        daily_recommendation_limit=updated.daily_recommendation_limit,
     )

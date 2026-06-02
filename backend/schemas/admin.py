@@ -8,6 +8,7 @@ class AdminUserItem(BaseModel):
     email: str
     display_name: str
     role: str
+    badge_code: str | None = None
     is_active: bool
     created_at: datetime
 

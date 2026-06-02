@@ -113,6 +113,38 @@ def test_create_order_uses_for_update_lock() -> None:
     assert "FOR UPDATE" in sql.upper()
 
 
+def test_list_orders_filters_by_employee_and_date_range() -> None:
+    order_rows = [
+        {
+            **_order_row(),
+            "pickup_code": "0601-0099",
+            "pickup_confirmed_at": None,
+            "pickup_confirmed_by_user_id": None,
+            "facility_id": None,
+        }
+    ]
+    ctx = _conn_with_side_effects(order_rows)
+
+    with patch(
+        "backend.repositories.postgres_employee_selection_repository.get_connection",
+        return_value=ctx,
+    ):
+        repo = PostgresEmployeeSelectionRepository()
+        with patch.object(repo, "_hydrate_order", side_effect=lambda _conn, row: row):
+            rows = repo.list_orders(
+                employee_id=1,
+                start_date=date(2026, 5, 1),
+                end_date=date(2026, 6, 7),
+            )
+
+    sql, values = ctx.__enter__.return_value.execute.call_args.args
+    assert "employee_id = %s" in sql
+    assert "COALESCE(meal_date, created_at::date) >= %s" in sql
+    assert "COALESCE(meal_date, created_at::date) <= %s" in sql
+    assert values == [1, date(2026, 5, 1), date(2026, 6, 7)]
+    assert rows == order_rows
+
+
 # ---------------------------------------------------------------------------
 # Quota exhausted
 # ---------------------------------------------------------------------------

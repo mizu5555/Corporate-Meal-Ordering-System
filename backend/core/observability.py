@@ -30,6 +30,7 @@ import json
 import logging
 import logging.handlers
 import os
+import socket
 import uuid
 from contextvars import ContextVar
 from queue import Queue
@@ -44,6 +45,12 @@ from starlette.responses import Response
 _request_id_ctx: ContextVar[str] = ContextVar("request_id", default="-")
 
 _LOGGING_CONFIGURED = False
+
+# Container hostname (Docker sets it to the container id). Resolved once at
+# import. Exposed per-response as `X-Served-By` so that when the backend runs
+# as multiple replicas behind the gateway, you can see which instance served a
+# request — direct evidence of load balancing / failover during a demo.
+_SERVED_BY = socket.gethostname()
 
 # Fields the JsonFormatter copies from LogRecord. Anything passed via
 # `logger.x("...", extra={"key": "value"})` lands as record attributes and is
@@ -135,6 +142,7 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
         finally:
             _request_id_ctx.reset(token)
         response.headers["X-Request-ID"] = request_id
+        response.headers["X-Served-By"] = _SERVED_BY
         return response
 
 

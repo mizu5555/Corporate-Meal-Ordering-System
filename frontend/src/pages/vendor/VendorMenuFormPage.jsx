@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { photoUrl } from "../../utils/format";
+import { DIETARY_TAG_OPTIONS, nextDietaryTags } from "../../utils/dietaryTags";
 import { useVendorMenu } from "../../vendor/VendorMenuContext";
 
 const EMPTY_FORM = {
@@ -9,6 +10,7 @@ const EMPTY_FORM = {
   price_cents: "",
   available: true,
   daily_quota: "",
+  dietary_tags: [],
 };
 
 function formToData(form) {
@@ -18,6 +20,7 @@ function formToData(form) {
     price_cents: Math.round(parseFloat(form.price_cents) * 100),
     available: form.available,
     daily_quota: form.daily_quota === "" ? null : Number(form.daily_quota),
+    dietary_tags: form.dietary_tags,
   };
 }
 
@@ -49,12 +52,17 @@ export default function VendorMenuFormPage() {
       price_cents: (item.price_cents / 100).toString(),
       available: item.available,
       daily_quota: item.daily_quota === null || item.daily_quota === undefined ? "" : String(item.daily_quota),
+      dietary_tags: item.dietary_tags ?? [],
     });
   }, [isEdit, itemId, loading, getItem]);
 
   function handleChange(e) {
     const { name, value, type, checked } = e.target;
     setForm((prev) => ({ ...prev, [name]: type === "checkbox" ? checked : value }));
+  }
+
+  function handleDietaryTagToggle(tag) {
+    setForm((prev) => ({ ...prev, dietary_tags: nextDietaryTags(prev.dietary_tags, tag) }));
   }
 
   async function handleSubmit(e) {
@@ -328,6 +336,26 @@ export default function VendorMenuFormPage() {
             />
             <span style={{ fontWeight: 600 }}>供應中</span>
           </label>
+
+          <div style={{ display: "grid", gap: 10 }}>
+            <span style={{ fontWeight: 600 }}>飲食標籤</span>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              {DIETARY_TAG_OPTIONS.map((option) => (
+                <label
+                  key={option.value}
+                  className="toggle-row"
+                  style={{ minHeight: 36, margin: 0 }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={form.dietary_tags.includes(option.value)}
+                    onChange={() => handleDietaryTagToggle(option.value)}
+                  />
+                  <span>{option.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
 
         </div>
 

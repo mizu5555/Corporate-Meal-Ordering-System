@@ -20,68 +20,6 @@ function sharePct(part, total) {
   return `${((part / total) * 100).toFixed(1)}%`;
 }
 
-function shortDay(iso) {
-  const [, m, d] = iso.split("-");
-  return `${Number(m)}/${Number(d)}`;
-}
-
-// Vertical column chart for the daily order trend. Pure inline SVG — no chart
-// library — so it stays within the plain HTML/CSS stack. Column height is
-// proportional to that day's order count relative to the busiest day.
-function ColumnChart({ data }) {
-  if (data.length === 0) return <p className="panel-copy">此區間無訂單資料。</p>;
-
-  const max = Math.max(1, ...data.map((p) => p.order_count));
-  const STEP = 34;
-  const BAR = 18;
-  const H = 200;
-  const PAD_TOP = 22;
-  const PAD_BOTTOM = 28;
-  const plotH = H - PAD_TOP - PAD_BOTTOM;
-  const W = Math.max(data.length * STEP, STEP);
-  const labelEvery = Math.ceil(data.length / 12);
-
-  return (
-    <svg
-      className="col-chart"
-      viewBox={`0 0 ${W} ${H}`}
-      role="img"
-      aria-label="每日訂單數柱狀圖"
-      preserveAspectRatio="xMidYMid meet"
-    >
-      <defs>
-        <linearGradient id="colFill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" style={{ stopColor: "var(--accent)" }} />
-          <stop offset="100%" style={{ stopColor: "var(--brand)" }} />
-        </linearGradient>
-      </defs>
-      <line x1="0" y1={H - PAD_BOTTOM} x2={W} y2={H - PAD_BOTTOM} stroke="var(--line)" />
-      {data.map((p, i) => {
-        const h = (p.order_count / max) * plotH;
-        const x = i * STEP + (STEP - BAR) / 2;
-        const y = H - PAD_BOTTOM - h;
-        const cx = i * STEP + STEP / 2;
-        return (
-          <g key={p.day}>
-            <title>{`${p.day}：${p.order_count} 筆`}</title>
-            <rect x={x} y={y} width={BAR} height={Math.max(h, 2)} rx="4" fill="url(#colFill)" />
-            {data.length <= 14 && (
-              <text x={cx} y={y - 6} textAnchor="middle" className="col-chart-val">
-                {p.order_count}
-              </text>
-            )}
-            {i % labelEvery === 0 && (
-              <text x={cx} y={H - PAD_BOTTOM + 16} textAnchor="middle" className="col-chart-lab">
-                {shortDay(p.day)}
-              </text>
-            )}
-          </g>
-        );
-      })}
-    </svg>
-  );
-}
-
 export default function AdminStatsPage() {
   const [stats, setStats] = useState(null);
   const [error, setError] = useState(null);
@@ -166,11 +104,6 @@ export default function AdminStatsPage() {
               <span>活躍商家</span>
               <strong>{stats.summary.active_vendor_count}</strong>
             </div>
-          </article>
-
-          <article className="panel">
-            <h3>每日訂單</h3>
-            <ColumnChart data={stats.daily_trend} />
           </article>
 
           <article className="panel">

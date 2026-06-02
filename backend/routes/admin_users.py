@@ -11,22 +11,26 @@ from backend.schemas.admin import AdminUserItem, AdminUserListResponse
 router = APIRouter(prefix="/admin/users", tags=["admin-users"])
 
 
-def _fetch_users(search: str | None, role: str | None) -> list[dict]:
+def _fetch_users(search: str | None, role: str | None, is_active: bool | None) -> list[dict]:
     conditions = ["1=1"]
     params: list = []
 
     if search:
-        conditions.append("(u.email ILIKE %s OR u.display_name ILIKE %s)")
+        conditions.append("(u.email ILIKE %s OR u.display_name ILIKE %s OR u.badge_code ILIKE %s)")
         pattern = f"%{search}%"
-        params.extend([pattern, pattern])
+        params.extend([pattern, pattern, pattern])
 
     if role:
         conditions.append("r.name = %s")
         params.append(role)
 
+    if is_active is not None:
+        conditions.append("u.is_active = %s")
+        params.append(is_active)
+
     where = " AND ".join(conditions)
     sql = f"""
-        SELECT u.id, u.email, u.display_name, r.name AS role, u.is_active, u.created_at
+        SELECT u.id, u.email, u.display_name, r.name AS role, u.badge_code, u.is_active, u.created_at
         FROM users u
         JOIN roles r ON r.id = u.role_id
         WHERE {where}
@@ -42,8 +46,9 @@ def list_users(
     _role: Annotated[str, Depends(require_roles("admin"))],
     search: str | None = Query(default=None),
     role: str | None = Query(default=None),
+    is_active: bool | None = Query(default=None),
 ) -> AdminUserListResponse:
-    users = _fetch_users(search, role)
+    users = _fetch_users(search, role, is_active)
     return AdminUserListResponse(
         users=[AdminUserItem(**u) for u in users],
         total=len(users),

@@ -4,6 +4,8 @@ from __future__ import annotations
 import random
 from datetime import date, timedelta
 
+from backend.core.cache import TTLCache
+from backend.core.config import settings
 from backend.core.errors import CodedHTTPException
 from backend.core.reporting import get_reporting_repository
 from backend.core.order_failure_codes import ITEM_UNAVAILABLE, QUOTA_EXHAUSTED
@@ -29,6 +31,14 @@ from backend.schemas.employee import (
 from backend.schemas.vendor_self import Facility, MenuItem as VendorMenuItem
 
 MEAL_DATE_WINDOW_DAYS = 7
+ORDER_HISTORY_PAST_DAYS = 30
+
+# 核准商家清單是典型「讀多寫少」：員工每次瀏覽都讀、但商家核准/改檔很少見。
+# 用 module-level 的 process 內 TTL 快取擋掉這個高頻 DB 查詢。30 秒過期窗口內，
+# 新核准的商家最多延遲 30 秒才出現（每個 replica 各自一份快取），可接受。
+_APPROVED_VENDORS_TTL_SECONDS = 30.0
+_approved_vendors_cache = TTLCache(_APPROVED_VENDORS_TTL_SECONDS)
+_APPROVED_VENDORS_CACHE_KEY = "approved"
 
 
 class EmployeeOrderingService:
@@ -51,10 +61,24 @@ class EmployeeOrderingService:
         employee_id: int | None = None,
         facility_id: int | None = None,
     ) -> list[EmployeeVendor]:
-        vendors = [self._vendor_to_schema(vendor) for vendor in self.vendor_repository.list(status="approved")]
+        vendors = [self._vendor_to_schema(vendor) for vendor in self._approved_vendor_records()]
         if employee_id is None:
             return vendors
         return self._filter_vendors_by_facility(vendors, employee_id, facility_id=facility_id)
+
+    def _approved_vendor_records(self) -> list[VendorRecord]:
+        """取得核准商家清單（DB 模式才走快取）。
+
+        只有在 DB 模式（`settings.database_url` 有設）時才快取——這跟 repository
+        的切換條件一致。測試用 in-memory fake repo（無 DATABASE_URL），直接讀以
+        保持 read-your-writes，避免快取造成測試間互相污染。
+        """
+        if not settings.database_url:
+            return self.vendor_repository.list(status="approved")
+        return _approved_vendors_cache.get_or_set(
+            _APPROVED_VENDORS_CACHE_KEY,
+            lambda: self.vendor_repository.list(status="approved"),
+        )
 
     def get_vendor(
         self,
@@ -75,17 +99,25 @@ class EmployeeOrderingService:
         available: bool | None = True,
         employee_id: int | None = None,
         facility_id: int | None = None,
+        meal_date: date | None = None,
     ) -> list[EmployeeMenuItem]:
         vendor = self._vendor_to_schema(self._get_approved_vendor(vendor_id))
         if employee_id is not None:
             self._assert_facility_access(vendor, employee_id, facility_id=facility_id)
+        target_date = meal_date or date.today()
+        self._ensure_meal_date_in_window(target_date)
+        items = self.menu_item_repository.list_effective(
+            vendor_id=vendor_id,
+            meal_date=target_date,
+            category_id=category_id,
+            available=available,
+        )
+        used_by_item = self.selection_repository.item_quantities_for_date(
+            meal_date=target_date, vendor_ids=[vendor_id]
+        )
         return [
-            self._menu_item_to_schema(item)
-            for item in self.menu_item_repository.list(
-                vendor_id=vendor_id,
-                category_id=category_id,
-                available=available,
-            )
+            self._menu_item_to_schema(item, remaining=self._remaining_quantity(item, used_by_item.get(item.id, 0)))
+            for item in items
         ]
 
     def select_meal(
@@ -200,7 +232,15 @@ class EmployeeOrderingService:
         candidates: list[tuple[VendorRecord, VendorMenuItem, int | None]] = []
         for vendor_id in vendor_ids:
             vendor = approved_vendors[vendor_id]
-            for item in self.menu_item_repository.list(vendor_id=vendor_id, available=True):
+            for item in self.menu_item_repository.list_effective(
+                vendor_id=vendor_id, meal_date=payload.meal_date, available=True
+            ):
+                if not self._matches_dietary_tags(
+                    item,
+                    include_tags=payload.include_tags,
+                    exclude_tags=payload.exclude_tags,
+                ):
+                    continue
                 remaining = self._remaining_quantity(item, used_by_item.get(item.id, 0))
                 if remaining is None or remaining > 0:
                     candidates.append((vendor, item, remaining))
@@ -227,6 +267,8 @@ class EmployeeOrderingService:
         facility_id: int | None = None,
         meal_date: date | None = None,
         limit: int = 8,
+        include_tags: list[str] | None = None,
+        exclude_tags: list[str] | None = None,
     ) -> list[RecommendedItem]:
         target_date = meal_date or date.today()
 
@@ -253,9 +295,17 @@ class EmployeeOrderingService:
         )
 
         # Build item_by_id: {item_id: (vendor_id, raw_item)}
-        item_by_id: dict[int, tuple[int, object]] = {}
+        item_by_id: dict[int, tuple[int, VendorMenuItem]] = {}
         for vid in visible_ids:
-            for it in self.menu_item_repository.list(vendor_id=vid, available=True):
+            for it in self.menu_item_repository.list_effective(
+                vendor_id=vid, meal_date=target_date, available=True
+            ):
+                if not self._matches_dietary_tags(
+                    it,
+                    include_tags=include_tags,
+                    exclude_tags=exclude_tags,
+                ):
+                    continue
                 item_by_id[it.id] = (vid, it)
 
         # Sales window: past 30 days up to today
@@ -306,8 +356,34 @@ class EmployeeOrderingService:
 
         return results
 
-    def list_my_orders(self, employee_id: int) -> list[EmployeeOrder]:
-        return self.selection_repository.list_orders(employee_id=employee_id)
+    def list_my_orders(
+        self,
+        employee_id: int,
+        *,
+        start_date: date | None = None,
+        end_date: date | None = None,
+    ) -> list[EmployeeOrder]:
+        today = date.today()
+        min_date = today - timedelta(days=ORDER_HISTORY_PAST_DAYS)
+        max_date = today + timedelta(days=MEAL_DATE_WINDOW_DAYS - 1)
+
+        if start_date is not None and end_date is not None and start_date > end_date:
+            raise CodedHTTPException(
+                status_code=400,
+                code="validation_error",
+                detail="start_date must be on or before end_date",
+            )
+
+        effective_start = max(start_date or min_date, min_date)
+        effective_end = min(end_date or max_date, max_date)
+        if effective_start > effective_end:
+            return []
+
+        return self.selection_repository.list_orders(
+            employee_id=employee_id,
+            start_date=effective_start,
+            end_date=effective_end,
+        )
 
     def get_my_order(self, employee_id: int, order_id: int) -> EmployeeOrder:
         order = self.selection_repository.get_order(employee_id=employee_id, order_id=order_id)
@@ -486,7 +562,7 @@ class EmployeeOrderingService:
         )
 
     @staticmethod
-    def _menu_item_to_schema(item: VendorMenuItem) -> EmployeeMenuItem:
+    def _menu_item_to_schema(item: VendorMenuItem, remaining: int | None = None) -> EmployeeMenuItem:
         return EmployeeMenuItem(
             id=item.id,
             vendor_id=item.vendor_id,
@@ -496,8 +572,25 @@ class EmployeeOrderingService:
             price_cents=item.price_cents,
             available=item.available,
             daily_quota=item.daily_quota,
+            remaining_quantity=remaining,
+            is_recommended=item.is_recommended,
             photo_path=item.photo_path,
+            dietary_tags=item.dietary_tags,
         )
+
+    @staticmethod
+    def _matches_dietary_tags(
+        item: VendorMenuItem,
+        *,
+        include_tags: list[str] | None = None,
+        exclude_tags: list[str] | None = None,
+    ) -> bool:
+        tags = set(item.dietary_tags)
+        if include_tags and not set(include_tags).issubset(tags):
+            return False
+        if exclude_tags and tags.intersection(exclude_tags):
+            return False
+        return True
 
     def _order_to_pickup_label(self, order: EmployeeOrder) -> PickupLabel:
         vendor = self.vendor_repository.get(order.vendor_id)
@@ -544,7 +637,9 @@ class EmployeeOrderingService:
         )
         snapshots: list[OrderItemSnapshot] = []
         for requested in payload.items:
-            item = self.menu_item_repository.get(vendor_id=vendor_id, item_id=requested.item_id)
+            item = self.menu_item_repository.get_effective(
+                vendor_id=vendor_id, item_id=requested.item_id, meal_date=meal_date
+            )
             if item is None:
                 raise CodedHTTPException(status_code=404, code="not_found", detail="menu item not found")
             used_quantity = used_by_item.get(item.id, 0)

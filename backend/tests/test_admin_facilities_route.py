@@ -197,3 +197,54 @@ def test_put_vendor_facilities_employee_forbidden() -> None:
         headers=_EMPLOYEE_HEADERS,
     )
     assert r.status_code == 403
+
+
+def test_get_vendor_recommendation_limit_returns_default() -> None:
+    _, v_repo = _setup_vendor_and_facility()
+    _override_vendor_repo(v_repo)
+
+    r = client.get("/admin/vendors/1/recommendation-limit", headers=_ADMIN_HEADERS)
+
+    assert r.status_code == 200
+    assert r.json() == {"vendor_id": 1, "daily_recommendation_limit": 3}
+
+
+def test_put_vendor_recommendation_limit_updates_vendor() -> None:
+    _, v_repo = _setup_vendor_and_facility()
+    _override_vendor_repo(v_repo)
+
+    r = client.put(
+        "/admin/vendors/1/recommendation-limit",
+        json={"daily_recommendation_limit": 2},
+        headers=_ADMIN_HEADERS,
+    )
+
+    assert r.status_code == 200
+    assert r.json() == {"vendor_id": 1, "daily_recommendation_limit": 2}
+    assert v_repo.get(1).daily_recommendation_limit == 2
+
+
+def test_put_vendor_recommendation_limit_rejects_out_of_range() -> None:
+    _, v_repo = _setup_vendor_and_facility()
+    _override_vendor_repo(v_repo)
+
+    r = client.put(
+        "/admin/vendors/1/recommendation-limit",
+        json={"daily_recommendation_limit": 4},
+        headers=_ADMIN_HEADERS,
+    )
+
+    assert r.status_code == 422
+
+
+def test_put_vendor_recommendation_limit_employee_forbidden() -> None:
+    _, v_repo = _setup_vendor_and_facility()
+    _override_vendor_repo(v_repo)
+
+    r = client.put(
+        "/admin/vendors/1/recommendation-limit",
+        json={"daily_recommendation_limit": 1},
+        headers=_EMPLOYEE_HEADERS,
+    )
+
+    assert r.status_code == 403

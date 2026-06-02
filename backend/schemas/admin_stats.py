@@ -46,3 +46,22 @@ class DashboardStats(BaseModel):
     vendor_ranking: list[VendorStat]
     facility_distribution: list[FacilityStat]
     daily_trend: list[DayPoint]
+
+
+class VendorItemTodayAggregate(BaseModel):
+    item_id: int
+    sold_quantity: int
+    revenue_cents: int
+
+
+class VendorItemPeriodAggregate(BaseModel):
+    item_id: int
+    quantity_sold: int
+    revenue_cents: int
+    order_count: int
+
+
+class VendorRevenueWindowSummary(BaseModel):
+    order_count: int
+    quantity_sold: int
+    revenue_cents: int

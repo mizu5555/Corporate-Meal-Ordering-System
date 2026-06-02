@@ -2,6 +2,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from backend.schemas.vendor_self import Facility
+
 
 class VendorReviewRequest(BaseModel):
     decision: str = Field(pattern="^(approved|rejected)$")
@@ -15,11 +17,12 @@ class VendorReviewResponse(BaseModel):
 
 
 class VendorApplicationCreate(BaseModel):
-    vendor_name: str
+    vendor_name: str = ""
     address: str | None = None
     business_hours: str | None = None
     contact_phone: str | None = None
     contact_email: str | None = None
+    facility_ids: list[int] = Field(default_factory=list)
 
 
 class VendorApplicationSummary(BaseModel):
@@ -37,5 +40,15 @@ class VendorApplicationDetail(VendorApplicationSummary):
     business_hours: str | None = None
     contact_phone: str | None = None
     contact_email: str | None = None
+    served_facilities: list[Facility] = Field(default_factory=list)
     review_reason: str | None = None
     reviewed_at: datetime | None = None
+
+
+class VendorDailyRecommendationLimitUpdate(BaseModel):
+    daily_recommendation_limit: int = Field(ge=1, le=3)
+
+
+class VendorDailyRecommendationLimit(BaseModel):
+    vendor_id: int
+    daily_recommendation_limit: int = Field(ge=1, le=3)

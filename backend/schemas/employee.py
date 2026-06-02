@@ -4,9 +4,9 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
-from backend.schemas.vendor_self import Facility
+from backend.schemas.vendor_self import DietaryTag, Facility, normalize_dietary_tags
 
 
 class EmployeeVendor(BaseModel):
@@ -28,7 +28,15 @@ class EmployeeMenuItem(BaseModel):
     price_cents: int
     available: bool
     daily_quota: int | None
+    remaining_quantity: int | None = None
+    is_recommended: bool = False
     photo_path: str | None
+    dietary_tags: list[DietaryTag] = Field(default_factory=list)
+
+    @field_validator("dietary_tags", mode="before")
+    @classmethod
+    def _normalize_dietary_tags(cls, value: object) -> list[DietaryTag]:
+        return normalize_dietary_tags(value)
 
 
 class MealSelectionCreate(BaseModel):
@@ -106,6 +114,25 @@ class EmployeeOrder(BaseModel):
     cancelled_at: datetime | None = None
 
 
+class BatchOrderStatusUpdate(BaseModel):
+    order_ids: list[int] = Field(min_length=1)
+    status: OrderStatus
+
+
+class BatchOrderResult(BaseModel):
+    order_id: int
+    success: bool
+    order: EmployeeOrder | None = None
+    error: str | None = None
+    code: str | None = None
+
+
+class BatchOrderStatusResponse(BaseModel):
+    results: list[BatchOrderResult]
+    succeeded: int
+    failed: int
+
+
 class PickupLabelItem(BaseModel):
     item_name: str
     quantity: int
@@ -134,6 +161,13 @@ class RandomMealDrawRequest(BaseModel):
     meal_date: date
     vendor_ids: list[int] | None = None
     facility_id: int | None = None
+    include_tags: list[DietaryTag] = Field(default_factory=list)
+    exclude_tags: list[DietaryTag] = Field(default_factory=list)
+
+    @field_validator("include_tags", "exclude_tags", mode="before")
+    @classmethod
+    def _normalize_dietary_tags(cls, value: object) -> list[DietaryTag]:
+        return normalize_dietary_tags(value)
 
 
 class RandomMealDraw(BaseModel):

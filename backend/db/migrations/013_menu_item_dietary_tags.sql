@@ -1,0 +1,2 @@
+ALTER TABLE menu_items
+  ADD COLUMN IF NOT EXISTS dietary_tags TEXT[] NOT NULL DEFAULT '{}'::TEXT[];

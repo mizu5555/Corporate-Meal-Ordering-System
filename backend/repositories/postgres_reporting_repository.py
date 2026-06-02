@@ -3,7 +3,17 @@ from __future__ import annotations
 from datetime import date
 
 from backend.db.connection import get_connection
-from backend.schemas.admin_stats import DayPoint, FacilityStat, ItemSales, OrderSummary, VendorStat
+from backend.repositories.reporting_repository import default_badge_code
+from backend.schemas.admin_stats import (
+    DayPoint,
+    FacilityStat,
+    ItemSales,
+    OrderSummary,
+    VendorItemPeriodAggregate,
+    VendorItemTodayAggregate,
+    VendorRevenueWindowSummary,
+    VendorStat,
+)
 from backend.schemas.billing import EmployeeTotal, VendorReceivable
 
 _WINDOW = "o.status <> 'cancelled' AND o.created_at::date BETWEEN %s AND %s"
@@ -164,25 +174,146 @@ class PostgresReportingRepository:
             for r in rows
         ]
 
+    def vendor_today_item_stats(
+        self,
+        vendor_id: int,
+        day: date,
+        *,
+        facility_id: int | None = None,
+    ) -> list[VendorItemTodayAggregate]:
+        where = [
+            "o.status <> 'cancelled'",
+            "o.vendor_id = %s",
+            "COALESCE(o.meal_date, o.created_at::date) = %s",
+        ]
+        values: list[object] = [vendor_id, day]
+        if facility_id is not None:
+            where.append("o.facility_id = %s")
+            values.append(facility_id)
+        with get_connection() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT oi.item_id,
+                       COALESCE(SUM(oi.quantity), 0) AS sold_quantity,
+                       COALESCE(SUM(oi.total_price_cents), 0) AS revenue_cents
+                FROM orders o
+                JOIN order_items oi ON oi.order_id = o.id
+                WHERE {" AND ".join(where)}
+                GROUP BY oi.item_id
+                """,
+                values,
+            ).fetchall()
+        return [
+            VendorItemTodayAggregate(
+                item_id=int(r["item_id"]),
+                sold_quantity=int(r["sold_quantity"]),
+                revenue_cents=int(r["revenue_cents"]),
+            )
+            for r in rows
+        ]
+
+    def vendor_period_item_sales(
+        self,
+        vendor_id: int,
+        start: date,
+        end: date,
+        *,
+        facility_id: int | None = None,
+    ) -> list[VendorItemPeriodAggregate]:
+        where = [
+            "o.status <> 'cancelled'",
+            "o.vendor_id = %s",
+            "COALESCE(o.meal_date, o.created_at::date) BETWEEN %s AND %s",
+        ]
+        values: list[object] = [vendor_id, start, end]
+        if facility_id is not None:
+            where.append("o.facility_id = %s")
+            values.append(facility_id)
+        with get_connection() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT oi.item_id,
+                       COALESCE(SUM(oi.quantity), 0) AS quantity_sold,
+                       COALESCE(SUM(oi.total_price_cents), 0) AS revenue_cents,
+                       COUNT(DISTINCT o.id) AS order_count
+                FROM orders o
+                JOIN order_items oi ON oi.order_id = o.id
+                WHERE {" AND ".join(where)}
+                GROUP BY oi.item_id
+                """,
+                values,
+            ).fetchall()
+        return [
+            VendorItemPeriodAggregate(
+                item_id=int(r["item_id"]),
+                quantity_sold=int(r["quantity_sold"]),
+                revenue_cents=int(r["revenue_cents"]),
+                order_count=int(r["order_count"]),
+            )
+            for r in rows
+        ]
+
+    def vendor_period_summary(
+        self,
+        vendor_id: int,
+        start: date,
+        end: date,
+        *,
+        facility_id: int | None = None,
+    ) -> VendorRevenueWindowSummary:
+        where = [
+            "o.status <> 'cancelled'",
+            "o.vendor_id = %s",
+            "COALESCE(o.meal_date, o.created_at::date) BETWEEN %s AND %s",
+        ]
+        values: list[object] = [vendor_id, start, end]
+        if facility_id is not None:
+            where.append("o.facility_id = %s")
+            values.append(facility_id)
+        with get_connection() as conn:
+            row = conn.execute(
+                f"""
+                SELECT COUNT(DISTINCT o.id) AS order_count,
+                       COALESCE(SUM(oi.quantity), 0) AS quantity_sold,
+                       COALESCE(SUM(oi.total_price_cents), 0) AS revenue_cents
+                FROM orders o
+                JOIN order_items oi ON oi.order_id = o.id
+                WHERE {" AND ".join(where)}
+                """,
+                values,
+            ).fetchone()
+        return VendorRevenueWindowSummary(
+            order_count=int(row["order_count"]),
+            quantity_sold=int(row["quantity_sold"]),
+            revenue_cents=int(row["revenue_cents"]),
+        )
+
     def employee_monthly_totals(self, year: int, month: int) -> list[EmployeeTotal]:
         with get_connection() as conn:
             rows = conn.execute(
                 f"""
-                SELECT o.employee_id, u.display_name AS employee_name,
+                SELECT o.employee_id, u.display_name AS employee_name, u.badge_code,
+                       COUNT(DISTINCT o.id) AS order_count,
                        COALESCE(SUM(oi.total_price_cents), 0) AS amount_cents
                 FROM orders o
                 JOIN order_items oi ON oi.order_id = o.id
                 JOIN users u ON u.id = o.employee_id
                 WHERE {_MONTH}
-                GROUP BY o.employee_id, u.display_name
+                GROUP BY o.employee_id, u.display_name, u.badge_code
                 ORDER BY amount_cents DESC
                 """,
                 [year, month],
             ).fetchall()
-        return [
-            EmployeeTotal(
-                employee_id=int(r["employee_id"]), employee_name=r["employee_name"],
-                amount_cents=int(r["amount_cents"]),
+        out: list[EmployeeTotal] = []
+        for r in rows:
+            employee_id = int(r["employee_id"])
+            out.append(
+                EmployeeTotal(
+                    employee_id=employee_id,
+                    employee_name=r["employee_name"],
+                    badge_code=r["badge_code"] or default_badge_code(employee_id),
+                    order_count=int(r["order_count"]),
+                    amount_cents=int(r["amount_cents"]),
+                )
             )
-            for r in rows
-        ]
+        return out

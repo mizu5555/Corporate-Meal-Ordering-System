@@ -7,11 +7,22 @@
 """
 from __future__ import annotations
 
+from datetime import date, timedelta
+
 from backend.core.errors import CodedHTTPException
 from backend.repositories.menu_category_repository import MenuCategoryRepository
 from backend.repositories.menu_item_repository import MenuItemRepository
-from backend.schemas.vendor_self import MenuItem, MenuItemCreate, MenuItemUpdate
+from backend.repositories.vendor_profile_repository import VendorProfileRepository
+from backend.schemas.vendor_self import (
+    MenuItem,
+    MenuItemCreate,
+    MenuItemDateOverride,
+    MenuItemDateOverrideUpsert,
+    MenuItemUpdate,
+)
 from backend.storage.photo_storage import PhotoStorage
+
+MENU_DATE_WINDOW_DAYS = 7
 
 
 class VendorMenuService:
@@ -20,21 +31,30 @@ class VendorMenuService:
         menu_item_repository: MenuItemRepository,
         category_repository: MenuCategoryRepository,
         photo_storage: PhotoStorage,
+        vendor_repository: VendorProfileRepository | None = None,
     ) -> None:
         self.menu_item_repository = menu_item_repository
         self.category_repository = category_repository
         self.photo_storage = photo_storage
+        self.vendor_repository = vendor_repository
 
     # --- query ---
 
     def list(
-        self, vendor_id: int, *, category_id: int | None = None, available: bool | None = None
+        self,
+        vendor_id: int,
+        *,
+        category_id: int | None = None,
+        available: bool | None = None,
+        facility_id: int | None = None,
     ) -> list[MenuItem]:
+        self._assert_facility_access(vendor_id, facility_id)
         return self.menu_item_repository.list(
             vendor_id=vendor_id, category_id=category_id, available=available
         )
 
-    def get(self, vendor_id: int, item_id: int) -> MenuItem:
+    def get(self, vendor_id: int, item_id: int, *, facility_id: int | None = None) -> MenuItem:
+        self._assert_facility_access(vendor_id, facility_id)
         item = self.menu_item_repository.get(vendor_id=vendor_id, item_id=item_id)
         if item is None:
             raise CodedHTTPException(status_code=404, code="not_found", detail="menu item not found")
@@ -42,7 +62,8 @@ class VendorMenuService:
 
     # --- mutate ---
 
-    def create(self, vendor_id: int, payload: MenuItemCreate) -> MenuItem:
+    def create(self, vendor_id: int, payload: MenuItemCreate, *, facility_id: int | None = None) -> MenuItem:
+        self._assert_facility_access(vendor_id, facility_id)
         if payload.category_id is not None:
             self._assert_category_belongs_to(vendor_id, payload.category_id)
         return self.menu_item_repository.create(
@@ -53,11 +74,19 @@ class VendorMenuService:
             category_id=payload.category_id,
             available=payload.available,
             daily_quota=payload.daily_quota,
+            dietary_tags=payload.dietary_tags,
         )
 
-    def update(self, vendor_id: int, item_id: int, payload: MenuItemUpdate) -> MenuItem:
+    def update(
+        self,
+        vendor_id: int,
+        item_id: int,
+        payload: MenuItemUpdate,
+        *,
+        facility_id: int | None = None,
+    ) -> MenuItem:
         # 確保 item 屬於 caller (避免讓 update 變成跨商家寫入)
-        self.get(vendor_id, item_id)
+        self.get(vendor_id, item_id, facility_id=facility_id)
         fields = payload.model_dump(exclude_unset=True)
         if "category_id" in fields and fields["category_id"] is not None:
             self._assert_category_belongs_to(vendor_id, fields["category_id"])
@@ -68,16 +97,23 @@ class VendorMenuService:
         assert updated is not None
         return updated
 
-    def delete(self, vendor_id: int, item_id: int) -> None:
+    def delete(self, vendor_id: int, item_id: int, *, facility_id: int | None = None) -> None:
         # 連帶刪除檔案 (best-effort)；先刪檔再刪 row 避免 row 沒了但檔還在。
-        self.get(vendor_id, item_id)
+        self.get(vendor_id, item_id, facility_id=facility_id)
         self.photo_storage.delete_menu_photo(vendor_id=vendor_id, item_id=item_id)
         self.menu_item_repository.delete(vendor_id=vendor_id, item_id=item_id)
 
     # --- photo sub-resource (used by Task 12) ---
 
-    def replace_photo(self, vendor_id: int, item_id: int, data: bytes) -> str:
-        self.get(vendor_id, item_id)  # ensure ownership before touching disk
+    def replace_photo(
+        self,
+        vendor_id: int,
+        item_id: int,
+        data: bytes,
+        *,
+        facility_id: int | None = None,
+    ) -> str:
+        self.get(vendor_id, item_id, facility_id=facility_id)  # ensure ownership before touching disk
         path = self.photo_storage.store_menu_photo(
             vendor_id=vendor_id, item_id=item_id, data=data
         )
@@ -86,12 +122,84 @@ class VendorMenuService:
         )
         return path
 
-    def delete_photo(self, vendor_id: int, item_id: int) -> None:
-        self.get(vendor_id, item_id)
+    def delete_photo(self, vendor_id: int, item_id: int, *, facility_id: int | None = None) -> None:
+        self.get(vendor_id, item_id, facility_id=facility_id)
         self.photo_storage.delete_menu_photo(vendor_id=vendor_id, item_id=item_id)
         self.menu_item_repository.clear_photo_path(vendor_id=vendor_id, item_id=item_id)
 
+    # --- per-date schedule / overrides ---
+
+    def list_date_overrides(self, vendor_id: int, item_id: int) -> list[MenuItemDateOverride]:
+        """Return all date overrides for an item (validates ownership)."""
+        self.get(vendor_id, item_id)  # raises 404 if not owned
+        return self.menu_item_repository.list_date_overrides(vendor_id=vendor_id, item_id=item_id)
+
+    def upsert_date_override(
+        self,
+        vendor_id: int,
+        item_id: int,
+        meal_date: date,
+        payload: MenuItemDateOverrideUpsert,
+    ) -> MenuItemDateOverride:
+        """Create or replace the per-date override for item/meal_date."""
+        self.get(vendor_id, item_id)  # raises 404 if not owned
+        self._assert_date_in_window(meal_date)
+        if payload.is_recommended is True:
+            self._assert_recommendation_limit(vendor_id, item_id, meal_date)
+        return self.menu_item_repository.upsert_date_override(
+            vendor_id=vendor_id,
+            item_id=item_id,
+            meal_date=meal_date,
+            available=payload.available,
+            daily_quota=payload.daily_quota,
+            price_cents=payload.price_cents,
+            is_recommended=payload.is_recommended,
+        )
+
+    def delete_date_override(self, vendor_id: int, item_id: int, meal_date: date) -> None:
+        """Delete the per-date override for item/meal_date (idempotent)."""
+        self.get(vendor_id, item_id)  # raises 404 if not owned
+        self.menu_item_repository.delete_date_override(
+            vendor_id=vendor_id, item_id=item_id, meal_date=meal_date
+        )
+
     # --- helpers ---
+
+    def _assert_date_in_window(self, meal_date: date) -> None:
+        today = date.today()
+        max_date = today + timedelta(days=MENU_DATE_WINDOW_DAYS - 1)
+        if meal_date < today or meal_date > max_date:
+            raise CodedHTTPException(
+                status_code=400,
+                code="validation_error",
+                detail="meal_date must be within the next 7 days",
+            )
+
+    def _assert_recommendation_limit(self, vendor_id: int, item_id: int, meal_date: date) -> None:
+        limit = 3
+        if self.vendor_repository is not None:
+            vendor = self.vendor_repository.get(vendor_id)
+            if vendor is not None:
+                limit = vendor.daily_recommendation_limit
+        current_recommendations = [
+            item
+            for item in self.menu_item_repository.list_effective(
+                vendor_id=vendor_id,
+                meal_date=meal_date,
+                available=None,
+            )
+            if item.id != item_id and item.is_recommended
+        ]
+        if len(current_recommendations) >= limit:
+            names = ", ".join(item.name for item in current_recommendations)
+            detail = f"daily recommendation limit is {limit}"
+            if names:
+                detail = f"{detail}; current recommendations: {names}"
+            raise CodedHTTPException(
+                status_code=409,
+                code="daily_recommendation_limit_exceeded",
+                detail=detail,
+            )
 
     def _assert_category_belongs_to(self, vendor_id: int, category_id: int) -> None:
         if self.category_repository.get(vendor_id=vendor_id, category_id=category_id) is None:
@@ -99,4 +207,14 @@ class VendorMenuService:
                 status_code=422,
                 code="validation_error",
                 detail="category_id does not belong to this vendor",
+            )
+
+    def _assert_facility_access(self, vendor_id: int, facility_id: int | None) -> None:
+        if facility_id is None or self.vendor_repository is None:
+            return
+        if not any(facility.id == facility_id for facility in self.vendor_repository.list_facilities(vendor_id)):
+            raise CodedHTTPException(
+                status_code=403,
+                code="forbidden",
+                detail="vendor does not serve the selected facility",
             )

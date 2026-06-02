@@ -7,8 +7,10 @@ import AdminFacilitiesPage from "../pages/admin/AdminFacilitiesPage";
 import AdminBillingPage from "../pages/admin/AdminBillingPage";
 import AdminStatsPage from "../pages/admin/AdminStatsPage";
 import AdminPermissionsPage from "../pages/admin/AdminPermissionsPage";
+import AdminEmployeeReviewPage from "../pages/admin/AdminEmployeeReviewPage";
 import AdminVendorReviewDetailPage from "../pages/admin/AdminVendorReviewDetailPage";
 import AdminVendorReviewListPage from "../pages/admin/AdminVendorReviewListPage";
+import AccountPage from "../pages/employee/AccountPage";
 import BadgePage from "../pages/employee/BadgePage";
 import CartPage from "../pages/employee/CartPage";
 import EmployeeHomePage from "../pages/employee/EmployeeHomePage";
@@ -25,6 +27,7 @@ import VendorBadgePickupPage from "../pages/vendor/VendorBadgePickupPage";
 import VendorHomePage from "../pages/vendor/VendorHomePage";
 import VendorMenuFormPage from "../pages/vendor/VendorMenuFormPage";
 import VendorMenuListPage from "../pages/vendor/VendorMenuListPage";
+import VendorMenuSchedulePage from "../pages/vendor/VendorMenuSchedulePage";
 import VendorOrderDetailPage from "../pages/vendor/VendorOrderDetailPage";
 import VendorOrdersPage from "../pages/vendor/VendorOrdersPage";
 import VendorRevenuePage from "../pages/vendor/VendorRevenuePage";
@@ -78,6 +81,7 @@ export function AppRouter() {
             <Route element={<CartPage />} path="/employee/cart" />
             <Route element={<OrdersPage />} path="/employee/orders" />
             <Route element={<BadgePage />} path="/employee/badge" />
+            <Route element={<AccountPage />} path="/employee/account" />
           </Route>
 
           <Route element={<RoleRoute allowedRoles={["vendor_manager"]} />}>
@@ -89,6 +93,7 @@ export function AppRouter() {
                   <Route element={<VendorMenuListPage />} path="menu" />
                   <Route element={<VendorMenuFormPage />} path="menu/new" />
                   <Route element={<VendorMenuFormPage />} path="menu/:itemId/edit" />
+                  <Route element={<VendorMenuSchedulePage />} path="menu/:itemId/schedule" />
                   <Route element={<VendorOrdersPage />} path="orders" />
                   <Route element={<VendorBadgePickupPage />} path="pickup" />
                   <Route element={<VendorOrderDetailPage />} path="orders/:orderId" />
@@ -100,6 +105,7 @@ export function AppRouter() {
 
           <Route element={<RoleRoute allowedRoles={["admin"]} />}>
             <Route element={<Navigate replace to="/admin/stats" />} path="/admin" />
+            <Route element={<AdminEmployeeReviewPage />} path="/admin/employees" />
             <Route element={<AdminVendorReviewListPage />} path="/admin/vendors" />
             <Route element={<AdminVendorReviewDetailPage />} path="/admin/vendors/:applicationId" />
             <Route element={<AdminPermissionsPage />} path="/admin/permissions" />

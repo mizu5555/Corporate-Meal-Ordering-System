@@ -2,7 +2,7 @@
 # Picked up automatically from /etc/grafana/provisioning/alerting/ at startup.
 # Together with rules.yml (WHEN to fire), this file wires WHERE alerts go.
 #
-# TODO operator: before deploying to the NOL Grafana, replace the placeholder
+# TODO operator: before deploying to the production Grafana, replace the placeholder
 # webhook URL below with the real endpoint (Slack incoming-webhook, Discord
 # webhook relay, email-relay, or any HTTP sink that accepts Grafana webhook
 # payloads).  Set it on the host via environment variable ALERT_WEBHOOK_URL, or
@@ -23,7 +23,7 @@ contactPoints:
       - uid: mealorder-webhook-recv
         type: webhook
         settings:
-          # TODO operator: replace with the real alert webhook URL on the NOL host.
+          # TODO operator: replace with the real alert webhook URL on the deploy host.
           # e.g. https://hooks.slack.com/services/XXX/YYY/ZZZ
           #      https://discord.com/api/webhooks/NNN/TOKEN/slack  (Discord Slack-compat)
           #      http://alert-relay:5001/notify  (custom relay inside preview-net)

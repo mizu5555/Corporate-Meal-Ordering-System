@@ -7,7 +7,8 @@ from datetime import datetime, timezone
 from backend.core.errors import CodedHTTPException
 from backend.core.reporting import get_reporting_repository
 from backend.repositories.audit_log_repository import AuditLogRepository
-from backend.schemas.billing import MonthlyStatement, VendorReceivable
+from backend.repositories.reporting_repository import default_badge_code
+from backend.schemas.billing import EmployeeTotal, MonthlyBillingSummary, MonthlyStatement, VendorReceivable
 from backend.services.notification_service import NotificationService
 from backend.services.payroll_adapter import PayrollAdapter
 
@@ -36,10 +37,32 @@ class BillingService:
         _validate_period(year, month)
         return self.reporting_repository.vendor_monthly_receivables(year, month)
 
+    def vendor_billing(self, vendor_id: int, year: int, month: int) -> MonthlyBillingSummary:
+        row = next((r for r in self.vendor_receivables(year, month) if r.vendor_id == vendor_id), None)
+        return MonthlyBillingSummary(
+            year=year,
+            month=month,
+            amount_cents=row.amount_cents if row is not None else 0,
+            order_count=row.order_count if row is not None else 0,
+        )
+
     def employee_payroll(self, year: int, month: int) -> list[dict]:
         _validate_period(year, month)
         totals = self.reporting_repository.employee_monthly_totals(year, month)
         return self.payroll_adapter.export(year, month, totals)
+
+    def employee_billing(self, employee_id: int, year: int, month: int) -> MonthlyBillingSummary:
+        _validate_period(year, month)
+        row = next(
+            (r for r in self.reporting_repository.employee_monthly_totals(year, month) if r.employee_id == employee_id),
+            None,
+        )
+        return MonthlyBillingSummary(
+            year=year,
+            month=month,
+            amount_cents=row.amount_cents if row is not None else 0,
+            order_count=row.order_count if row is not None else 0,
+        )
 
     def vendor_receivables_csv(self, year: int, month: int) -> str:
         rows = self.vendor_receivables(year, month)
@@ -48,6 +71,17 @@ class BillingService:
         writer.writerow(["vendor_id", "vendor_name", "order_count", "quantity", "amount_cents"])
         for r in rows:
             writer.writerow([r.vendor_id, r.vendor_name, r.order_count, r.quantity, r.amount_cents])
+        return buf.getvalue()
+
+    def employee_payroll_csv(self, year: int, month: int) -> str:
+        _validate_period(year, month)
+        rows: list[EmployeeTotal] = self.reporting_repository.employee_monthly_totals(year, month)
+        period = f"{year:04d}-{month:02d}"
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow(["employee_number", "period", "amount"])
+        for r in rows:
+            writer.writerow([r.badge_code or default_badge_code(r.employee_id), period, r.amount_cents])
         return buf.getvalue()
 
     def generate_statement(
