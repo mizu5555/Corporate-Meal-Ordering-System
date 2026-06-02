@@ -13,6 +13,7 @@ import {
   upsertMenuItemScheduleDate,
 } from "../../api/vendor";
 import { useVendorMenu } from "../../vendor/VendorMenuContext";
+import { toLocalIso } from "../../utils/date";
 import { formatPrice } from "../../utils/format";
 
 const WINDOW_DAYS = 7;
@@ -24,17 +25,13 @@ function addDays(d, n) {
   return r;
 }
 
-function toIso(d) {
-  return d.toISOString().slice(0, 10);
-}
-
 /** Build the 7-day window starting from today. */
 function buildWindow() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   return Array.from({ length: WINDOW_DAYS }, (_, i) => {
     const d = addDays(today, i);
-    return { iso: toIso(d), label: `${d.getMonth() + 1}/${d.getDate()} (${WEEKDAY[d.getDay()]})` };
+    return { iso: toLocalIso(d), label: `${d.getMonth() + 1}/${d.getDate()} (${WEEKDAY[d.getDay()]})` };
   });
 }
 
