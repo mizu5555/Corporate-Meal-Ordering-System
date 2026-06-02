@@ -275,6 +275,43 @@
       ],
       "title": "Backend logs (all) — Loki",
       "type": "logs"
+    },
+    { "type": "row", "id": 104, "title": "Backend — per replica (instance)", "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 57 }, "panels": [] },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "One line per backend replica (instance label). With 2 replicas behind the gateway both lines should carry traffic; killing one drops its line to 0 (failover).",
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "unit": "reqps" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 58 },
+      "id": 40,
+      "options": { "legend": { "calcs": [], "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "single" } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (instance) (rate(http_requests_total{job=\"mealorder-staging\"}[5m]))",
+          "legendFormat": "{{instance}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Staging — request rate per replica",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "One line per backend replica (instance label). With 2 replicas behind the gateway both lines should carry traffic; killing one drops its line to 0 (failover).",
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "unit": "reqps" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 58 },
+      "id": 41,
+      "options": { "legend": { "calcs": [], "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "single" } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (instance) (rate(http_requests_total{job=\"mealorder-prod\"}[5m]))",
+          "legendFormat": "{{instance}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Prod — request rate per replica",
+      "type": "timeseries"
     }
   ],
   "refresh": "30s",
