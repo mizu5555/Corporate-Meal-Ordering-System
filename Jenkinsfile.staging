@@ -16,7 +16,10 @@ pipeline {
     ROOT_PATH              = '/meal-staging'
     BASE_PATH              = '/meal-staging/'
     GATEWAY_CONTAINER_NAME = 'mealorder-staging-gateway'
-    PUBLIC_HEALTH_URL      = "${env.PUBLIC_HEALTH_URL ?: 'https://nol.cs.nycu.edu.tw/meal-staging/health'}"
+    // Public base URL is provided by a Jenkins global env var (configured on the
+    // controller), never hardcoded here — this repo is public.
+    PUBLIC_BASE_URL        = "${env.PUBLIC_BASE_URL ?: ''}"
+    PUBLIC_HEALTH_URL      = "${env.PUBLIC_HEALTH_URL ?: (env.PUBLIC_BASE_URL ? env.PUBLIC_BASE_URL + '/meal-staging/health' : '')}"
   }
 
   stages {
@@ -91,7 +94,7 @@ pipeline {
       steps {
         sh '''
           set -euo pipefail
-          BASE_URL="${BASE_URL:-https://nol.cs.nycu.edu.tw/meal-staging}"
+          BASE_URL="${BASE_URL:-${PUBLIC_BASE_URL}/meal-staging}"
           echo "running k6 vendor-flow against $BASE_URL"
           docker run --rm -i -e BASE_URL="$BASE_URL" -e VUS=3 -e DURATION=20s \
             grafana/k6:latest run --insecure-skip-tls-verify - < load/vendor-flow.js

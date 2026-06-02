@@ -8,6 +8,12 @@ services:
     image: ghcr.io/mizu5555/mealorder-backend:${IMAGE_TAG}
     restart: unless-stopped
     ports: !reset []
+    # Run multiple stateless backend instances behind the gateway's dynamic
+    # upstream (round-robin + health-check failover). See the staging override
+    # and infra/caddy/Caddyfile for the mechanism; safe because the backend is
+    # stateless in DB mode.
+    deploy:
+      replicas: 2
     # See staging override for the rationale: pin Caddy gateway → backend
     # resolution to a single network alias so Docker DNS does not round-robin
     # across the two networks the gateway shares with backend.

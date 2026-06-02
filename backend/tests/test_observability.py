@@ -43,6 +43,15 @@ def test_middleware_generates_request_id_when_absent() -> None:
     assert len(rid) == 32  # uuid4().hex length
 
 
+def test_middleware_exposes_served_by_header() -> None:
+    """X-Served-By identifies the serving instance (used for the LB/failover demo)."""
+    import socket
+
+    client = TestClient(app)
+    r = client.get("/health")
+    assert r.headers.get("X-Served-By") == socket.gethostname()
+
+
 def test_middleware_honours_inbound_request_id() -> None:
     client = TestClient(app)
     r = client.get("/health", headers={"X-Request-ID": "trace-abc-123"})

@@ -4,6 +4,8 @@ from __future__ import annotations
 import random
 from datetime import date, timedelta
 
+from backend.core.cache import TTLCache
+from backend.core.config import settings
 from backend.core.errors import CodedHTTPException
 from backend.core.reporting import get_reporting_repository
 from backend.core.order_failure_codes import ITEM_UNAVAILABLE, QUOTA_EXHAUSTED
@@ -31,6 +33,13 @@ from backend.schemas.vendor_self import Facility, MenuItem as VendorMenuItem
 MEAL_DATE_WINDOW_DAYS = 7
 ORDER_HISTORY_PAST_DAYS = 30
 
+# 核准商家清單是典型「讀多寫少」：員工每次瀏覽都讀、但商家核准/改檔很少見。
+# 用 module-level 的 process 內 TTL 快取擋掉這個高頻 DB 查詢。30 秒過期窗口內，
+# 新核准的商家最多延遲 30 秒才出現（每個 replica 各自一份快取），可接受。
+_APPROVED_VENDORS_TTL_SECONDS = 30.0
+_approved_vendors_cache = TTLCache(_APPROVED_VENDORS_TTL_SECONDS)
+_APPROVED_VENDORS_CACHE_KEY = "approved"
+
 
 class EmployeeOrderingService:
     def __init__(
@@ -52,10 +61,24 @@ class EmployeeOrderingService:
         employee_id: int | None = None,
         facility_id: int | None = None,
     ) -> list[EmployeeVendor]:
-        vendors = [self._vendor_to_schema(vendor) for vendor in self.vendor_repository.list(status="approved")]
+        vendors = [self._vendor_to_schema(vendor) for vendor in self._approved_vendor_records()]
         if employee_id is None:
             return vendors
         return self._filter_vendors_by_facility(vendors, employee_id, facility_id=facility_id)
+
+    def _approved_vendor_records(self) -> list[VendorRecord]:
+        """取得核准商家清單（DB 模式才走快取）。
+
+        只有在 DB 模式（`settings.database_url` 有設）時才快取——這跟 repository
+        的切換條件一致。測試用 in-memory fake repo（無 DATABASE_URL），直接讀以
+        保持 read-your-writes，避免快取造成測試間互相污染。
+        """
+        if not settings.database_url:
+            return self.vendor_repository.list(status="approved")
+        return _approved_vendors_cache.get_or_set(
+            _APPROVED_VENDORS_CACHE_KEY,
+            lambda: self.vendor_repository.list(status="approved"),
+        )
 
     def get_vendor(
         self,

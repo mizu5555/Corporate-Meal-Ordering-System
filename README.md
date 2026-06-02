@@ -64,6 +64,7 @@ project-root/
 ├── .github/workflows/        # GitHub Actions (CI + image publish)
 ├── docker-compose.yml        # base stack
 ├── docker-compose.dev.yml    # local hot-reload overlay
+├── docker-compose.scale.yml  # local multi-replica overlay
 ├── .env.example
 ├── requirements.txt
 └── README.md
