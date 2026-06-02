@@ -43,10 +43,11 @@ const GRID_COLS = "1fr 200px 110px 110px 200px";
 // ── Inline facility editor ────────────────────────────────────────────────────
 
 function FacilityEditor({ employeeId, allFacilities, onClose }) {
-  const [selectedId, setSelectedId] = useState("");   // "" = 不限廠區
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(false);
+  const [checkedIds, setCheckedIds] = useState(new Set());
+  const [loading, setLoading]       = useState(true);
+  const [saving, setSaving]         = useState(false);
+  const [error, setError]           = useState(null);
+  const [success, setSuccess]       = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -54,23 +55,33 @@ function FacilityEditor({ employeeId, allFacilities, onClose }) {
     setError(null);
     setSuccess(false);
     getEmployeeFacilities(employeeId)
-      .then((data) => { if (active) setSelectedId(data[0]?.id ?? ""); })
+      .then((data) => { if (active) setCheckedIds(new Set(data.map((f) => f.id))); })
       .catch(() => { if (active) setError("無法載入廠區指派"); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [employeeId]);
 
+  function toggleFacility(id) {
+    setCheckedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+    setSuccess(false);
+  }
+
   async function handleSave() {
-    setLoading(true);
+    setSaving(true);
     setError(null);
     setSuccess(false);
     try {
-      await setEmployeeFacilities(employeeId, selectedId ? [Number(selectedId)] : []);
+      await setEmployeeFacilities(employeeId, Array.from(checkedIds));
       setSuccess(true);
     } catch {
       setError("儲存失敗，請稍後再試");
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   }
 
@@ -88,39 +99,41 @@ function FacilityEditor({ employeeId, allFacilities, onClose }) {
       {loading && <p style={{ margin: 0, fontSize: 13, color: "var(--muted)" }}>載入中…</p>}
 
       {!loading && (
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <select
-            value={selectedId}
-            onChange={(e) => { setSelectedId(e.target.value); setSuccess(false); }}
-            style={{
-              padding: "6px 12px",
-              borderRadius: "var(--radius-md)",
-              border: "1px solid var(--line)",
-              background: "var(--surface-strong)",
-              fontSize: 13,
-              cursor: "pointer",
-              minWidth: 200,
-            }}
-          >
-            <option value="">— 不限廠區 —</option>
-            {allFacilities.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.code}　{f.name}
-              </option>
-            ))}
-          </select>
-          <button type="button" onClick={handleSave} disabled={loading} style={btnStyle("approve")}>
-            儲存
-          </button>
-          <button type="button" onClick={onClose} style={btnStyle()}>
-            關閉
-          </button>
-          {success && (
-            <span style={{ fontSize: 13, color: "var(--success)", fontWeight: 600 }}>✓ 已儲存</span>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {allFacilities.length === 0 ? (
+            <p style={{ margin: 0, fontSize: 13, color: "var(--muted)" }}>尚無廠區可指派</p>
+          ) : (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px 24px" }}>
+              {allFacilities.map((f) => (
+                <label
+                  key={f.id}
+                  style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 13 }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checkedIds.has(f.id)}
+                    onChange={() => toggleFacility(f.id)}
+                  />
+                  <span>{f.code}　{f.name}</span>
+                </label>
+              ))}
+            </div>
           )}
-          {error && (
-            <span style={{ fontSize: 13, color: "var(--brand)" }}>{error}</span>
-          )}
+          <p style={{ margin: 0, fontSize: 12, color: "var(--muted)" }}>空選表示不限廠區</p>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <button type="button" onClick={handleSave} disabled={saving} style={btnStyle("approve")}>
+              {saving ? "儲存中…" : "儲存"}
+            </button>
+            <button type="button" onClick={onClose} style={btnStyle()}>
+              關閉
+            </button>
+            {success && (
+              <span style={{ fontSize: 13, color: "var(--success)", fontWeight: 600 }}>✓ 已儲存</span>
+            )}
+            {error && (
+              <span style={{ fontSize: 13, color: "var(--brand)" }}>{error}</span>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -130,22 +143,22 @@ function FacilityEditor({ employeeId, allFacilities, onClose }) {
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function AdminEmployeeReviewPage() {
-  const [tab, setTab]             = useState(0);   // 0 = 待審核, 1 = 已啟用
+  const [tab, setTab] = useState(0);   // 0 = 待審核, 1 = 已啟用
   const [employees, setEmployees] = useState([]);
-  const [loading, setLoading]     = useState(true);
-  const [error, setError]         = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [actionError, setActionError] = useState(null);
-  const [busy, setBusy]           = useState(null);  // user_id of in-flight action
+  const [busy, setBusy] = useState(null);  // user_id of in-flight action
 
   // Facility editor state
-  const [allFacilities, setAllFacilities]   = useState([]);
-  const [expandedEmpId, setExpandedEmpId]   = useState(null);
+  const [allFacilities, setAllFacilities] = useState([]);
+  const [expandedEmpId, setExpandedEmpId] = useState(null);
 
   const isActive = TABS[tab].is_active;
 
   // Load facilities once
   useEffect(() => {
-    getFacilities().then(setAllFacilities).catch(() => {});
+    getFacilities().then(setAllFacilities).catch(() => { });
   }, []);
 
   useEffect(() => {
@@ -196,7 +209,7 @@ export default function AdminEmployeeReviewPage() {
     <div>
       <div className="page-header">
         <p className="eyebrow">Admin · Employee Review</p>
-        <h2>員工帳號審核</h2>
+        <h2>員工帳號審核與廠區設定</h2>
       </div>
 
       <div className="filter-bar" style={{ marginBottom: 20 }}>
@@ -217,7 +230,7 @@ export default function AdminEmployeeReviewPage() {
       )}
 
       {loading && <p className="loading-state">載入中...</p>}
-      {error   && <p className="error-state">{error}</p>}
+      {error && <p className="error-state">{error}</p>}
 
       {!loading && !error && employees.length === 0 && (
         <p className="empty-state">
