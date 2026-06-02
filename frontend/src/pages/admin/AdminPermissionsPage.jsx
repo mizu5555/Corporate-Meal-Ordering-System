@@ -215,18 +215,12 @@ export default function AdminPermissionsPage() {
               <div />
               <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
                 {!isSelf(u.id) && u.is_active && (
-                  <button
-                    onClick={() => handleDisable(u.id, u.email)}
-                    style={btnStyle("secondary")}
-                  >
+                  <button onClick={() => handleDisable(u.id, u.email)} style={btnStyle("secondary")}>
                     停用
                   </button>
                 )}
                 {!isSelf(u.id) && !u.is_active && (
-                  <button
-                    onClick={() => handleEnable(u.id)}
-                    style={btnStyle("enable")}
-                  >
+                  <button onClick={() => handleEnable(u.id)} style={btnStyle("enable")}>
                     啟用
                   </button>
                 )}
@@ -236,10 +230,7 @@ export default function AdminPermissionsPage() {
                   </span>
                 )}
                 {!isSelf(u.id) && (
-                  <button
-                    onClick={() => handleDelete(u.id, u.email)}
-                    style={btnStyle("danger")}
-                  >
+                  <button onClick={() => handleDelete(u.id, u.email)} style={btnStyle("danger")}>
                     刪除
                   </button>
                 )}

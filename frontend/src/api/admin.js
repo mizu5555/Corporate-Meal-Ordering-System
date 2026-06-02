@@ -82,6 +82,18 @@ export function setVendorFacilities(vendorId, facilityIds) {
   });
 }
 
+export function getEmployeeFacilities(employeeId) {
+  return apiFetch(`/admin/employees/${employeeId}/facilities`);
+}
+
+export function setEmployeeFacilities(employeeId, facilityIds) {
+  return apiFetch(`/admin/employees/${employeeId}/facilities`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ facility_ids: facilityIds }),
+  });
+}
+
 export function getVendorRecommendationLimit(vendorId) {
   return apiFetch(`/admin/vendors/${vendorId}/recommendation-limit`);
 }

@@ -1,6 +1,8 @@
 """Route tests for GET/POST /admin/facilities and GET/PUT /admin/vendors/{id}/facilities."""
 from __future__ import annotations
 
+from unittest.mock import MagicMock, patch
+
 from fastapi.testclient import TestClient
 
 from backend.core.facilities import get_facility_repository
@@ -247,4 +249,124 @@ def test_put_vendor_recommendation_limit_employee_forbidden() -> None:
         headers=_EMPLOYEE_HEADERS,
     )
 
+    assert r.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# Helper — mock the DB check in _assert_employee_exists
+# ---------------------------------------------------------------------------
+
+
+def _employee_conn(exists: bool = True, employee_id: int = 42) -> MagicMock:
+    """Context-manager mock for get_connection() used in _assert_employee_exists."""
+    result = MagicMock()
+    result.fetchone.return_value = {"id": employee_id} if exists else None
+    conn = MagicMock()
+    conn.execute.return_value = result
+    ctx = MagicMock()
+    ctx.__enter__ = MagicMock(return_value=conn)
+    ctx.__exit__ = MagicMock(return_value=False)
+    return ctx
+
+
+# ---------------------------------------------------------------------------
+# GET /admin/employees/{employee_id}/facilities
+# ---------------------------------------------------------------------------
+
+
+def test_get_employee_facilities_employee_role_forbidden() -> None:
+    _override_facility_repo(FacilityRepository())
+    r = client.get("/admin/employees/42/facilities", headers=_EMPLOYEE_HEADERS)
+    assert r.status_code == 403
+
+
+def test_get_employee_facilities_empty() -> None:
+    _override_facility_repo(FacilityRepository())
+    with patch("backend.routes.admin_facilities.get_connection", return_value=_employee_conn()):
+        r = client.get("/admin/employees/42/facilities", headers=_ADMIN_HEADERS)
+    assert r.status_code == 200
+    assert r.json() == []
+
+
+def test_get_employee_facilities_returns_assigned() -> None:
+    repo = FacilityRepository()
+    f = repo.create_facility("E01", "Employee Fab 1")
+    repo.set_employee_facilities(42, [f.id])
+    _override_facility_repo(repo)
+    with patch("backend.routes.admin_facilities.get_connection", return_value=_employee_conn()):
+        r = client.get("/admin/employees/42/facilities", headers=_ADMIN_HEADERS)
+    assert r.status_code == 200
+    assert r.json()[0]["code"] == "E01"
+
+
+def test_get_employee_facilities_missing_employee_404() -> None:
+    _override_facility_repo(FacilityRepository())
+    with patch("backend.routes.admin_facilities.get_connection", return_value=_employee_conn(exists=False)):
+        r = client.get("/admin/employees/999/facilities", headers=_ADMIN_HEADERS)
+    assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# PUT /admin/employees/{employee_id}/facilities
+# ---------------------------------------------------------------------------
+
+
+def test_put_employee_facilities_assigns_correctly() -> None:
+    repo = FacilityRepository()
+    f = repo.create_facility("E01", "Employee Fab 1")
+    _override_facility_repo(repo)
+    with patch("backend.routes.admin_facilities.get_connection", return_value=_employee_conn()):
+        r = client.put(
+            "/admin/employees/42/facilities",
+            json={"facility_ids": [f.id]},
+            headers=_ADMIN_HEADERS,
+        )
+    assert r.status_code == 200
+    assert r.json()[0]["code"] == "E01"
+
+
+def test_put_employee_facilities_empty_clears_assignment() -> None:
+    repo = FacilityRepository()
+    f = repo.create_facility("E01", "Employee Fab 1")
+    repo.set_employee_facilities(42, [f.id])
+    _override_facility_repo(repo)
+    with patch("backend.routes.admin_facilities.get_connection", return_value=_employee_conn()):
+        r = client.put(
+            "/admin/employees/42/facilities",
+            json={"facility_ids": []},
+            headers=_ADMIN_HEADERS,
+        )
+    assert r.status_code == 200
+    assert r.json() == []
+
+
+def test_put_employee_facilities_nonexistent_facility_404() -> None:
+    _override_facility_repo(FacilityRepository())
+    with patch("backend.routes.admin_facilities.get_connection", return_value=_employee_conn()):
+        r = client.put(
+            "/admin/employees/42/facilities",
+            json={"facility_ids": [9999]},
+            headers=_ADMIN_HEADERS,
+        )
+    assert r.status_code == 404
+
+
+def test_put_employee_facilities_missing_employee_404() -> None:
+    _override_facility_repo(FacilityRepository())
+    with patch("backend.routes.admin_facilities.get_connection", return_value=_employee_conn(exists=False)):
+        r = client.put(
+            "/admin/employees/42/facilities",
+            json={"facility_ids": []},
+            headers=_ADMIN_HEADERS,
+        )
+    assert r.status_code == 404
+
+
+def test_put_employee_facilities_employee_role_forbidden() -> None:
+    _override_facility_repo(FacilityRepository())
+    r = client.put(
+        "/admin/employees/42/facilities",
+        json={"facility_ids": []},
+        headers=_EMPLOYEE_HEADERS,
+    )
     assert r.status_code == 403
