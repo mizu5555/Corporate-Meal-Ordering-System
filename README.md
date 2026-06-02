@@ -112,26 +112,6 @@ ask you to trust it the first time.
    npm run dev
    ```
 
-## Compose Overlays
-
-The base `docker-compose.yml` defines the four services (backend, frontend, db,
-gateway); each environment layers exactly one overlay on top with
-`-f docker-compose.yml -f <overlay>`.
-
-| Overlay | Purpose | How to run |
-| --- | --- | --- |
-| `docker-compose.dev.yml` | Local dev: hot reload + source bind-mount | `docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build` |
-| `docker-compose.scale.yml` | Local multi-replica check: gateway load balancing + failover | `docker compose -f docker-compose.yml -f docker-compose.scale.yml up --build` (scale further with `--scale backend=3`) |
-| `infra/deploy/docker-compose.preview.yml` | Per-PR ephemeral preview stack | Driven by CI/CD (see below) |
-| `infra/deploy/docker-compose.staging.yml` | Staging — runs 2 backend replicas | Driven by CI/CD (see below) |
-| `infra/deploy/docker-compose.prod.yml` | Production — runs 2 backend replicas | Driven by CI/CD (see below) |
-
-Staging and production run multiple stateless backend replicas behind the Caddy
-gateway, which round-robins across them and fails over on health check. The
-`X-Served-By` response header reports which replica handled a request — handy for
-confirming load balancing. Host-specific deployment is driven by Jenkins and kept
-in a private ops runbook (see [CI/CD & Deployment](#cicd--deployment)).
-
 ## Services
 
 - HTTPS gateway: https://localhost
