@@ -8,6 +8,13 @@ services:
     image: ghcr.io/mizu5555/mealorder-backend:${IMAGE_TAG}
     restart: unless-stopped
     ports: !reset []
+    # Run multiple stateless backend instances. All replicas share the `api`
+    # alias on the default network, so Docker DNS returns every replica's IP and
+    # the gateway's dynamic upstream (see infra/caddy/Caddyfile) round-robins
+    # across them with health-check failover. Safe because the backend is
+    # stateless in DB mode (state lives in Postgres; uploads on a shared volume).
+    deploy:
+      replicas: 2
     # Per-network aliases pin the Caddy gateway's upstream resolution. `backend`
     # remains reachable as `backend` on grafana_default (Prometheus scrape) and
     # `api` on default (gateway reverse_proxy). The gateway sits on default +
