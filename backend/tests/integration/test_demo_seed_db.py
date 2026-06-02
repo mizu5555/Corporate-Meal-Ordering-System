@@ -111,6 +111,32 @@ def test_demo_seed_handles_existing_badge_collisions(monkeypatch):
     conn = connect(os.environ["DATABASE_URL"], row_factory=dict_row, autocommit=True)
     cur = conn.cursor()
 
+    # First apply ensures the demo users exist. Then simulate the class of bug we
+    # care about: the badge sequence lags behind while a real employee has
+    # already claimed the next code. On the second apply the seed must resync
+    # the sequence before minting replacement demo badges.
+    seed.run_demo_seed()
+
+    cur.execute(
+        """
+        UPDATE users
+        SET badge_code = NULL
+        WHERE email IN ('demo.pending.emp1@corpmeal.local', 'demo.pending.emp2@corpmeal.local')
+        """
+    )
+
+    cur.execute(
+        """
+        SELECT COALESCE(MAX(CAST(SUBSTRING(badge_code FROM 'EMP-([0-9]+)$') AS INTEGER)), 0) AS max_badge
+        FROM users
+        WHERE badge_code ~ '^EMP-[0-9]+$'
+        """
+    )
+    previous_max = cur.fetchone()["max_badge"]
+    collision_num = previous_max + 1
+    collision_code = f"EMP-{collision_num:04d}"
+
+    cur.execute("DELETE FROM users WHERE email = 'collision.employee@corpmeal.local'")
     cur.execute(
         """
         INSERT INTO users (email, display_name, role_id, password_hash, badge_code, is_active)
@@ -119,13 +145,18 @@ def test_demo_seed_handles_existing_badge_collisions(monkeypatch):
             'Collision Employee',
             (SELECT id FROM roles WHERE name = 'employee'),
             %s,
-            'EMP-0005',
+            %s,
             TRUE
         )
         ON CONFLICT (email) DO NOTHING
         """,
-        ('$2b$12$V92j2Sanc/Ie9L.w1HsXh.Go4a4oDKcq1sovHfObRIsOJ.5F/hxhG',),
+        (
+            '$2b$12$V92j2Sanc/Ie9L.w1HsXh.Go4a4oDKcq1sovHfObRIsOJ.5F/hxhG',
+            collision_code,
+        ),
     )
+
+    cur.execute("SELECT setval('employee_badge_seq', %s)", (previous_max,))
 
     seed.run_demo_seed()
 
@@ -134,21 +165,19 @@ def test_demo_seed_handles_existing_badge_collisions(monkeypatch):
         SELECT email, badge_code
         FROM users
         WHERE email IN (
-            'demo.employee1@corpmeal.local',
-            'demo.employee2@corpmeal.local',
-            'demo.employee3@corpmeal.local',
             'demo.pending.emp1@corpmeal.local',
             'demo.pending.emp2@corpmeal.local'
         )
         ORDER BY email
         """
     )
-    demo_users = cur.fetchall()
-    badge_codes = [row["badge_code"] for row in demo_users]
+    pending_demo_users = cur.fetchall()
+    badge_codes = [row["badge_code"] for row in pending_demo_users]
 
-    assert len(demo_users) == 5
+    assert len(pending_demo_users) == 2
     assert all(code is not None for code in badge_codes)
-    assert len(set(badge_codes)) == 5
-    assert "EMP-0005" not in badge_codes
+    assert len(set(badge_codes)) == 2
+    assert collision_code not in badge_codes
 
+    cur.execute("DELETE FROM users WHERE email = 'collision.employee@corpmeal.local'")
     conn.close()
