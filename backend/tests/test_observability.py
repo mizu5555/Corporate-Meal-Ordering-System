@@ -145,6 +145,22 @@ def test_middleware_access_log_warns_on_4xx() -> None:
     assert cap.records[0].levelno == logging.WARNING
 
 
+def test_middleware_access_log_errors_on_5xx() -> None:
+    from starlette.responses import Response as StarletteResponse
+
+    cap, lg = _capture_access_logs()
+    _add_temp_route("/_obs_test/boom", lambda: StarletteResponse(status_code=503))
+    try:
+        TestClient(app).get("/_obs_test/boom")
+    finally:
+        _drop_temp_route("/_obs_test/boom")
+        lg.removeHandler(cap)
+
+    assert len(cap.records) == 1
+    assert cap.records[0].status_code == 503
+    assert cap.records[0].levelno == logging.ERROR
+
+
 # ---------------------------------------------------------------------------
 # JsonFormatter
 # ---------------------------------------------------------------------------
