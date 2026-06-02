@@ -31,6 +31,7 @@ import logging
 import logging.handlers
 import os
 import socket
+import time
 import uuid
 from contextvars import ContextVar
 from queue import Queue
@@ -45,6 +46,16 @@ from starlette.responses import Response
 _request_id_ctx: ContextVar[str] = ContextVar("request_id", default="-")
 
 _LOGGING_CONFIGURED = False
+
+# One compact access-log line per request flows to Loki via the root logger.
+# Without it the backend emits almost nothing at runtime (uvicorn's own access
+# logs use `uvicorn.access`, which does not propagate to root), so Grafana
+# Explore stays empty. See issue #183.
+_access_logger = logging.getLogger("backend.request")
+
+# Scrape/health endpoints are hit every 15-30s per replica; logging them would
+# bury real traffic and bloat Loki. Excluded from the per-request access log.
+_ACCESS_LOG_SKIP_PATHS = frozenset({"/health", "/metrics"})
 
 # Container hostname (Docker sets it to the container id). Resolved once at
 # import. Exposed per-response as `X-Served-By` so that when the backend runs
@@ -137,13 +148,38 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
         incoming = request.headers.get("x-request-id")
         request_id = incoming if incoming else uuid.uuid4().hex
         token = _request_id_ctx.set(request_id)
+        start = time.perf_counter()
         try:
             response = await call_next(request)
+            # Emit inside the context so RequestIDFilter tags the line with this
+            # request's id. Skip scrape/health noise.
+            if request.url.path not in _ACCESS_LOG_SKIP_PATHS:
+                self._log_access(request, response.status_code, start)
         finally:
             _request_id_ctx.reset(token)
         response.headers["X-Request-ID"] = request_id
         response.headers["X-Served-By"] = _SERVED_BY
         return response
+
+    @staticmethod
+    def _log_access(request: Request, status_code: int, start: float) -> None:
+        """One compact JSON access line per request (fields in body, not labels)."""
+        if status_code >= 500:
+            level = logging.ERROR
+        elif status_code >= 400:
+            level = logging.WARNING
+        else:
+            level = logging.INFO
+        _access_logger.log(
+            level,
+            "request",
+            extra={
+                "method": request.method,
+                "path": request.url.path,
+                "status_code": status_code,
+                "duration_ms": round((time.perf_counter() - start) * 1000, 2),
+            },
+        )
 
 
 def _build_loki_handler(
