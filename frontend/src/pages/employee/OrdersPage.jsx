@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { deleteMyOrder, getMyBilling, updateMyOrder } from "../../api/employee";
+import { useFacility } from "../../facility/FacilityContext";
 import FacilityScopeLabel from "../../facility/FacilityScopeLabel";
 import { useMyOrders } from "../../hooks/useMyOrders";
+import { useVendors } from "../../hooks/useVendors";
 import { formatMoney, formatPrice } from "../../utils/format";
 import { datesWithoutOrders, getDefaultOrderHistoryRange, getFutureMealDates } from "../../utils/orderHistoryRange";
 
@@ -15,6 +17,15 @@ const STATUS_LABELS = {
   cancelled: "已取消",
 };
 
+const STATUS_BADGE = {
+  pending: "badge-status-pending",
+  confirmed: "badge-status-confirmed",
+  preparing: "badge-status-preparing",
+  ready: "badge-status-ready",
+  delivered: "badge-status-delivered",
+  cancelled: "badge-status-cancelled",
+};
+
 function formatDate(isoString) {
   const d = new Date(isoString);
   return d.toLocaleString("zh-TW", {
@@ -22,6 +33,17 @@ function formatDate(isoString) {
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+  });
+}
+
+function formatMealDateLabel(mealDate) {
+  if (!mealDate) return "未指定用餐日";
+  const d = new Date(`${mealDate}T00:00:00`);
+  return d.toLocaleDateString("zh-TW", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    weekday: "short",
   });
 }
 
@@ -49,9 +71,11 @@ function currentPeriod() {
 
 export default function OrdersPage() {
   const navigate = useNavigate();
+  const { selectedFacilityId } = useFacility();
   const orderRange = useMemo(() => getDefaultOrderHistoryRange(), []);
   const futureMealDates = useMemo(() => getFutureMealDates(), []);
   const { orders, setOrders, loading, error } = useMyOrders(orderRange);
+  const { vendors } = useVendors({ facilityId: selectedFacilityId });
   const [billing, setBilling] = useState(null);
   const [billingError, setBillingError] = useState(false);
   const [editingOrderId, setEditingOrderId] = useState(null);
@@ -59,7 +83,37 @@ export default function OrdersPage() {
   const [busyOrderId, setBusyOrderId] = useState(null);
   const [actionError, setActionError] = useState(null);
 
-  const visibleOrders = orders.filter((order) => order.status !== "cancelled");
+  const visibleOrders = useMemo(
+    () => orders.filter((order) => order.status !== "cancelled"),
+    [orders],
+  );
+  const vendorNamesById = useMemo(
+    () => new Map(vendors.map((vendor) => [vendor.id, vendor.name])),
+    [vendors],
+  );
+  const groupedVisibleOrders = useMemo(() => {
+    const groups = new Map();
+
+    for (const order of visibleOrders) {
+      const key = order.meal_date ?? "unscheduled";
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(order);
+    }
+
+    return Array.from(groups.entries())
+      .sort(([a], [b]) => {
+        if (a === "unscheduled") return 1;
+        if (b === "unscheduled") return -1;
+        return b.localeCompare(a);
+      })
+      .map(([mealDate, entries]) => ({
+        mealDate,
+        label: formatMealDateLabel(mealDate === "unscheduled" ? null : mealDate),
+        orders: [...entries].sort(
+          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+        ),
+      }));
+  }, [visibleOrders]);
   const missingFutureOrderDates = datesWithoutOrders(orders, futureMealDates);
 
   useEffect(() => {
@@ -127,7 +181,7 @@ export default function OrdersPage() {
     <div>
       <div className="page-header">
         <FacilityScopeLabel label="Current facility" />
-        <p className="eyebrow">Employee · Orders</p>
+        <p className="eyebrow">Employee · My Orders</p>
         <h2>我的訂單</h2>
       </div>
 
@@ -172,153 +226,163 @@ export default function OrdersPage() {
       )}
 
       {!loading && !error && visibleOrders.length > 0 && (
-        <div className="panel" style={{ padding: 0, overflow: "hidden" }}>
-          {visibleOrders.map((order, idx) => {
-            const isEditing = editingOrderId === order.id;
-            const canEdit = order.status === "pending";
-            const total = isEditing
-              ? order.items.reduce(
-                  (sum, item) => sum + item.unit_price_cents * (draftQuantities[item.id] ?? item.quantity),
-                  0,
-                )
-              : order.total_price_cents;
-
-            return (
-              <div
-                key={order.id}
-                style={{
-                  display: "grid",
-                  gap: 14,
-                  padding: "18px 20px",
-                  borderBottom: idx < visibleOrders.length - 1 ? "1px solid var(--line)" : "none",
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
-                  <div>
-                    <p style={{ fontWeight: 700, margin: 0 }}>訂單 #{order.id}</p>
-                    <p style={{ color: "var(--muted)", fontSize: 13, margin: "4px 0 0" }}>
-                      {order.meal_date ? `用餐日 ${order.meal_date}` : formatDate(order.created_at)}
-                    </p>
-                    {order.pickup_code && (
-                      <p style={{ margin: "4px 0 0", fontSize: 13, fontWeight: 700 }}>
-                        取餐碼 {order.pickup_code}
-                      </p>
-                    )}
-                  </div>
-                  <div style={{ textAlign: "right" }}>
-                    <p style={{ fontWeight: 800, margin: 0 }}>{formatMoney(total)}</p>
-                    <p style={{ color: "var(--muted)", fontSize: 13, margin: "4px 0 0" }}>
-                      {STATUS_LABELS[order.status] ?? order.status}
-                    </p>
-                    {order.status === "ready" && (
-                      <span className="badge badge-available" style={{ marginTop: 6 }}>
-                        可領餐
-                      </span>
-                    )}
-                  </div>
+        <div className="orders-date-groups">
+          {groupedVisibleOrders.map((group) => (
+            <section className="panel orders-date-group" key={group.mealDate}>
+              <div className="orders-date-header">
+                <div>
+                  <p className="eyebrow">Meal Date</p>
+                  <h3 style={{ margin: "6px 0 0" }}>{group.label}</h3>
                 </div>
+                <span className="badge badge-quota">{group.orders.length} 筆訂單</span>
+              </div>
 
-                <div style={{ display: "grid", gap: 10 }}>
-                  {order.items.map((item) => (
+              <div className="orders-date-list">
+                {group.orders.map((order, idx) => {
+                  const isEditing = editingOrderId === order.id;
+                  const canEdit = order.status === "pending";
+                  const total = isEditing
+                    ? order.items.reduce(
+                      (sum, item) => sum + item.unit_price_cents * (draftQuantities[item.id] ?? item.quantity),
+                      0,
+                    )
+                    : order.total_price_cents;
+
+                  return (
                     <div
-                      key={item.id}
+                      key={order.id}
+                      className="employee-order-card"
                       style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: 12,
+                        borderBottom: idx < group.orders.length - 1 ? "1px solid var(--line)" : "none",
                       }}
                     >
-                      <div>
-                        <p style={{ fontWeight: 600, margin: 0 }}>{item.item_name}</p>
-                        <p style={{ color: "var(--muted)", fontSize: 13, margin: "2px 0 0" }}>
-                          {formatPrice(item.unit_price_cents)} / 份
-                        </p>
-                      </div>
-                      {isEditing ? (
-                        <div className="quantity-stepper" style={{ marginRight: 0 }}>
-                          <button
-                            className="stepper-btn"
-                            type="button"
-                            aria-label="減少數量"
-                            onClick={() => updateDraft(item.id, (draftQuantities[item.id] ?? item.quantity) - 1)}
-                            disabled={(draftQuantities[item.id] ?? item.quantity) <= 1 || busyOrderId === order.id}
-                          >
-                            -
-                          </button>
-                          <span className="stepper-value">{draftQuantities[item.id] ?? item.quantity}</span>
-                          <button
-                            className="stepper-btn"
-                            type="button"
-                            aria-label="增加數量"
-                            onClick={() => updateDraft(item.id, (draftQuantities[item.id] ?? item.quantity) + 1)}
-                            disabled={busyOrderId === order.id}
-                          >
-                            +
-                          </button>
+                      <div className="employee-order-top">
+                        <div className="employee-order-heading">
+                          <p className="employee-order-vendor">
+                            {vendorNamesById.get(order.vendor_id) ?? `餐廳 #${order.vendor_id}`}
+                          </p>
+                          <div className="employee-order-meta">
+                            <span>訂單 #{order.id}</span>
+                            <span>建立時間 {formatDate(order.created_at)}</span>
+                          </div>
+                          {order.pickup_code && (
+                            <p className="employee-order-pickup">
+                              取餐碼 {order.pickup_code}
+                            </p>
+                          )}
                         </div>
-                      ) : (
-                        <p style={{ color: "var(--muted)", fontSize: 14, margin: 0 }}>
-                          x {item.quantity}
-                        </p>
+                        <div className="employee-order-summary">
+                          <p style={{ fontWeight: 800, margin: 0 }}>{formatMoney(total)}</p>
+                          <span className={`badge ${STATUS_BADGE[order.status] ?? "badge-status-confirmed"}`}>
+                            {STATUS_LABELS[order.status] ?? order.status}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div style={{ display: "grid", gap: 10 }}>
+                        {order.items.map((item) => (
+                          <div
+                            key={item.id}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              gap: 12,
+                            }}
+                          >
+                            <div>
+                              <p style={{ fontWeight: 600, margin: 0 }}>{item.item_name}</p>
+                              <p style={{ color: "var(--muted)", fontSize: 13, margin: "2px 0 0" }}>
+                                {formatPrice(item.unit_price_cents)} / 份
+                              </p>
+                            </div>
+                            {isEditing ? (
+                              <div className="quantity-stepper" style={{ marginRight: 0 }}>
+                                <button
+                                  className="stepper-btn"
+                                  type="button"
+                                  aria-label="減少數量"
+                                  onClick={() => updateDraft(item.id, (draftQuantities[item.id] ?? item.quantity) - 1)}
+                                  disabled={(draftQuantities[item.id] ?? item.quantity) <= 1 || busyOrderId === order.id}
+                                >
+                                  -
+                                </button>
+                                <span className="stepper-value">{draftQuantities[item.id] ?? item.quantity}</span>
+                                <button
+                                  className="stepper-btn"
+                                  type="button"
+                                  aria-label="增加數量"
+                                  onClick={() => updateDraft(item.id, (draftQuantities[item.id] ?? item.quantity) + 1)}
+                                  disabled={busyOrderId === order.id}
+                                >
+                                  +
+                                </button>
+                              </div>
+                            ) : (
+                              <p style={{ color: "var(--muted)", fontSize: 14, margin: 0 }}>
+                                x {item.quantity}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+
+                      {canEdit && (
+                        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, flexWrap: "wrap" }}>
+                          {isEditing ? (
+                            <>
+                              <button
+                                className="ghost-button"
+                                type="button"
+                                onClick={() => setEditingOrderId(null)}
+                                disabled={busyOrderId === order.id}
+                                style={{ color: "var(--text)", borderColor: "var(--line)", background: "var(--surface)" }}
+                              >
+                                取消
+                              </button>
+                              <button
+                                className="primary-button"
+                                type="button"
+                                onClick={() => saveOrder(order)}
+                                disabled={busyOrderId === order.id}
+                              >
+                                {busyOrderId === order.id ? "儲存中..." : "儲存修改"}
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                className="ghost-button"
+                                type="button"
+                                onClick={() => startEditing(order)}
+                                disabled={busyOrderId === order.id}
+                                style={{ color: "var(--text)", borderColor: "var(--line)", background: "var(--surface)" }}
+                              >
+                                編輯
+                              </button>
+                              <button
+                                className="ghost-button"
+                                type="button"
+                                onClick={() => removeOrder(order)}
+                                disabled={busyOrderId === order.id}
+                                style={{
+                                  color: "var(--brand-deep)",
+                                  borderColor: "rgba(200, 92, 44, 0.28)",
+                                  background: "rgba(200, 92, 44, 0.08)",
+                                }}
+                              >
+                                {busyOrderId === order.id ? "刪除中..." : "刪除"}
+                              </button>
+                            </>
+                          )}
+                        </div>
                       )}
                     </div>
-                  ))}
-                </div>
-
-                {canEdit && (
-                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, flexWrap: "wrap" }}>
-                    {isEditing ? (
-                      <>
-                        <button
-                          className="ghost-button"
-                          type="button"
-                          onClick={() => setEditingOrderId(null)}
-                          disabled={busyOrderId === order.id}
-                          style={{ color: "var(--text)", borderColor: "var(--line)", background: "var(--surface)" }}
-                        >
-                          取消
-                        </button>
-                        <button
-                          className="primary-button"
-                          type="button"
-                          onClick={() => saveOrder(order)}
-                          disabled={busyOrderId === order.id}
-                        >
-                          {busyOrderId === order.id ? "儲存中..." : "儲存修改"}
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          className="ghost-button"
-                          type="button"
-                          onClick={() => startEditing(order)}
-                          disabled={busyOrderId === order.id}
-                          style={{ color: "var(--text)", borderColor: "var(--line)", background: "var(--surface)" }}
-                        >
-                          編輯
-                        </button>
-                        <button
-                          className="ghost-button"
-                          type="button"
-                          onClick={() => removeOrder(order)}
-                          disabled={busyOrderId === order.id}
-                          style={{
-                            color: "var(--brand-deep)",
-                            borderColor: "rgba(200, 92, 44, 0.28)",
-                            background: "rgba(200, 92, 44, 0.08)",
-                          }}
-                        >
-                          {busyOrderId === order.id ? "刪除中..." : "刪除"}
-                        </button>
-                      </>
-                    )}
-                  </div>
-                )}
+                  );
+                })}
               </div>
-            );
-          })}
+            </section>
+          ))}
         </div>
       )}
     </div>

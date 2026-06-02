@@ -4,8 +4,8 @@ export default function Sidebar({ items }) {
   return (
     <aside className="sidebar">
       <div>
-        <p className="eyebrow">Corporate Meal</p>
-        <h1 className="sidebar-title">Operations Console</h1>
+        <p className="eyebrow">企業訂餐</p>
+        <h1 className="sidebar-title">訂餐管理平台</h1>
       </div>
       <nav className="nav-list" aria-label="Primary">
         {items.map((item) => (
