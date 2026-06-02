@@ -123,6 +123,157 @@ p {
   line-height: 1.15;
 }
 
+.login-screen {
+  grid-template-columns: minmax(0, 1.05fr) minmax(360px, 440px);
+  gap: 30px;
+}
+
+.login-hero-panel {
+  display: grid;
+  align-content: center;
+  gap: 0;
+  min-height: 620px;
+  padding: 48px;
+  background:
+    radial-gradient(circle at top right, rgba(255, 255, 255, 0.72), transparent 26%),
+    linear-gradient(160deg, rgba(255, 249, 242, 0.96) 0%, rgba(247, 237, 223, 0.92) 100%);
+  overflow: hidden;
+  position: relative;
+}
+
+.login-hero-panel h1 {
+  max-width: none;
+  margin-top: 18px;
+  font-size: clamp(2.3rem, 4vw, 4.3rem);
+  line-height: 0.98;
+  letter-spacing: -0.04em;
+}
+
+.login-hero-points {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 28px;
+}
+
+.login-brand-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.login-brand-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--brand) 0%, #d77431 100%);
+  box-shadow: 0 0 0 8px rgba(200, 92, 44, 0.12);
+}
+
+.login-feature-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(200, 92, 44, 0.16);
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--text);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.login-hero-note {
+  display: grid;
+  gap: 8px;
+  max-width: 40rem;
+  margin-top: 30px;
+  padding: 22px 24px;
+  border: 1px solid rgba(200, 92, 44, 0.12);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.52);
+  box-shadow: 0 18px 40px rgba(78, 49, 23, 0.08);
+}
+
+.login-hero-note strong {
+  font-size: 0.92rem;
+  color: var(--brand-deep);
+}
+
+.login-hero-note p {
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.login-form-panel {
+  gap: 22px;
+  align-content: start;
+  align-self: center;
+  max-width: 460px;
+  width: 100%;
+  padding: 36px 34px;
+  background: rgba(255, 252, 247, 0.9);
+  box-shadow: 0 24px 60px rgba(78, 49, 23, 0.12);
+}
+
+.login-form-header {
+  display: grid;
+  gap: 8px;
+}
+
+.auth-form {
+  display: grid;
+  gap: 16px;
+}
+
+.auth-field {
+  display: grid;
+  gap: 6px;
+}
+
+.auth-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-top: 4px;
+}
+
+.subtle-copy {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.text-link {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.text-link:hover {
+  text-decoration: underline;
+}
+
+.subtle-link {
+  font-size: 0.9rem;
+}
+
+.login-support-inline {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  padding-top: 4px;
+  border-top: 1px solid rgba(200, 92, 44, 0.12);
+  font-size: 0.9rem;
+}
+
+.login-support-inline>span:first-child {
+  color: var(--text);
+  font-weight: 700;
+}
+
 .role-picker {
   display: grid;
   gap: 14px;
@@ -766,8 +917,15 @@ p {
 }
 
 @keyframes modal-in {
-  from { transform: translateY(14px); opacity: 0; }
-  to   { transform: translateY(0);    opacity: 1; }
+  from {
+    transform: translateY(14px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 .modal-photo {
@@ -992,7 +1150,8 @@ p {
   border-radius: var(--radius-md);
   background: rgba(200, 92, 44, 0.08);
   color: var(--brand-deep);
-  text-align: center;
+  text-align: left;
+  line-height: 1.6;
 }
 
 .compact-state {
@@ -1424,6 +1583,7 @@ p {
 }
 
 @media (max-width: 1080px) {
+
   .login-shell,
   .dashboard-grid,
   .random-meal-layout,
@@ -1438,9 +1598,18 @@ p {
   .nav-list {
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   }
+
+  .login-form-panel {
+    max-width: none;
+  }
+
+  .login-hero-panel {
+    min-height: auto;
+  }
 }
 
 @media (max-width: 720px) {
+
   .login-shell,
   .app-shell {
     padding: 14px;
@@ -1456,6 +1625,33 @@ p {
 
   .hero-grid {
     grid-template-columns: 1fr;
+  }
+
+  .login-screen {
+    gap: 18px;
+  }
+
+  .login-hero-panel {
+    padding: 28px 22px;
+  }
+
+  .login-hero-panel h1 {
+    margin-top: 14px;
+    font-size: clamp(2rem, 10vw, 2.8rem);
+  }
+
+  .login-hero-points {
+    margin-top: 22px;
+  }
+
+  .auth-row {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .login-support-inline {
+    flex-direction: column;
+    align-items: start;
   }
 
   .topbar {
