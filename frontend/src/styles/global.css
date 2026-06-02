@@ -1271,6 +1271,79 @@ p {
   align-items: start;
 }
 
+.billing-layout {
+  display: grid;
+  grid-template-columns: minmax(300px, 420px) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.billing-summary-panel,
+.billing-table-panel {
+  display: grid;
+  gap: 18px;
+}
+
+.billing-summary-panel {
+  min-height: 100%;
+}
+
+.billing-summary-head,
+.billing-table-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.billing-month-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgba(200, 92, 44, 0.18);
+  border-radius: 999px;
+  background: rgba(200, 92, 44, 0.08);
+  color: var(--brand-deep);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.billing-summary-copy {
+  margin-top: -4px;
+}
+
+.billing-filter-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+}
+
+.billing-filter-field {
+  gap: 8px;
+}
+
+.billing-download-link {
+  display: inline-flex;
+  grid-column: 1 / -1;
+  justify-content: center;
+  align-items: center;
+  min-height: 48px;
+  font-size: 0.88rem;
+  text-decoration: none;
+}
+
+.billing-table-head {
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(91, 76, 63, 0.08);
+}
+
+.billing-table-meta {
+  align-self: center;
+  font-size: 0.88rem;
+}
+
 .random-meal-controls {
   display: grid;
   gap: 18px;
@@ -1691,6 +1764,7 @@ p {
 @media (max-width: 1080px) {
 
   .login-shell,
+  .billing-layout,
   .dashboard-grid,
   .random-meal-layout,
   .app-shell {
@@ -1735,6 +1809,10 @@ p {
 
   .login-screen {
     gap: 18px;
+  }
+
+  .billing-filter-grid {
+    grid-template-columns: 1fr;
   }
 
   .login-hero-panel {
