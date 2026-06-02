@@ -64,23 +64,30 @@ export default function AdminBillingPage() {
   }
 
   return (
-    <section className="dashboard-grid">
-      <article className="panel">
-        <p className="eyebrow">福委會結帳</p>
+    <section className="billing-layout">
+      <article className="panel billing-summary-panel">
+        <div className="billing-summary-head">
+          <p className="eyebrow">福委會結帳</p>
+          <span className="billing-month-badge">
+            {year} 年 {month} 月
+          </span>
+        </div>
         <h2>月度商家應收帳款</h2>
-        <div className="range-pills" role="group" aria-label="月份">
-          <label>
-            年
+        <p className="panel-copy billing-summary-copy">
+          選擇結帳月份後，可直接檢視各商家訂單、餐點數量與應收總額，並匯出 CSV。
+        </p>
+        <div className="billing-filter-grid" role="group" aria-label="月份">
+          <label className="field billing-filter-field">
+            <span className="field-label">年份</span>
             <input
               type="number"
               value={year}
               onChange={(e) => setYear(Number(e.target.value))}
               className="form-input"
-              style={{ width: 90, marginLeft: 6 }}
             />
           </label>
-          <label style={{ marginLeft: 12 }}>
-            月
+          <label className="field billing-filter-field">
+            <span className="field-label">月份</span>
             <input
               type="number"
               min="1"
@@ -88,37 +95,43 @@ export default function AdminBillingPage() {
               value={month}
               onChange={(e) => setMonth(Number(e.target.value))}
               className="form-input"
-              style={{ width: 70, marginLeft: 6 }}
             />
           </label>
           <a
-            className="range-pill"
+            className="range-pill billing-download-link"
             href="#"
             onClick={handleCsvDownload}
-            style={{ marginLeft: 12, textDecoration: "none" }}
           >
             下載 CSV
           </a>
         </div>
-        {csvError && <p className="error-state" style={{ marginTop: 8 }}>{csvError}</p>}
+        {csvError && <p className="error-state" style={{ marginTop: 12 }}>{csvError}</p>}
       </article>
 
       {loading && (
-        <article className="panel">
+        <article className="panel billing-table-panel">
           <p className="panel-copy">載入中…</p>
         </article>
       )}
       {error && (
-        <article className="panel">
+        <article className="panel billing-table-panel">
           <p className="error-state">{error}</p>
         </article>
       )}
 
       {!loading && !error && (
-        <article className="panel">
-          <h3>
-            {year} 年 {month} 月
-          </h3>
+        <article className="panel billing-table-panel">
+          <div className="billing-table-head">
+            <div>
+              <p className="eyebrow">帳款總覽</p>
+              <h3>
+                {year} 年 {month} 月
+              </h3>
+            </div>
+            <p className="panel-copy billing-table-meta">
+              共 {rows.length} 間商家
+            </p>
+          </div>
           <table className="data-table">
             <thead>
               <tr>
