@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { deleteMyOrder, getMyBilling, updateMyOrder } from "../../api/employee";
 import { useFacility } from "../../facility/FacilityContext";
 import FacilityScopeLabel from "../../facility/FacilityScopeLabel";
+import { facilityDisplayName } from "../../facility/facilitySelection";
 import { useMyOrders } from "../../hooks/useMyOrders";
 import { useVendors } from "../../hooks/useVendors";
 import { formatMoney, formatPrice } from "../../utils/format";
@@ -71,7 +72,7 @@ function currentPeriod() {
 
 export default function OrdersPage() {
   const navigate = useNavigate();
-  const { selectedFacilityId } = useFacility();
+  const { selectedFacilityId, facilities } = useFacility();
   const orderRange = useMemo(() => getDefaultOrderHistoryRange(), []);
   const futureMealDates = useMemo(() => getFutureMealDates(), []);
   const { orders, setOrders, loading, error } = useMyOrders(orderRange);
@@ -83,9 +84,18 @@ export default function OrdersPage() {
   const [busyOrderId, setBusyOrderId] = useState(null);
   const [actionError, setActionError] = useState(null);
 
+  const facilityById = useMemo(
+    () => new Map(facilities.map((f) => [f.id, f])),
+    [facilities],
+  );
+
   const visibleOrders = useMemo(
-    () => orders.filter((order) => order.status !== "cancelled"),
-    [orders],
+    () => orders.filter((order) => {
+      if (order.status === "cancelled") return false;
+      if (selectedFacilityId != null && order.facility_id !== selectedFacilityId) return false;
+      return true;
+    }),
+    [orders, selectedFacilityId],
   );
   const vendorNamesById = useMemo(
     () => new Map(vendors.map((vendor) => [vendor.id, vendor.name])),
@@ -264,6 +274,11 @@ export default function OrdersPage() {
                           <div className="employee-order-meta">
                             <span>訂單 #{order.id}</span>
                             <span>建立時間 {formatDate(order.created_at)}</span>
+                            {order.facility_id != null && (
+                              <span style={{ color: "var(--muted)" }}>
+                                {facilityDisplayName(facilityById.get(order.facility_id)) ?? `廠區 #${order.facility_id}`}
+                              </span>
+                            )}
                           </div>
                           {order.pickup_code && (
                             <p className="employee-order-pickup">
