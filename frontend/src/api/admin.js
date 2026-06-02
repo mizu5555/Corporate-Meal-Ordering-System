@@ -81,3 +81,15 @@ export function setVendorFacilities(vendorId, facilityIds) {
     body: JSON.stringify({ facility_ids: facilityIds }),
   });
 }
+
+export function getVendorRecommendationLimit(vendorId) {
+  return apiFetch(`/admin/vendors/${vendorId}/recommendation-limit`);
+}
+
+export function setVendorRecommendationLimit(vendorId, dailyRecommendationLimit) {
+  return apiFetch(`/admin/vendors/${vendorId}/recommendation-limit`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ daily_recommendation_limit: dailyRecommendationLimit }),
+  });
+}

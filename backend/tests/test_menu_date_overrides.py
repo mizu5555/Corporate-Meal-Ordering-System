@@ -306,6 +306,52 @@ def test_put_schedule_creates_override() -> None:
     assert body["price_cents"] == 9000
 
 
+def test_put_schedule_marks_item_as_daily_recommended_for_employee_browse() -> None:
+    client, _, item_repo, _ = _setup_http()
+    item = item_repo.create(vendor_id=1, name="Rice Box", price_cents=8000, available=True)
+    target = _today_plus(0).isoformat()
+
+    resp = client.put(
+        f"/vendor/me/menu/{item.id}/schedule/{target}",
+        headers=_vh(),
+        json={"is_recommended": True},
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["is_recommended"] is True
+
+    menu = client.get(
+        "/employee/vendors/1/menu",
+        headers=_eh(),
+        params={"meal_date": target},
+    )
+    assert menu.status_code == 200
+    assert menu.json()[0]["is_recommended"] is True
+
+
+def test_put_schedule_rejects_recommendations_over_vendor_limit() -> None:
+    client, vendor_repo, item_repo, _ = _setup_http()
+    vendor_repo.update(1, {"daily_recommendation_limit": 1})
+    first = item_repo.create(vendor_id=1, name="Rice Box", price_cents=8000, available=True)
+    second = item_repo.create(vendor_id=1, name="Noodles", price_cents=9000, available=True)
+    target = _today_plus(0).isoformat()
+
+    ok = client.put(
+        f"/vendor/me/menu/{first.id}/schedule/{target}",
+        headers=_vh(),
+        json={"is_recommended": True},
+    )
+    over = client.put(
+        f"/vendor/me/menu/{second.id}/schedule/{target}",
+        headers=_vh(),
+        json={"is_recommended": True},
+    )
+
+    assert ok.status_code == 200
+    assert over.status_code == 409
+    assert over.json()["code"] == "daily_recommendation_limit_exceeded"
+
+
 def test_put_schedule_is_idempotent() -> None:
     client, _, item_repo, _ = _setup_http()
     item = item_repo.create(vendor_id=1, name="Rice Box", price_cents=8000, available=True)

@@ -61,6 +61,7 @@ class VendorProfile(BaseModel):
     business_hours: str | None = None
     contact_phone: str | None = None
     contact_email: str | None = None
+    daily_recommendation_limit: int = Field(default=3, ge=1, le=3)
     served_facilities: list[Facility] = Field(default_factory=list)
 
 
@@ -118,6 +119,7 @@ class MenuItem(BaseModel):
     price_cents: int
     available: bool
     daily_quota: int | None
+    is_recommended: bool = False
     dietary_tags: list[DietaryTag] = Field(default_factory=list)
     photo_path: str | None
     created_at: datetime
@@ -183,6 +185,7 @@ class MenuItemDateOverride(BaseModel):
     available: bool | None = None
     daily_quota: int | None = None
     price_cents: int | None = None
+    is_recommended: bool | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -196,3 +199,4 @@ class MenuItemDateOverrideUpsert(BaseModel):
     available: bool | None = None
     daily_quota: int | None = Field(default=None, ge=0)
     price_cents: int | None = Field(default=None, ge=0)
+    is_recommended: bool | None = None

@@ -38,6 +38,14 @@ export default function VendorMenuPage() {
   });
 
   const loading = vendorLoading || menuLoading;
+  const isToday = mealDate === minMealDate;
+  const recommendationTitle = isToday ? "今日推薦" : "當日推薦";
+  const recommendedItems = items.filter(
+    (item) => item.is_recommended && item.available && item.remaining_quantity !== 0,
+  );
+  const regularItems = recommendedItems.length > 0
+    ? items.filter((item) => !recommendedItems.some((recommended) => recommended.id === item.id))
+    : items;
 
   return (
     <div>
@@ -109,15 +117,44 @@ export default function VendorMenuPage() {
       )}
 
       {!loading && !error && items.length > 0 && (
-        <div className="menu-grid">
-          {items.map((item) => (
-            <MenuItemCard
-              key={item.id}
-              item={item}
-              onClick={() => setSelectedItem(item)}
-            />
-          ))}
-        </div>
+        <>
+          {recommendedItems.length > 0 && (
+            <section className="today-recommendations">
+              <div className="section-heading">
+                <p className="eyebrow">{isToday ? "Today" : "Meal Date"}</p>
+                <h3>{recommendationTitle}</h3>
+              </div>
+              <div className="menu-grid">
+                {recommendedItems.map((item) => (
+                  <MenuItemCard
+                    key={item.id}
+                    item={item}
+                    onClick={() => setSelectedItem(item)}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {regularItems.length > 0 && (
+            <section className={recommendedItems.length > 0 ? "regular-menu-section" : undefined}>
+              {recommendedItems.length > 0 && (
+                <div className="section-heading">
+                  <h3>全部餐點</h3>
+                </div>
+              )}
+              <div className="menu-grid">
+                {regularItems.map((item) => (
+                  <MenuItemCard
+                    key={item.id}
+                    item={item}
+                    onClick={() => setSelectedItem(item)}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+        </>
       )}
 
       {selectedItem && (

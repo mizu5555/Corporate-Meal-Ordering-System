@@ -550,6 +550,7 @@ class EmployeeOrderingService:
             available=item.available,
             daily_quota=item.daily_quota,
             remaining_quantity=remaining,
+            is_recommended=item.is_recommended,
             photo_path=item.photo_path,
             dietary_tags=item.dietary_tags,
         )

@@ -523,6 +523,26 @@ p {
   gap: 16px;
 }
 
+.today-recommendations,
+.regular-menu-section {
+  display: grid;
+  gap: 14px;
+}
+
+.today-recommendations {
+  margin-bottom: 28px;
+}
+
+.section-heading {
+  display: grid;
+  gap: 4px;
+}
+
+.section-heading h3 {
+  font-size: 1.15rem;
+  line-height: 1.2;
+}
+
 .menu-item-card {
   display: grid;
   grid-template-rows: 160px 1fr;
@@ -615,6 +635,11 @@ p {
 .badge-quota {
   background: rgba(240, 180, 90, 0.22);
   color: #8a5e00;
+}
+
+.badge-recommended {
+  background: rgba(31, 105, 141, 0.14);
+  color: #1f698d;
 }
 
 /* Meal detail modal */

@@ -219,6 +219,7 @@ class PostgresMenuItemRepository:
                     COALESCE(o.price_cents, mi.price_cents) AS price_cents,
                     COALESCE(o.available, mi.available)     AS available,
                     COALESCE(o.daily_quota, mi.daily_quota) AS daily_quota,
+                    COALESCE(o.is_recommended, FALSE)       AS is_recommended,
                     mi.dietary_tags, mi.photo_path, mi.created_at, mi.updated_at
                 FROM menu_items mi
                 LEFT JOIN menu_item_date_overrides o
@@ -247,6 +248,7 @@ class PostgresMenuItemRepository:
                     COALESCE(o.price_cents, mi.price_cents) AS price_cents,
                     COALESCE(o.available, mi.available)     AS available,
                     COALESCE(o.daily_quota, mi.daily_quota) AS daily_quota,
+                    COALESCE(o.is_recommended, FALSE)       AS is_recommended,
                     mi.dietary_tags, mi.photo_path, mi.created_at, mi.updated_at
                 FROM menu_items mi
                 LEFT JOIN menu_item_date_overrides o
@@ -267,7 +269,7 @@ class PostgresMenuItemRepository:
             rows = conn.execute(
                 """
                 SELECT o.item_id, o.meal_date, o.available, o.daily_quota,
-                       o.price_cents, o.created_at, o.updated_at
+                       o.price_cents, o.is_recommended, o.created_at, o.updated_at
                 FROM menu_item_date_overrides o
                 JOIN menu_items mi ON mi.id = o.item_id
                 WHERE mi.vendor_id = %s AND o.item_id = %s
@@ -284,7 +286,7 @@ class PostgresMenuItemRepository:
             row = conn.execute(
                 """
                 SELECT o.item_id, o.meal_date, o.available, o.daily_quota,
-                       o.price_cents, o.created_at, o.updated_at
+                       o.price_cents, o.is_recommended, o.created_at, o.updated_at
                 FROM menu_item_date_overrides o
                 JOIN menu_items mi ON mi.id = o.item_id
                 WHERE mi.vendor_id = %s AND o.item_id = %s AND o.meal_date = %s
@@ -304,22 +306,24 @@ class PostgresMenuItemRepository:
         available: bool | None,
         daily_quota: int | None,
         price_cents: int | None,
+        is_recommended: bool | None = None,
     ) -> MenuItemDateOverride:
         with get_connection() as conn:
             row = conn.execute(
                 """
                 INSERT INTO menu_item_date_overrides
-                    (item_id, meal_date, available, daily_quota, price_cents)
-                VALUES (%s, %s, %s, %s, %s)
+                    (item_id, meal_date, available, daily_quota, price_cents, is_recommended)
+                VALUES (%s, %s, %s, %s, %s, %s)
                 ON CONFLICT (item_id, meal_date) DO UPDATE SET
                     available    = EXCLUDED.available,
                     daily_quota  = EXCLUDED.daily_quota,
                     price_cents  = EXCLUDED.price_cents,
+                    is_recommended = EXCLUDED.is_recommended,
                     updated_at   = NOW()
                 RETURNING item_id, meal_date, available, daily_quota,
-                          price_cents, created_at, updated_at
+                          price_cents, is_recommended, created_at, updated_at
                 """,
-                (item_id, meal_date, available, daily_quota, price_cents),
+                (item_id, meal_date, available, daily_quota, price_cents, is_recommended),
             ).fetchone()
             conn.commit()
         return MenuItemDateOverride(**dict(row))

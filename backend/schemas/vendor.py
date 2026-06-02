@@ -43,3 +43,12 @@ class VendorApplicationDetail(VendorApplicationSummary):
     served_facilities: list[Facility] = Field(default_factory=list)
     review_reason: str | None = None
     reviewed_at: datetime | None = None
+
+
+class VendorDailyRecommendationLimitUpdate(BaseModel):
+    daily_recommendation_limit: int = Field(ge=1, le=3)
+
+
+class VendorDailyRecommendationLimit(BaseModel):
+    vendor_id: int
+    daily_recommendation_limit: int = Field(ge=1, le=3)

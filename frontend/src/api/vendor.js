@@ -17,6 +17,16 @@ export function getMyMenu({ facilityId } = {}) {
   );
 }
 
+export function getMyProfile() {
+  return withMockFallback(() => apiFetch("/vendor/me/profile"), {
+    id: 1,
+    name: MOCK_VENDORS[0]?.name ?? "Vendor",
+    status: "approved",
+    daily_recommendation_limit: 3,
+    served_facilities: MOCK_VENDORS[0]?.served_facilities ?? [],
+  });
+}
+
 export function getMyFacilities() {
   return withMockFallback(() => apiFetch("/vendor/me/facilities"), MOCK_VENDORS[0]?.served_facilities ?? []);
 }

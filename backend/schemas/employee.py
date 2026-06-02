@@ -29,6 +29,7 @@ class EmployeeMenuItem(BaseModel):
     available: bool
     daily_quota: int | None
     remaining_quantity: int | None = None
+    is_recommended: bool = False
     photo_path: str | None
     dietary_tags: list[DietaryTag] = Field(default_factory=list)
 
