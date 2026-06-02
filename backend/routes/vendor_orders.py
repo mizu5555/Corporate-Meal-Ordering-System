@@ -57,8 +57,10 @@ def list_vendor_orders(
     vendor_id: Annotated[int, Depends(require_approved_vendor)],
     service: Annotated[VendorOrderService, Depends(get_vendor_order_service)],
     facility_id: Annotated[int | None, Query()] = None,
+    meal_date: Annotated[date | None, Query()] = None,
+    status_filter: Annotated[OrderStatus | None, Query(alias="status")] = None,
 ) -> list[EmployeeOrder]:
-    return service.list_orders(vendor_id, facility_id=facility_id)
+    return service.list_orders(vendor_id, facility_id=facility_id, meal_date=meal_date, status=status_filter)
 
 
 @router.get("/labels", response_model=list[PickupLabel])

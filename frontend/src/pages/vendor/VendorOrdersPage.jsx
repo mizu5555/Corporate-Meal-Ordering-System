@@ -23,7 +23,8 @@ const STATUS_COLOR = {
   cancelled: { background: "rgba(200,92,44,0.08)", color: "var(--brand-deep)" },
 };
 
-/** Target statuses available in the batch action dropdown (terminal states excluded). */
+const ALL_STATUSES = ["pending", "confirmed", "preparing", "ready", "delivered", "cancelled"];
+
 const BATCH_STATUS_OPTIONS = [
   { value: "confirmed", label: "確認訂單" },
   { value: "preparing", label: "開始備餐" },
@@ -31,6 +32,20 @@ const BATCH_STATUS_OPTIONS = [
   { value: "delivered", label: "已完成" },
   { value: "cancelled", label: "取消訂單" },
 ];
+
+const selectStyle = {
+  padding: "7px 12px",
+  borderRadius: "var(--radius-md)",
+  border: "1px solid var(--line)",
+  background: "var(--surface-strong)",
+  fontSize: 13,
+  cursor: "pointer",
+};
+
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 function StatusBadge({ status }) {
   return (
@@ -56,7 +71,6 @@ function itemsSummary(items) {
   return items.length > 1 ? `${first} 等 ${items.length} 項` : first;
 }
 
-/** Indeterminate checkbox that reflects partial selection state. */
 function SelectAllCheckbox({ checked, indeterminate, onChange }) {
   const ref = useRef(null);
   useEffect(() => {
@@ -75,44 +89,65 @@ function SelectAllCheckbox({ checked, indeterminate, onChange }) {
 
 export default function VendorOrdersPage() {
   const navigate = useNavigate();
-  const { selectedFacilityId } = useFacility();
+  const { selectedFacilityId, facilities } = useFacility();
+  const [facilityFilter, setFacilityFilter] = useState(() =>
+    selectedFacilityId != null ? String(selectedFacilityId) : "",
+  );
+  const [dateFilter, setDateFilter] = useState(todayStr);
+  const [statusFilter, setStatusFilter] = useState("");
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
-  // multi-select state
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [batchStatus, setBatchStatus] = useState("confirmed");
   const [batchLoading, setBatchLoading] = useState(false);
-  const [batchResult, setBatchResult] = useState(null); // { succeeded, failed, failures: [{order_id, error}] }
+  const [batchResult, setBatchResult] = useState(null);
+
+  useEffect(() => {
+    setFacilityFilter(selectedFacilityId != null ? String(selectedFacilityId) : "");
+  }, [selectedFacilityId]);
+
+  function currentOrderQuery() {
+    return {
+      facilityId: facilityFilter ? Number(facilityFilter) : undefined,
+      mealDate: dateFilter || undefined,
+      status: statusFilter || undefined,
+    };
+  }
 
   useEffect(() => {
     setLoading(true);
     setError(null);
     setSelectedIds(new Set());
     setBatchResult(null);
-    getMyOrders({ facilityId: selectedFacilityId })
+    getMyOrders(currentOrderQuery())
       .then(setOrders)
       .catch((err) => setError(err.message ?? "無法載入訂單"))
       .finally(() => setLoading(false));
-  }, [selectedFacilityId]);
+  }, [facilityFilter, dateFilter, statusFilter]);
 
-  const totalRevenue = orders.reduce((sum, o) => sum + o.total_price_cents, 0);
+  const showAllFacilities = facilityFilter === "";
+
+  function facilityName(facilityId) {
+    if (!facilityId) return "—";
+    const facility = facilities.find((x) => x.id === facilityId);
+    return facility ? facility.name : `#${facilityId}`;
+  }
+
+  const totalRevenue = orders.reduce((sum, order) => sum + order.total_price_cents, 0);
   const totalItems = orders.reduce(
-    (sum, o) => sum + o.items.reduce((s, item) => s + item.quantity, 0),
+    (sum, order) => sum + order.items.reduce((s, item) => s + item.quantity, 0),
     0,
   );
 
-  // --- selection helpers ---
   const allSelected = orders.length > 0 && selectedIds.size === orders.length;
   const someSelected = selectedIds.size > 0 && selectedIds.size < orders.length;
+  const gridColumns = showAllFacilities
+    ? "36px 150px 110px 100px 1fr 110px 100px 36px"
+    : "36px 150px 110px 1fr 110px 100px 36px";
 
   function toggleSelectAll() {
-    if (allSelected) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(orders.map((o) => o.id)));
-    }
+    setSelectedIds(allSelected ? new Set() : new Set(orders.map((order) => order.id)));
     setBatchResult(null);
   }
 
@@ -125,7 +160,12 @@ export default function VendorOrdersPage() {
     setBatchResult(null);
   }
 
-  // --- batch action ---
+  async function refreshOrders() {
+    const fresh = await getMyOrders(currentOrderQuery());
+    setOrders(fresh);
+    return fresh;
+  }
+
   async function handleBatchAction() {
     if (selectedIds.size === 0) return;
     setBatchLoading(true);
@@ -135,13 +175,10 @@ export default function VendorOrdersPage() {
       setBatchResult({
         succeeded: res.succeeded,
         failed: res.failed,
-        failures: res.results.filter((r) => !r.success),
+        failures: res.results.filter((result) => !result.success),
       });
-      // Refresh order list so statuses are up-to-date
-      const fresh = await getMyOrders({ facilityId: selectedFacilityId });
-      setOrders(fresh);
-      // Deselect successfully updated orders
-      const failedIds = new Set(res.results.filter((r) => !r.success).map((r) => r.order_id));
+      await refreshOrders();
+      const failedIds = new Set(res.results.filter((result) => !result.success).map((result) => result.order_id));
       setSelectedIds(failedIds);
     } catch (err) {
       setBatchResult({ error: err.message ?? "批量操作失敗" });
@@ -150,26 +187,70 @@ export default function VendorOrdersPage() {
     }
   }
 
-  const GRID = "36px 150px 110px 1fr 110px 100px 36px";
+  function resetFilters() {
+    setFacilityFilter("");
+    setDateFilter(todayStr());
+    setStatusFilter("");
+  }
 
   return (
     <div>
       <div className="page-header">
         <FacilityScopeLabel label="Orders facility" />
         <p className="eyebrow">Vendor · Orders</p>
-        <h2>今日訂單</h2>
+        <h2>訂單查詢</h2>
+      </div>
+
+      <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap", alignItems: "center" }}>
+        <select value={facilityFilter} onChange={(e) => setFacilityFilter(e.target.value)} style={selectStyle}>
+          <option value="">全部廠區</option>
+          {facilities.map((facility) => (
+            <option key={facility.id} value={String(facility.id)}>
+              {facility.name}
+            </option>
+          ))}
+        </select>
+
+        <input
+          type="date"
+          value={dateFilter}
+          onChange={(e) => setDateFilter(e.target.value)}
+          style={{ ...selectStyle, cursor: "text" }}
+        />
+
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={selectStyle}>
+          <option value="">全部狀態</option>
+          {ALL_STATUSES.map((status) => (
+            <option key={status} value={status}>
+              {STATUS_LABEL[status]}
+            </option>
+          ))}
+        </select>
+
+        {(facilityFilter || dateFilter || statusFilter) && (
+          <button
+            onClick={resetFilters}
+            style={{ ...selectStyle, color: "var(--muted)", background: "transparent", border: "none" }}
+            type="button"
+          >
+            重設
+          </button>
+        )}
+
+        <span style={{ marginLeft: "auto", fontSize: 13, color: "var(--muted)" }}>
+          {loading ? "載入中..." : `共 ${orders.length} 筆`}
+        </span>
       </div>
 
       {loading && <p className="loading-state">載入訂單中...</p>}
       {error && <p className="error-state">{error}</p>}
 
       {!loading && !error && orders.length === 0 && (
-        <p className="empty-state">今日尚未收到任何訂單。</p>
+        <p className="empty-state">沒有符合條件的訂單。</p>
       )}
 
       {!loading && !error && orders.length > 0 && (
         <>
-          {/* ── Summary cards ── */}
           <div style={{ display: "flex", gap: 16, marginBottom: 24 }}>
             <div className="panel" style={{ flex: 1, padding: "16px 20px" }}>
               <p style={{ margin: 0, color: "var(--muted)", fontSize: 13 }}>訂單數</p>
@@ -185,7 +266,6 @@ export default function VendorOrdersPage() {
             </div>
           </div>
 
-          {/* ── Batch action bar ── */}
           {selectedIds.size > 0 && (
             <div
               className="panel"
@@ -200,9 +280,7 @@ export default function VendorOrdersPage() {
                 borderColor: "rgba(47,100,200,0.2)",
               }}
             >
-              <span style={{ fontWeight: 600, fontSize: 14 }}>
-                已選取 {selectedIds.size} 筆訂單
-              </span>
+              <span style={{ fontWeight: 600, fontSize: 14 }}>已選取 {selectedIds.size} 筆訂單</span>
               <span style={{ color: "var(--muted)", fontSize: 13 }}>→ 批量更新為</span>
               <select
                 value={batchStatus}
@@ -240,7 +318,10 @@ export default function VendorOrdersPage() {
                 {batchLoading ? "套用中..." : "套用"}
               </button>
               <button
-                onClick={() => { setSelectedIds(new Set()); setBatchResult(null); }}
+                onClick={() => {
+                  setSelectedIds(new Set());
+                  setBatchResult(null);
+                }}
                 disabled={batchLoading}
                 style={{
                   padding: "6px 12px",
@@ -255,7 +336,6 @@ export default function VendorOrdersPage() {
                 取消選取
               </button>
 
-              {/* Result feedback */}
               {batchResult && !batchResult.error && (
                 <span style={{ marginLeft: "auto", fontSize: 13 }}>
                   {batchResult.succeeded > 0 && (
@@ -268,7 +348,7 @@ export default function VendorOrdersPage() {
                       ✗ {batchResult.failed} 筆失敗
                       {batchResult.failures.length > 0 && (
                         <span style={{ fontWeight: 400, marginLeft: 4 }}>
-                          (訂單 #{batchResult.failures.map((f) => f.order_id).join(", #")}
+                          (訂單 #{batchResult.failures.map((failure) => failure.order_id).join(", #")}
                           {" — "}
                           {batchResult.failures[0].error})
                         </span>
@@ -285,13 +365,11 @@ export default function VendorOrdersPage() {
             </div>
           )}
 
-          {/* ── Orders table ── */}
           <div className="panel" style={{ padding: 0, overflow: "hidden" }}>
-            {/* Header */}
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: GRID,
+                gridTemplateColumns: gridColumns,
                 alignItems: "center",
                 padding: "10px 20px",
                 borderBottom: "1px solid var(--line)",
@@ -309,13 +387,13 @@ export default function VendorOrdersPage() {
               />
               <span>日期 · 訂單</span>
               <span>取餐碼</span>
+              {showAllFacilities && <span>廠區</span>}
               <span>品項</span>
               <span style={{ textAlign: "right" }}>合計</span>
               <span style={{ textAlign: "right" }}>狀態</span>
               <span />
             </div>
 
-            {/* Rows */}
             {orders.map((order, idx) => {
               const isSelected = selectedIds.has(order.id);
               return (
@@ -323,7 +401,7 @@ export default function VendorOrdersPage() {
                   key={order.id}
                   style={{
                     display: "grid",
-                    gridTemplateColumns: GRID,
+                    gridTemplateColumns: gridColumns,
                     alignItems: "center",
                     width: "100%",
                     padding: "14px 20px",
@@ -343,7 +421,6 @@ export default function VendorOrdersPage() {
                       : "transparent";
                   }}
                 >
-                  {/* Checkbox — stops propagation so click doesn't navigate */}
                   <input
                     type="checkbox"
                     checked={isSelected}
@@ -358,6 +435,11 @@ export default function VendorOrdersPage() {
                   <p style={{ margin: 0, fontWeight: 700, fontSize: 13 }}>
                     {order.pickup_code ?? "—"}
                   </p>
+                  {showAllFacilities && (
+                    <p style={{ margin: 0, fontSize: 12, color: "var(--muted)" }}>
+                      {facilityName(order.facility_id)}
+                    </p>
+                  )}
                   <p style={{ margin: 0, fontWeight: 500, fontSize: 14 }}>
                     {itemsSummary(order.items)}
                   </p>

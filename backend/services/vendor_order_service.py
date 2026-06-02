@@ -50,8 +50,18 @@ class VendorOrderService:
             raise CodedHTTPException(status_code=404, code="not_found", detail="order not found")
         return order
 
-    def list_orders(self, vendor_id: int, facility_id: int | None = None) -> list[EmployeeOrder]:
+    def list_orders(
+        self,
+        vendor_id: int,
+        facility_id: int | None = None,
+        meal_date: date | None = None,
+        status: str | None = None,
+    ) -> list[EmployeeOrder]:
         orders = self._list_orders_raw(vendor_id, facility_id=facility_id)
+        if meal_date is not None:
+            orders = [o for o in orders if o.meal_date == meal_date]
+        if status is not None:
+            orders = [o for o in orders if o.status == status]
         return [self._deidentify_order(order) for order in orders]
 
     def list_pickup_labels(

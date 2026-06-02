@@ -31,8 +31,13 @@ export function getMyFacilities() {
   return withMockFallback(() => apiFetch("/vendor/me/facilities"), MOCK_VENDORS[0]?.served_facilities ?? []);
 }
 
-export function getMyOrders({ facilityId } = {}) {
-  return apiFetch(appendFacilityParam("/vendor/me/orders", facilityId));
+export function getMyOrders({ facilityId, mealDate, status } = {}) {
+  const params = new URLSearchParams();
+  if (facilityId != null) params.set("facility_id", facilityId);
+  if (mealDate) params.set("meal_date", mealDate);
+  if (status) params.set("status", status);
+  const qs = params.toString();
+  return apiFetch(`/vendor/me/orders${qs ? `?${qs}` : ""}`);
 }
 
 export function getVendorRevenue({ facilityId, today, start, end } = {}) {

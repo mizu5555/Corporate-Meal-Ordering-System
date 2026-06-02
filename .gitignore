@@ -18,6 +18,7 @@ coverage/
 docs/superpowers/
 .local-notes/
 .understand-anything/
+notes/
 
 # Internal ops runbook (deploy host + Jenkins setup) — kept local, not published.
 infra/deploy/SETUP.md
