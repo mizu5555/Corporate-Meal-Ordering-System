@@ -10,3 +10,7 @@ class FacilityCreate(BaseModel):
 
 class VendorFacilitiesUpdate(BaseModel):
     facility_ids: list[int]
+
+
+class EmployeeFacilitiesUpdate(BaseModel):
+    facility_ids: list[int]

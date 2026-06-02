@@ -82,6 +82,40 @@ class FacilityAdminService:
         return self.get_vendor_facilities(vendor_id)
 
     # ------------------------------------------------------------------
+    # Employee ↔ Facility assignments
+    # ------------------------------------------------------------------
+
+    def get_employee_facilities(self, employee_id: int) -> list[Facility]:
+        facility_ids = set(self.facility_repository.get_employee_facility_ids(employee_id))
+        return [f for f in self.facility_repository.list_facilities() if f.id in facility_ids]
+
+    def set_employee_facilities(
+        self,
+        employee_id: int,
+        facility_ids: list[int],
+        *,
+        actor_user_id: int | None = None,
+        actor_role: str | None = None,
+    ) -> list[Facility]:
+        for fid in facility_ids:
+            if not self.facility_repository.facility_exists(fid):
+                raise CodedHTTPException(
+                    status_code=404,
+                    code="not_found",
+                    detail="facility not found",
+                )
+        self.facility_repository.set_employee_facilities(employee_id, facility_ids)
+        self.audit_log_repository.record(
+            actor_user_id=actor_user_id,
+            actor_role=actor_role,
+            action="facility.assign",
+            target_type="employee",
+            target_id=employee_id,
+            metadata={"employee_id": employee_id, "facility_ids": list(facility_ids)},
+        )
+        return self.get_employee_facilities(employee_id)
+
+    # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 

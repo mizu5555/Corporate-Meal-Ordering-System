@@ -72,3 +72,33 @@ class PostgresFacilityRepository:
                     """,
                     (vendor_id, fid),
                 )
+
+    # ------------------------------------------------------------------
+    # Employee ↔ Facility assignments
+    # ------------------------------------------------------------------
+
+    def get_employee_facility_ids(self, employee_id: int) -> list[int]:
+        """Return the list of facility IDs assigned to an employee."""
+        with get_connection() as conn:
+            rows = conn.execute(
+                "SELECT facility_id FROM employee_facilities WHERE employee_id = %s",
+                (employee_id,),
+            ).fetchall()
+        return [row["facility_id"] for row in rows]
+
+    def set_employee_facilities(self, employee_id: int, facility_ids: list[int]) -> None:
+        """Replace the employee's facility set with the given list (within one transaction)."""
+        with get_connection() as conn:
+            conn.execute(
+                "DELETE FROM employee_facilities WHERE employee_id = %s",
+                (employee_id,),
+            )
+            for fid in facility_ids:
+                conn.execute(
+                    """
+                    INSERT INTO employee_facilities (employee_id, facility_id)
+                    VALUES (%s, %s)
+                    ON CONFLICT DO NOTHING
+                    """,
+                    (employee_id, fid),
+                )

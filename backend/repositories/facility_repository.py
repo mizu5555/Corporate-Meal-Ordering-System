@@ -11,7 +11,8 @@ class FacilityRepository:
         self._facilities: dict[int, Facility] = {}
         self._code_index: dict[str, int] = {}  # code -> id
         self._next_id: int = 1
-        self._vendor_facilities: dict[int, list[int]] = {}  # vendor_id -> [facility_id]
+        self._vendor_facilities: dict[int, list[int]] = {}    # vendor_id -> [facility_id]
+        self._employee_facilities: dict[int, list[int]] = {}  # employee_id -> [facility_id]
 
     # ------------------------------------------------------------------
     # Facilities
@@ -46,3 +47,15 @@ class FacilityRepository:
     def set_vendor_facilities(self, vendor_id: int, facility_ids: list[int]) -> None:
         """Replace the vendor's facility set with the given list."""
         self._vendor_facilities[vendor_id] = list(facility_ids)
+
+    # ------------------------------------------------------------------
+    # Employee ↔ Facility assignments
+    # ------------------------------------------------------------------
+
+    def get_employee_facility_ids(self, employee_id: int) -> list[int]:
+        """Return the list of facility IDs assigned to an employee."""
+        return list(self._employee_facilities.get(employee_id, []))
+
+    def set_employee_facilities(self, employee_id: int, facility_ids: list[int]) -> None:
+        """Replace the employee's facility set with the given list."""
+        self._employee_facilities[employee_id] = list(facility_ids)

@@ -2,10 +2,13 @@ import { useEffect, useState } from "react";
 
 import {
   createFacility,
+  getEmployeeFacilities,
   getFacilities,
+  getUsers,
   getVendorApplications,
   getVendorFacilities,
   getVendorRecommendationLimit,
+  setEmployeeFacilities,
   setVendorFacilities,
   setVendorRecommendationLimit,
 } from "../../api/admin";
@@ -343,6 +346,162 @@ function VendorFacilitiesPanel() {
   );
 }
 
+// ── Panel C: 員工廠區指派 ─────────────────────────────────────────────────────
+
+function EmployeeFacilitiesPanel() {
+  const [employees, setEmployees] = useState([]);
+  const [empLoading, setEmpLoading] = useState(true);
+  const [empError, setEmpError] = useState(null);
+
+  const [allFacilities, setAllFacilities] = useState([]);
+  const [facLoading, setFacLoading] = useState(true);
+  const [facError, setFacError] = useState(null);
+
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
+  const [checkedIds, setCheckedIds] = useState(new Set());
+  const [assignLoading, setAssignLoading] = useState(false);
+  const [assignError, setAssignError] = useState(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // Load active employees
+  useEffect(() => {
+    let active = true;
+    setEmpLoading(true);
+    setEmpError(null);
+    getUsers({ role: "employee", is_active: true })
+      .then((data) => { if (active) setEmployees(data.users ?? []); })
+      .catch(() => { if (active) setEmpError("無法載入員工清單。"); })
+      .finally(() => { if (active) setEmpLoading(false); });
+    return () => { active = false; };
+  }, []);
+
+  // Load all facilities
+  useEffect(() => {
+    let active = true;
+    setFacLoading(true);
+    setFacError(null);
+    getFacilities()
+      .then((data) => { if (active) setAllFacilities(data); })
+      .catch(() => { if (active) setFacError("無法載入廠區清單。"); })
+      .finally(() => { if (active) setFacLoading(false); });
+    return () => { active = false; };
+  }, []);
+
+  // When employee changes, fetch current facility assignments
+  useEffect(() => {
+    if (!selectedEmployeeId) {
+      setCheckedIds(new Set());
+      return;
+    }
+    let active = true;
+    setAssignLoading(true);
+    setAssignError(null);
+    setSaveSuccess(false);
+    getEmployeeFacilities(Number(selectedEmployeeId))
+      .then((data) => { if (active) setCheckedIds(new Set(data.map((f) => f.id))); })
+      .catch(() => { if (active) setAssignError("無法載入員工已指派廠區。"); })
+      .finally(() => { if (active) setAssignLoading(false); });
+    return () => { active = false; };
+  }, [selectedEmployeeId]);
+
+  function toggleFacility(id) {
+    setCheckedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+    setSaveSuccess(false);
+  }
+
+  function handleSave(e) {
+    e.preventDefault();
+    if (!selectedEmployeeId) return;
+    setAssignLoading(true);
+    setAssignError(null);
+    setSaveSuccess(false);
+    setEmployeeFacilities(Number(selectedEmployeeId), Array.from(checkedIds))
+      .then(() => setSaveSuccess(true))
+      .catch(() => setAssignError("儲存失敗，請稍後再試。"))
+      .finally(() => setAssignLoading(false));
+  }
+
+  const isLoading = empLoading || facLoading;
+  const hasError = empError || facError;
+
+  return (
+    <article className="panel">
+      <p className="eyebrow">廠區管理</p>
+      <h2>員工所屬廠區</h2>
+
+      {isLoading && <p className="panel-copy">載入中…</p>}
+      {hasError && <p className="error-state">{empError ?? facError}</p>}
+
+      {!isLoading && !hasError && (
+        <>
+          <label style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 16 }}>
+            <span style={{ fontSize: "0.8rem" }}>選擇員工（已啟用）</span>
+            <select
+              className="form-input"
+              value={selectedEmployeeId}
+              onChange={(e) => setSelectedEmployeeId(e.target.value)}
+              style={{ maxWidth: 320 }}
+            >
+              <option value="">— 請選擇 —</option>
+              {employees.map((emp) => (
+                <option key={emp.id} value={emp.id}>
+                  {emp.display_name}
+                  {emp.badge_code ? `（${emp.badge_code}）` : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {selectedEmployeeId && (
+            <form onSubmit={handleSave}>
+              {assignLoading && <p className="panel-copy">載入中…</p>}
+              {!assignLoading && (
+                <>
+                  {allFacilities.length === 0 ? (
+                    <p className="panel-copy">尚無廠區可指派，請先在上方新增廠區。</p>
+                  ) : (
+                    <fieldset style={{ border: "none", padding: 0, marginBottom: 12 }}>
+                      <legend style={{ fontSize: "0.85rem", marginBottom: 8 }}>
+                        所屬廠區（可多選；空選表示不限廠區）
+                      </legend>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "8px 20px" }}>
+                        {allFacilities.map((f) => (
+                          <label key={f.id} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                            <input
+                              type="checkbox"
+                              checked={checkedIds.has(f.id)}
+                              onChange={() => toggleFacility(f.id)}
+                            />
+                            <span>{f.code}　{f.name}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </fieldset>
+                  )}
+                  <button
+                    type="submit"
+                    className="range-pill is-active"
+                    disabled={assignLoading}
+                  >
+                    儲存
+                  </button>
+                </>
+              )}
+              {assignError && <p className="error-state" style={{ marginTop: 8 }}>{assignError}</p>}
+              {saveSuccess && <p className="panel-copy" style={{ marginTop: 8, color: "var(--accent)" }}>已儲存。</p>}
+            </form>
+          )}
+        </>
+      )}
+    </article>
+  );
+}
+
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function AdminFacilitiesPage() {
@@ -350,6 +509,7 @@ export default function AdminFacilitiesPage() {
     <section className="dashboard-grid">
       <FacilitiesPanel />
       <VendorFacilitiesPanel />
+      <EmployeeFacilitiesPanel />
     </section>
   );
 }
