@@ -23,7 +23,7 @@ export const navigationByRole = {
   ],
   admin: [
     { label: "統計儀表板", to: "/admin/stats" },
-    { label: "員工審核", to: "/admin/employees" },
+    { label: "員工審核與廠區設定", to: "/admin/employees" },
     { label: "商家審核", to: "/admin/vendors" },
     { label: "廠區管理", to: "/admin/facilities" },
     { label: "權限管理", to: "/admin/permissions" },
