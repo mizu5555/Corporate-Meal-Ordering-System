@@ -40,6 +40,8 @@ def client():
 @pytest.fixture(scope="module")
 def seeded_ids():
     """Resolve vendor/employee rows seeded by migrations."""
+    if not os.getenv("DATABASE_URL"):
+        pytest.skip("DATABASE_URL not set")
     with get_connection() as conn:
         vendor = conn.execute(
             "SELECT id FROM vendors WHERE name = 'Sunny Kitchen'"
@@ -320,6 +322,32 @@ def test_list_effective_base_values_no_override(client, seeded_ids):
     assert item["available"] is True
 
 
+def test_list_effective_preserves_dietary_tags(client, seeded_ids):
+    vendor_id, employee_id = seeded_ids
+
+    create = client.post(
+        "/vendor/me/menu",
+        headers=_vh(vendor_id),
+        json={
+            "name": "IntTest EffTags",
+            "price_cents": 1000,
+            "available": True,
+            "dietary_tags": ["vegetarian"],
+        },
+    )
+    assert create.status_code == 201
+    item_id = create.json()["id"]
+
+    resp = client.get(
+        f"/employee/vendors/{vendor_id}/menu?meal_date={_today_plus(0)}&available=true",
+        headers=_eh(employee_id),
+    )
+    assert resp.status_code == 200
+    item = next((i for i in resp.json() if i["id"] == item_id), None)
+    assert item is not None
+    assert item["dietary_tags"] == ["vegetarian"]
+
+
 def test_list_effective_with_price_override(client, seeded_ids):
     vendor_id, employee_id = seeded_ids
 
@@ -592,3 +620,30 @@ def test_postgres_repo_get_effective_not_found(seeded_ids):
     repo = PostgresMenuItemRepository()
     result = repo.get_effective(vendor_id=vendor_id, item_id=999999, meal_date=date.today())
     assert result is None
+
+
+def test_postgres_repo_get_effective_preserves_dietary_tags(seeded_ids):
+    """Effective single-item reads must keep non-overridden base item fields."""
+    if not os.getenv("DATABASE_URL"):
+        pytest.skip("DATABASE_URL not set")
+
+    vendor_id, _ = seeded_ids
+    repo = PostgresMenuItemRepository()
+
+    with get_connection() as conn:
+        row = conn.execute(
+            "INSERT INTO menu_items (vendor_id, name, price_cents, available, dietary_tags) "
+            "VALUES (%s, 'IntTest DirectEffTags', 500, TRUE, %s) RETURNING id",
+            (vendor_id, ["ovo_lacto_vegetarian"]),
+        ).fetchone()
+        conn.commit()
+    item_id = row["id"]
+
+    try:
+        item = repo.get_effective(vendor_id=vendor_id, item_id=item_id, meal_date=date.today())
+        assert item is not None
+        assert item.dietary_tags == ["ovo_lacto_vegetarian"]
+    finally:
+        with get_connection() as conn:
+            conn.execute("DELETE FROM menu_items WHERE id = %s", (item_id,))
+            conn.commit()
