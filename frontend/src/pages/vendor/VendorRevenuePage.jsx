@@ -6,8 +6,8 @@ import FacilityScopeLabel from "../../facility/FacilityScopeLabel";
 import { formatMoney } from "../../utils/format";
 
 const RANGES = [
-  { days: 7, label: "Last 7 days" },
-  { days: 30, label: "Last 30 days" },
+  { days: 7, label: "最近 7 天" },
+  { days: 30, label: "最近 30 天" },
 ];
 
 function todayIso() {
@@ -27,13 +27,13 @@ function presetRange(days) {
 }
 
 function quotaText(value) {
-  if (value == null) return "Unlimited";
+  if (value == null) return "不限量";
   return String(value);
 }
 
 function remainingText(value) {
-  if (value == null) return "Unlimited";
-  if (value === 0) return "Sold out";
+  if (value == null) return "不限量";
+  if (value === 0) return "已售完";
   return String(value);
 }
 
@@ -64,7 +64,7 @@ export default function VendorRevenuePage() {
 
   useEffect(() => {
     if (rangeInvalid) {
-      setError("Start date must be on or before end date.");
+      setError("開始日期不可晚於結束日期");
       setLoading(false);
       setDashboard(null);
       return undefined;
@@ -82,7 +82,7 @@ export default function VendorRevenuePage() {
         if (active) setDashboard(data);
       })
       .catch((err) => {
-        if (active) setError(err.message ?? "Unable to load revenue data");
+        if (active) setError(err.message ?? "無法載入營收資料");
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -102,8 +102,8 @@ export default function VendorRevenuePage() {
     <div>
       <div className="page-header">
         <FacilityScopeLabel label="Revenue facility" />
-        <p className="eyebrow">Vendor / Revenue</p>
-        <h2>Sales dashboard</h2>
+        <p className="eyebrow">Vendor · Revenue</p>
+        <h2>營收報表</h2>
       </div>
 
       <div className="range-pills" role="group" aria-label="Revenue range" style={{ marginBottom: 12 }}>
@@ -127,7 +127,7 @@ export default function VendorRevenuePage() {
         style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap", marginBottom: 20 }}
       >
         <label style={{ display: "flex", flexDirection: "column", fontSize: 12 }}>
-          <span>Start</span>
+          <span>開始日期</span>
           <input
             type="date"
             value={startDate}
@@ -136,7 +136,7 @@ export default function VendorRevenuePage() {
           />
         </label>
         <label style={{ display: "flex", flexDirection: "column", fontSize: 12 }}>
-          <span>End</span>
+          <span>結束日期</span>
           <input
             type="date"
             value={endDate}
@@ -147,22 +147,22 @@ export default function VendorRevenuePage() {
         </label>
       </div>
 
-      {loading && <p className="loading-state">Loading revenue data...</p>}
+      {loading && <p className="loading-state">載入營收資料中...</p>}
       {error && <p className="error-state">{error}</p>}
 
       {dashboard && !loading && !error && (
         <section style={{ display: "grid", gap: 18 }}>
           <article className="panel stat-cards">
             <div className="stat-card">
-              <span>Orders</span>
+              <span>訂單數</span>
               <strong>{numberText(dashboard.summary.order_count)}</strong>
             </div>
             <div className="stat-card">
-              <span>Items sold</span>
+              <span>售出份數</span>
               <strong>{numberText(dashboard.summary.quantity_sold)}</strong>
             </div>
             <div className="stat-card">
-              <span>Revenue</span>
+              <span>營收</span>
               <strong>{formatMoney(dashboard.summary.revenue_cents)}</strong>
             </div>
           </article>
@@ -185,18 +185,18 @@ export default function VendorRevenuePage() {
                   marginBottom: 12,
                 }}
               >
-                <h3 style={{ margin: 0 }}>Today stock</h3>
+                <h3 style={{ margin: 0 }}>今日庫存</h3>
                 <p className="panel-copy" style={{ margin: 0 }}>{dashboard.today}</p>
               </div>
               <div style={{ overflowX: "auto" }}>
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th>Item</th>
-                      <th>Quota</th>
-                      <th>Sold</th>
-                      <th>Remaining</th>
-                      <th>Revenue</th>
+                      <th>餐點</th>
+                      <th>配額</th>
+                      <th>已售</th>
+                      <th>剩餘</th>
+                      <th>營收</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -211,7 +211,7 @@ export default function VendorRevenuePage() {
                     ))}
                     {dashboard.today_items.length === 0 && (
                       <tr>
-                        <td colSpan={5} className="table-empty">No menu items yet.</td>
+                        <td colSpan={5} className="table-empty">今日尚無菜單</td>
                       </tr>
                     )}
                   </tbody>
@@ -230,19 +230,19 @@ export default function VendorRevenuePage() {
                   marginBottom: 12,
                 }}
               >
-                <h3 style={{ margin: 0 }}>Dish sales</h3>
+                <h3 style={{ margin: 0 }}>餐點銷售</h3>
                 <p className="panel-copy" style={{ margin: 0 }}>
-                  {dashboard.start} to {dashboard.end}
+                  {dashboard.start} 至 {dashboard.end}
                 </p>
               </div>
               <div style={{ overflowX: "auto" }}>
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th>Item</th>
-                      <th>Orders</th>
-                      <th>Sold</th>
-                      <th>Revenue</th>
+                      <th>餐點</th>
+                      <th>訂單數</th>
+                      <th>售出份數</th>
+                      <th>營收</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -256,7 +256,7 @@ export default function VendorRevenuePage() {
                     ))}
                     {dashboard.period_items.length === 0 && (
                       <tr>
-                        <td colSpan={4} className="table-empty">No sales in this range.</td>
+                        <td colSpan={4} className="table-empty">此期間無銷售紀錄</td>
                       </tr>
                     )}
                   </tbody>
