@@ -219,7 +219,7 @@ class PostgresMenuItemRepository:
                     COALESCE(o.price_cents, mi.price_cents) AS price_cents,
                     COALESCE(o.available, mi.available)     AS available,
                     COALESCE(o.daily_quota, mi.daily_quota) AS daily_quota,
-                    mi.photo_path, mi.created_at, mi.updated_at
+                    mi.dietary_tags, mi.photo_path, mi.created_at, mi.updated_at
                 FROM menu_items mi
                 LEFT JOIN menu_item_date_overrides o
                     ON o.item_id = mi.id AND o.meal_date = %s
@@ -247,7 +247,7 @@ class PostgresMenuItemRepository:
                     COALESCE(o.price_cents, mi.price_cents) AS price_cents,
                     COALESCE(o.available, mi.available)     AS available,
                     COALESCE(o.daily_quota, mi.daily_quota) AS daily_quota,
-                    mi.photo_path, mi.created_at, mi.updated_at
+                    mi.dietary_tags, mi.photo_path, mi.created_at, mi.updated_at
                 FROM menu_items mi
                 LEFT JOIN menu_item_date_overrides o
                     ON o.item_id = mi.id AND o.meal_date = %s
