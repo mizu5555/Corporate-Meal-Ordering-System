@@ -4,85 +4,59 @@ import { useAuth } from "../auth/AuthContext";
 import { roleHomePath } from "../layout/navigation";
 
 const ROLE_OPTIONS = [
-  { value: "employee",       label: "Employee",       desc: "Browse menus and place orders" },
-  { value: "vendor_manager", label: "Vendor Manager", desc: "Manage your restaurant and menu" },
+  { value: "employee", label: "員工", desc: "瀏覽菜單、完成每日訂餐與查看取餐碼" },
+  { value: "vendor_manager", label: "廠商", desc: "管理菜單、接單流程與供餐資訊" },
 ];
 
 function PendingApprovalScreen({ displayName }) {
   return (
-    <div className="login-shell">
-      <section className="hero-panel">
-        <p className="eyebrow">Corporate Meal Ordering System</p>
-        <h1>Account created — one step away.</h1>
+    <div className="login-shell login-screen">
+      <section className="hero-panel login-hero-panel">
+        <div className="login-brand-mark">
+          <span className="login-brand-dot" aria-hidden="true" />
+          <p className="eyebrow">企業訂餐系統</p>
+        </div>
+        <h1>帳號已建立</h1>
         <p className="hero-copy">
-          Employee accounts require admin approval before you can browse
-          menus and place orders. Your administrator will review your
-          request shortly.
+          你的註冊資料已送出。完成管理員審核後，就能使用這組帳號登入系統。
         </p>
-        <div className="hero-grid">
-          <article className="metric-card">
-            <strong>Step 1 ✓</strong>
-            <span>Account registered</span>
-          </article>
-          <article className="metric-card">
-            <strong>Step 2 ⏳</strong>
-            <span>Admin approval pending</span>
-          </article>
+        <div className="login-hero-points" aria-label="註冊流程狀態">
+          <span className="login-feature-pill">完成註冊</span>
+          <span className="login-feature-pill">等待審核</span>
+        </div>
+        <div className="login-hero-note">
+          <strong>下一步</strong>
+          <p>管理員啟用帳號後，你就可以回到登入頁使用電子郵件與密碼登入。</p>
         </div>
       </section>
 
-      <section className="login-panel">
-        <div>
-          <p className="eyebrow">Pending Approval</p>
-          <h2>Hi {displayName}, you're almost in!</h2>
+      <section className="login-panel login-form-panel">
+        <div className="login-form-header">
+          <p className="eyebrow">待審核</p>
+          <h2>{displayName}，差一步就完成了</h2>
+          <p className="panel-copy">
+            你的帳號目前正等待管理員審核。審核完成前，系統不會開放登入。
+          </p>
         </div>
 
-        <div style={{ display: "grid", gap: 16 }}>
-          <div
-            style={{
-              padding: "20px 24px",
-              borderRadius: "var(--radius-md)",
-              background: "rgba(47, 125, 74, 0.08)",
-              border: "1px solid rgba(47, 125, 74, 0.25)",
-              display: "grid",
-              gap: 8,
-            }}
-          >
-            <p style={{ margin: 0, fontWeight: 700, color: "var(--success)", fontSize: 15 }}>
-              ✓ Account created successfully
-            </p>
-            <p style={{ margin: 0, fontSize: 13, color: "var(--text)", lineHeight: 1.6 }}>
-              Your employee account has been registered and is now awaiting
-              admin activation. You won't be able to sign in until an
-              administrator approves your account.
-            </p>
+        <div className="pending-panel-stack">
+          <div className="success-state pending-state-card">
+            <strong>✓ 帳號建立成功</strong>
+            <span>你的員工帳號已建立，接下來只需等待管理員啟用。</span>
           </div>
 
-          <div
-            style={{
-              padding: "16px 20px",
-              borderRadius: "var(--radius-md)",
-              background: "var(--surface-alt, rgba(0,0,0,0.04))",
-              fontSize: 13,
-              color: "var(--muted)",
-              lineHeight: 1.7,
-            }}
-          >
-            <strong style={{ color: "var(--text)", display: "block", marginBottom: 4 }}>
-              What happens next?
-            </strong>
-            An admin will review your registration and activate your account.
-            Once approved, you can sign in with the email and password you
-            just set.
+          <div className="pending-info-card">
+            <strong>接下來會發生什麼？</strong>
+            <p>管理員會審核你的申請並啟用帳號。啟用完成後，你就能使用剛設定的電子郵件與密碼登入。</p>
           </div>
         </div>
 
-        <p style={{ marginTop: 24, fontSize: 13, color: "var(--muted)", textAlign: "center" }}>
-          Already approved?{" "}
-          <Link to="/login" style={{ color: "var(--accent)", fontWeight: 600 }}>
-            Sign in
+        <div className="login-support-inline">
+          <span>已經啟用了？</span>
+          <Link className="text-link subtle-link" to="/login">
+            返回登入
           </Link>
-        </p>
+        </div>
       </section>
     </div>
   );
@@ -93,13 +67,13 @@ export default function RegisterPage() {
   const { isAuthenticated, user, register } = useAuth();
 
   const [displayName, setDisplayName] = useState("");
-  const [email, setEmail]             = useState("");
-  const [role, setRole]               = useState("employee");
-  const [password, setPassword]       = useState("");
-  const [confirm, setConfirm]         = useState("");
-  const [error, setError]             = useState(null);
-  const [loading, setLoading]         = useState(false);
-  const [pendingName, setPendingName] = useState(null);  // non-null → show pending screen
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState("employee");
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [pendingName, setPendingName] = useState(null);
 
   if (isAuthenticated && user) {
     return <Navigate replace to={roleHomePath[user.role] ?? "/"} />;
@@ -114,11 +88,11 @@ export default function RegisterPage() {
     setError(null);
 
     if (password !== confirm) {
-      setError("Passwords do not match.");
+      setError("兩次輸入的密碼不一致。");
       return;
     }
     if (password.length < 8) {
-      setError("Password must be at least 8 characters.");
+      setError("密碼至少需要 8 個字元。");
       return;
     }
 
@@ -126,8 +100,6 @@ export default function RegisterPage() {
     try {
       const u = await register(email, password, displayName, role);
       if (!u.isActive) {
-        // Employee accounts start inactive — show the pending approval screen
-        // instead of navigating into the app (all API calls would 403 anyway).
         setPendingName(u.name);
       } else {
         navigate(roleHomePath[u.role] ?? "/", { replace: true });
@@ -135,8 +107,8 @@ export default function RegisterPage() {
     } catch (err) {
       setError(
         err.code === "email_taken"
-          ? "An account with this email already exists."
-          : "Registration failed. Please try again.",
+          ? "這個電子郵件已經被註冊。"
+          : "註冊失敗，請稍後再試。",
       );
     } finally {
       setLoading(false);
@@ -144,74 +116,73 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="login-shell">
-      <section className="hero-panel">
-        <p className="eyebrow">Corporate Meal Ordering System</p>
-        <h1>Join your team's meal ordering workspace.</h1>
+    <div className="login-shell login-screen">
+      <section className="hero-panel login-hero-panel">
+        <div className="login-brand-mark">
+          <span className="login-brand-dot" aria-hidden="true" />
+          <p className="eyebrow">企業訂餐系統</p>
+        </div>
+        <h1>Create your account</h1>
         <p className="hero-copy">
-          Create an account to start ordering lunch or managing your
-          restaurant on the platform.
+          建立帳號後，你就能開始加入企業訂餐流程，或管理你的供餐工作台。
         </p>
-        <div className="hero-grid">
+        <div className="login-role-list">
           {ROLE_OPTIONS.map((r) => (
-            <article className="metric-card" key={r.value}>
+            <article className="metric-card login-role-card" key={r.value}>
               <strong>{r.label}</strong>
               <span>{r.desc}</span>
             </article>
           ))}
         </div>
+        <div className="login-hero-note">
+          <strong>註冊前提醒</strong>
+          <p>員工帳號通常需要管理員啟用後才能登入。若你是廠商，請確認使用正確的角色建立帳號。</p>
+        </div>
       </section>
 
-      <section className="login-panel">
-        <div>
-          <p className="eyebrow">Create Account</p>
-          <h2>Fill in your details</h2>
+      <section className="login-panel login-form-panel">
+        <div className="login-form-header">
+          <p className="eyebrow">註冊</p>
+          <h2>建立新帳號</h2>
+          <p className="panel-copy">
+            填寫基本資料並選擇你的角色。完成後即可等待啟用或直接進入系統。
+          </p>
         </div>
 
-        <form onSubmit={handleSubmit} style={{ display: "grid", gap: 16 }}>
-          <label style={{ display: "grid", gap: 6 }}>
-            <span style={{ fontWeight: 600, fontSize: 14 }}>Display Name</span>
+        <form className="auth-form" onSubmit={handleSubmit}>
+          <label className="auth-field">
+            <span className="field-label">姓名</span>
             <input
               className="form-input"
               type="text"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               required
-              placeholder="Your name"
+              placeholder="請輸入姓名"
               autoComplete="name"
             />
           </label>
 
-          <label style={{ display: "grid", gap: 6 }}>
-            <span style={{ fontWeight: 600, fontSize: 14 }}>Email</span>
+          <label className="auth-field">
+            <span className="field-label">電子郵件</span>
             <input
               className="form-input"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              placeholder="you@company.com"
+              placeholder="name@company.com"
               autoComplete="email"
             />
           </label>
 
-          <fieldset style={{ border: "none", padding: 0, margin: 0 }}>
-            <legend style={{ fontWeight: 600, fontSize: 14, marginBottom: 8 }}>Role</legend>
-            <div style={{ display: "flex", gap: 12 }}>
+          <fieldset className="register-role-group">
+            <legend className="field-label register-role-legend">角色</legend>
+            <div className="register-role-options">
               {ROLE_OPTIONS.map((r) => (
                 <label
                   key={r.value}
-                  style={{
-                    flex: 1,
-                    display: "grid",
-                    gridTemplateColumns: "auto 1fr",
-                    gap: "4px 8px",
-                    alignItems: "start",
-                    padding: "10px 12px",
-                    border: `2px solid ${role === r.value ? "var(--accent)" : "var(--border)"}`,
-                    borderRadius: 8,
-                    cursor: "pointer",
-                  }}
+                  className={`register-role-option ${role === r.value ? "register-role-option-selected" : ""}`}
                 >
                   <input
                     type="radio"
@@ -219,55 +190,56 @@ export default function RegisterPage() {
                     value={r.value}
                     checked={role === r.value}
                     onChange={() => setRole(r.value)}
-                    style={{ marginTop: 2 }}
+                    className="register-role-radio"
                   />
-                  <span style={{ fontWeight: 600, fontSize: 14 }}>{r.label}</span>
-                  <span />
-                  <span style={{ fontSize: 12, color: "var(--muted)" }}>{r.desc}</span>
+                  <span className="register-role-copy">
+                    <strong>{r.label}</strong>
+                    <span>{r.desc}</span>
+                  </span>
                 </label>
               ))}
             </div>
           </fieldset>
 
-          <label style={{ display: "grid", gap: 6 }}>
-            <span style={{ fontWeight: 600, fontSize: 14 }}>Password</span>
+          <label className="auth-field">
+            <span className="field-label">密碼</span>
             <input
               className="form-input"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              placeholder="Min. 8 characters"
+              placeholder="至少 8 個字元"
               autoComplete="new-password"
             />
           </label>
 
-          <label style={{ display: "grid", gap: 6 }}>
-            <span style={{ fontWeight: 600, fontSize: 14 }}>Confirm Password</span>
+          <label className="auth-field">
+            <span className="field-label">確認密碼</span>
             <input
               className="form-input"
               type="password"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
               required
-              placeholder="••••••••"
+              placeholder="再次輸入密碼"
               autoComplete="new-password"
             />
           </label>
 
-          {error && <p className="error-state" style={{ margin: 0 }}>{error}</p>}
+          {error && <p className="error-state">{error}</p>}
 
           <button className="primary-button" type="submit" disabled={loading}>
-            {loading ? "Creating account…" : "Create Account"}
+            {loading ? "建立中…" : "建立帳號"}
           </button>
         </form>
 
-        <p style={{ marginTop: 20, fontSize: 13, color: "var(--muted)", textAlign: "center" }}>
-          Already have an account?{" "}
-          <Link to="/login" style={{ color: "var(--accent)", fontWeight: 600 }}>
-            Sign in
+        <div className="login-support-inline">
+          <span>已經有帳號？</span>
+          <Link className="text-link subtle-link" to="/login">
+            返回登入
           </Link>
-        </p>
+        </div>
       </section>
     </div>
   );

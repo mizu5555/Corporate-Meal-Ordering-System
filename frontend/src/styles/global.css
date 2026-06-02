@@ -274,6 +274,112 @@ p {
   font-weight: 700;
 }
 
+.login-role-list {
+  display: grid;
+  gap: 14px;
+  margin-top: 28px;
+}
+
+.login-role-card {
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.register-role-group {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.register-role-legend {
+  margin-bottom: 0;
+}
+
+.register-role-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.register-role-option {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px 12px;
+  align-items: start;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.62);
+  cursor: pointer;
+  transition: transform 140ms ease, border-color 140ms ease, background 140ms ease, box-shadow 140ms ease;
+}
+
+.register-role-option:hover,
+.register-role-option-selected {
+  transform: translateY(-1px);
+  border-color: rgba(200, 92, 44, 0.4);
+  background: rgba(255, 247, 238, 0.95);
+  box-shadow: 0 12px 28px rgba(78, 49, 23, 0.08);
+}
+
+.register-role-radio {
+  margin: 3px 0 0;
+  accent-color: var(--brand);
+}
+
+.register-role-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.register-role-copy strong {
+  font-size: 0.95rem;
+}
+
+.register-role-copy span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+
+.pending-panel-stack {
+  display: grid;
+  gap: 16px;
+}
+
+.pending-state-card {
+  display: grid;
+  gap: 8px;
+  justify-content: start;
+  margin-top: 0;
+}
+
+.pending-state-card span {
+  color: var(--text);
+  font-weight: 500;
+  line-height: 1.6;
+}
+
+.pending-info-card {
+  display: grid;
+  gap: 8px;
+  padding: 18px 20px;
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.56);
+  border: 1px solid var(--line);
+}
+
+.pending-info-card strong {
+  font-size: 0.92rem;
+}
+
+.pending-info-card p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
 .role-picker {
   display: grid;
   gap: 14px;
@@ -1652,6 +1758,10 @@ p {
   .login-support-inline {
     flex-direction: column;
     align-items: start;
+  }
+
+  .register-role-options {
+    grid-template-columns: 1fr;
   }
 
   .topbar {
