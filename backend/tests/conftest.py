@@ -7,6 +7,7 @@ from backend.core.audit import get_audit_log_repository
 from backend.core.employee_identity import get_employee_active_check
 from backend.main import app
 from backend.repositories.audit_log_repository import AuditLogRepository
+from backend.services.employee_ordering_service import _approved_vendors_cache
 
 
 def _unregister_inprogress() -> None:
@@ -23,6 +24,19 @@ def _isolate_prometheus_registry() -> Generator[None, None, None]:
     _unregister_inprogress()
     yield
     _unregister_inprogress()
+
+
+@pytest.fixture(autouse=True)
+def _clear_approved_vendors_cache() -> Generator[None, None, None]:
+    """Reset the process-wide approved-vendor TTL cache around every test.
+
+    The cache is only active in DB mode (``DATABASE_URL`` set), which the
+    coverage/integration CI jobs do — without this reset a vendor list cached by
+    one test leaks into the next test's fake repo, causing cross-test pollution.
+    """
+    _approved_vendors_cache.invalidate()
+    yield
+    _approved_vendors_cache.invalidate()
 
 
 @pytest.fixture(autouse=True)
