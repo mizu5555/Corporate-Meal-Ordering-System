@@ -104,7 +104,7 @@ def _assert_employee_exists(employee_id: int) -> None:
         raise CodedHTTPException(status_code=404, code="not_found", detail="employee not found")
 
 
-@router.get("/employees/{employee_id}/facilities", response_model=list[Facility])
+@router.get("/employees/{employee_id}/facilities")
 def get_employee_facilities(
     employee_id: int,
     _role: Annotated[str, Depends(require_roles("admin"))],
@@ -114,7 +114,7 @@ def get_employee_facilities(
     return _service(repo).get_employee_facilities(employee_id)
 
 
-@router.put("/employees/{employee_id}/facilities", response_model=list[Facility])
+@router.put("/employees/{employee_id}/facilities")
 def set_employee_facilities(
     employee_id: int,
     body: EmployeeFacilitiesUpdate,
