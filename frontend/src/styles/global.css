@@ -637,9 +637,110 @@ p {
   color: #8a5e00;
 }
 
+.badge-status-pending {
+  background: rgba(200, 92, 44, 0.12);
+  color: #9a3f18;
+}
+
+.badge-status-confirmed {
+  background: rgba(31, 105, 141, 0.14);
+  color: #1f698d;
+}
+
+.badge-status-preparing {
+  background: rgba(122, 92, 250, 0.12);
+  color: #5a44b8;
+}
+
+.badge-status-ready {
+  background: rgba(47, 125, 74, 0.12);
+  color: #24633a;
+}
+
+.badge-status-delivered {
+  background: rgba(104, 113, 123, 0.16);
+  color: #46515c;
+}
+
+.badge-status-cancelled {
+  background: rgba(117, 36, 56, 0.12);
+  color: #752438;
+}
+
 .badge-recommended {
   background: rgba(31, 105, 141, 0.14);
   color: #1f698d;
+}
+
+.orders-date-groups {
+  display: grid;
+  gap: 18px;
+}
+
+.orders-date-group {
+  display: grid;
+  gap: 18px;
+}
+
+.orders-date-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.orders-date-list {
+  display: grid;
+}
+
+.employee-order-card {
+  display: grid;
+  gap: 14px;
+  padding: 18px 0;
+}
+
+.employee-order-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.employee-order-heading {
+  display: grid;
+  gap: 6px;
+}
+
+.employee-order-vendor {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  line-height: 1.2;
+  color: var(--text);
+}
+
+.employee-order-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.employee-order-pickup {
+  margin: 0;
+  color: var(--brand-deep);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.employee-order-summary {
+  display: grid;
+  justify-items: end;
+  align-content: start;
+  gap: 8px;
+  text-align: right;
 }
 
 /* Meal detail modal */
@@ -916,6 +1017,33 @@ p {
   font-weight: 700;
 }
 
+.field {
+  display: grid;
+  gap: 8px;
+}
+
+.form-input {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-strong);
+  color: var(--text);
+  font: inherit;
+  transition: border-color 140ms ease, box-shadow 140ms ease, background 140ms ease;
+}
+
+.form-input::placeholder {
+  color: color-mix(in srgb, var(--muted) 78%, white 22%);
+}
+
+.form-input:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(200, 92, 44, 0.12);
+  outline: none;
+}
+
 .date-input {
   width: 100%;
   min-height: 48px;
@@ -1124,6 +1252,18 @@ p {
   background: rgba(47, 125, 74, 0.1);
   color: var(--success);
   font-weight: 700;
+}
+
+.account-form-header {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.account-password-form {
+  display: grid;
+  gap: 14px;
+  max-width: 420px;
 }
 
 /* ============================================================

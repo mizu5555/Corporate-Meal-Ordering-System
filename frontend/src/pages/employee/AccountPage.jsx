@@ -4,6 +4,48 @@ import { changePassword } from "../../api/employee";
 import { useFacility } from "../../facility/FacilityContext";
 import { saveHomeFacilityId } from "../../facility/facilitySelection";
 
+function PasswordInput({ label, value, onChange, autoComplete, minLength, placeholder }) {
+  const [visible, setVisible] = useState(false);
+
+  return (
+    <label className="field">
+      <span className="field-label">{label}</span>
+      <span className="pw-field">
+        <input
+          className="form-input"
+          required
+          type={visible ? "text" : "password"}
+          value={value}
+          onChange={onChange}
+          autoComplete={autoComplete}
+          minLength={minLength}
+          placeholder={placeholder}
+        />
+        <button
+          type="button"
+          className="pw-toggle"
+          onClick={() => setVisible((show) => !show)}
+          aria-label={visible ? `隱藏${label}` : `顯示${label}`}
+          aria-pressed={visible}
+          title={visible ? `隱藏${label}` : `顯示${label}`}
+        >
+          {visible ? (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+              <line x1="1" y1="1" x2="23" y2="23" />
+            </svg>
+          ) : (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+          )}
+        </button>
+      </span>
+    </label>
+  );
+}
+
 function ChangePasswordForm() {
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
@@ -46,42 +88,36 @@ function ChangePasswordForm() {
 
   return (
     <div className="panel" style={{ marginBottom: 24 }}>
-      <h3 style={{ margin: "0 0 16px" }}>修改密碼</h3>
-      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14, maxWidth: 360 }}>
-        <label className="field">
-          <span>目前密碼</span>
-          <input
-            required
-            type="password"
-            value={current}
-            onChange={(e) => setCurrent(e.target.value)}
-            autoComplete="current-password"
-          />
-        </label>
-        <label className="field">
-          <span>新密碼</span>
-          <input
-            required
-            type="password"
-            value={next}
-            onChange={(e) => setNext(e.target.value)}
-            autoComplete="new-password"
-            minLength={8}
-          />
-        </label>
-        <label className="field">
-          <span>確認新密碼</span>
-          <input
-            required
-            type="password"
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
-            autoComplete="new-password"
-          />
-        </label>
-        {error && <p className="form-error" style={{ margin: 0 }}>{error}</p>}
-        {success && <p style={{ margin: 0, color: "var(--success)", fontSize: 14 }}>密碼修改成功。</p>}
-        <button className="button-primary" disabled={saving} type="submit" style={{ alignSelf: "flex-start" }}>
+      <div className="account-form-header">
+        <h3 style={{ margin: 0 }}>修改密碼</h3>
+        <p className="panel-copy">建議使用至少 8 個字元，並避免與其他系統共用密碼。</p>
+      </div>
+      <form className="account-password-form" onSubmit={handleSubmit}>
+        <PasswordInput
+          label="目前密碼"
+          value={current}
+          onChange={(e) => setCurrent(e.target.value)}
+          autoComplete="current-password"
+          placeholder="輸入目前密碼"
+        />
+        <PasswordInput
+          label="新密碼"
+          value={next}
+          onChange={(e) => setNext(e.target.value)}
+          autoComplete="new-password"
+          minLength={8}
+          placeholder="至少 8 個字元"
+        />
+        <PasswordInput
+          label="確認新密碼"
+          value={confirm}
+          onChange={(e) => setConfirm(e.target.value)}
+          autoComplete="new-password"
+          placeholder="再次輸入新密碼"
+        />
+        {error && <p className="error-state" style={{ margin: 0, textAlign: "left" }}>{error}</p>}
+        {success && <p style={{ margin: 0, color: "var(--success)", fontSize: 14, fontWeight: 700 }}>密碼修改成功。</p>}
+        <button className="primary-button" disabled={saving} type="submit" style={{ alignSelf: "flex-start" }}>
           {saving ? "儲存中..." : "儲存"}
         </button>
       </form>

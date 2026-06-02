@@ -162,7 +162,7 @@ export default function RandomMealPage() {
     <div>
       <div className="page-header">
         <FacilityScopeLabel label="Ordering facility" />
-        <p className="eyebrow">員工 / 推薦與隨機抽餐</p>
+        <p className="eyebrow">Employee · Random Meal</p>
         <h2>今天吃什麼？</h2>
       </div>
 
