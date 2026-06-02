@@ -248,84 +248,131 @@ export function VendorBadgePickupPage() {
         </div>
       </div>
 
-      <form onSubmit={handleLookup} style={{ display: "flex", gap: "0.75rem", alignItems: "flex-end", flexWrap: "wrap" }}>
-        <label className="field" style={{ flex: "1 1 220px" }}>
-          <span>員工編號</span>
+      <form onSubmit={handleLookup} style={{ display: "grid", gap: "1rem", marginTop: 24 }}>
+        <div className="search-bar" style={{ margin: 0 }}>
+          <span className="search-icon" aria-hidden="true">🏷️</span>
           <input
             autoFocus
+            className="search-input"
             onChange={(e) => setInput(e.target.value)}
-            placeholder="例如 EMP-0001"
+            placeholder="輸入員工編號，例如 EMP-0001"
             type="text"
             value={input}
+            style={{ fontSize: "1.05rem", minHeight: 52 }}
           />
-        </label>
-        <button className="button-primary" disabled={loading || !input.trim()} type="submit">
-          {loading ? "查詢中..." : "查詢"}
-        </button>
-        {scanning ? (
-          <button className="button-secondary" onClick={stopScan} type="button">
-            停止掃描
+        </div>
+        <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+          <button
+            className="primary-button"
+            disabled={loading || !input.trim()}
+            type="submit"
+          >
+            {loading ? "查詢中..." : "查詢"}
           </button>
-        ) : (
-          <button className="button-secondary" onClick={startScan} type="button">
-            掃描 QR
-          </button>
-        )}
+          {scanning ? (
+            <button className="ghost-button" onClick={stopScan} type="button">
+              停止掃描
+            </button>
+          ) : (
+            <button className="ghost-button" onClick={startScan} type="button">
+              📷 掃描 QR
+            </button>
+          )}
+        </div>
       </form>
 
-      {scanMsg ? <p className="panel-copy">{scanMsg}</p> : null}
+      {scanMsg && <p className="panel-copy" style={{ marginTop: 8 }}>{scanMsg}</p>}
 
-      {scanning ? (
-        <div style={{ marginTop: "0.75rem" }}>
+      {scanning && (
+        <div style={{ marginTop: "1rem" }}>
           <video
             ref={videoRef}
             muted
             playsInline
             style={{ width: "100%", maxWidth: 320, borderRadius: 8, background: "#000" }}
           />
-          <p className="panel-copy">將員工工牌 QR 對準鏡頭，辨識後自動查詢。</p>
+          <p className="panel-copy" style={{ marginTop: 8 }}>將員工工牌 QR 對準鏡頭，辨識後自動查詢。</p>
         </div>
-      ) : null}
+      )}
 
-      {error ? <p className="form-error">{error}</p> : null}
+      {/* 分隔線：有查詢結果或錯誤時才顯示 */}
+      {(error || status || orders.length > 0) && (
+        <hr style={{ border: "none", borderTop: "1px solid var(--line)", margin: "24px 0" }} />
+      )}
+
+      {error && <p className="error-state">{error}</p>}
 
       {status === "not_found" ? (
         <p className="panel-copy">查無此員工編號。</p>
       ) : status === "empty" ? (
         <p className="panel-copy">此員工今日在本店無待領訂單。</p>
       ) : orders.length > 0 ? (
-        <ul className="data-list">
+        <div style={{ display: "grid", gap: 12 }}>
+          <p style={{ margin: 0, fontWeight: 700, fontSize: 15 }}>
+            {orders[0].masked_name ?? "（未提供）"}
+            <span style={{ marginLeft: 8, color: "var(--muted)", fontSize: 13, fontWeight: 500 }}>
+              {orders[0].employee_badge_code ?? badgeCode}
+            </span>
+          </p>
           {orders.map((order) => (
-            <li className="data-row" key={order.id}>
-              <div>
-                <p className="data-title">
-                  {order.masked_name ?? "（未提供）"} · {order.employee_badge_code ?? badgeCode}
+            <div
+              key={order.id}
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 16,
+                padding: "14px 18px",
+                border: "1px solid var(--line)",
+                borderRadius: "var(--radius-md)",
+                background: order.status === "delivered"
+                  ? "rgba(47,125,74,0.05)"
+                  : "rgba(255,255,255,0.55)",
+                flexWrap: "wrap",
+              }}
+            >
+              <div style={{ display: "grid", gap: 4 }}>
+                <p style={{ margin: 0, fontWeight: 600, fontSize: 14 }}>
+                  取餐碼 <span style={{ color: "var(--brand)", letterSpacing: "0.05em" }}>{order.pickup_code}</span>
                 </p>
-                <p className="data-subtitle">
-                  取餐碼 {order.pickup_code} · {formatItems(order.items)} · {STATUS_LABELS[order.status] ?? order.status}
+                <p style={{ margin: 0, color: "var(--muted)", fontSize: 13 }}>
+                  {formatItems(order.items)}
                 </p>
               </div>
-              <div className="data-actions">
-                {order.status === "delivered" ? (
-                  <span className="panel-copy">已領餐</span>
-                ) : !isToday(order.meal_date) ? (
-                  <button className="button-secondary" disabled type="button" title={`此訂單為 ${order.meal_date} 的餐點，無法今日取餐`}>
-                    非今日餐點
-                  </button>
-                ) : (
-                  <button
-                    className="button-primary"
-                    disabled={working === order.id}
-                    onClick={() => handleConfirm(order.id)}
-                    type="button"
-                  >
-                    {working === order.id ? "處理中..." : "確認領餐"}
-                  </button>
-                )}
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <span style={{
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: order.status === "delivered" ? "var(--success)" : "var(--muted)",
+                }}>
+                  {STATUS_LABELS[order.status] ?? order.status}
+                </span>
+                {order.status === "delivered" ? null
+                  : !isToday(order.meal_date) ? (
+                    <button
+                      className="ghost-button"
+                      disabled
+                      type="button"
+                      title={`此訂單為 ${order.meal_date} 的餐點，無法今日取餐`}
+                      style={{ minHeight: 38, padding: "0 14px", fontSize: 13 }}
+                    >
+                      非今日餐點
+                    </button>
+                  ) : (
+                    <button
+                      className="primary-button"
+                      disabled={working === order.id}
+                      onClick={() => handleConfirm(order.id)}
+                      type="button"
+                      style={{ minHeight: 38, padding: "0 18px", fontSize: 13 }}
+                    >
+                      {working === order.id ? "處理中..." : "確認領餐"}
+                    </button>
+                  )}
               </div>
-            </li>
+            </div>
           ))}
-        </ul>
+        </div>
       ) : null}
     </section>
   );

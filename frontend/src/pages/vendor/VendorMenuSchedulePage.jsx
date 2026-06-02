@@ -375,12 +375,21 @@ export default function VendorMenuSchedulePage() {
     });
   }
 
+  const backButton = (
+    <button className="back-button" type="button" onClick={() => navigate("/vendor/menu")}>
+      ← 返回菜單
+    </button>
+  );
+
   if (menuLoading) {
     return (
       <div>
-        <div className="page-header">
-          <p className="eyebrow">Vendor · Menu</p>
-          <h2>每日排程</h2>
+        <div className="page-header" style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
+          <div>
+            <p className="eyebrow">Vendor · Menu</p>
+            <h2>每日排程</h2>
+          </div>
+          {backButton}
         </div>
         <p className="loading-state">載入中…</p>
       </div>
@@ -390,21 +399,21 @@ export default function VendorMenuSchedulePage() {
   if (!item) {
     return (
       <div>
-        <div className="page-header">
-          <p className="eyebrow">Vendor · Menu</p>
-          <h2>每日排程</h2>
+        <div className="page-header" style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
+          <div>
+            <p className="eyebrow">Vendor · Menu</p>
+            <h2>每日排程</h2>
+          </div>
+          {backButton}
         </div>
         <p className="error-state">找不到此餐點。</p>
-        <button className="ghost-button" type="button" onClick={() => navigate("/vendor/menu")}>
-          返回菜單
-        </button>
       </div>
     );
   }
 
   return (
     <div>
-      <div className="page-header" style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
+      <div className="page-header" style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 24 }}>
         <div>
           <p className="eyebrow">Vendor · Menu</p>
           <h2>每日排程 — {item.name}</h2>
@@ -414,9 +423,7 @@ export default function VendorMenuSchedulePage() {
             {formatPrice(item.price_cents)} · 今日推薦每日最多 {recommendationLimit} 道
           </p>
         </div>
-        <button className="ghost-button" type="button" onClick={() => navigate("/vendor/menu")}>
-          返回菜單
-        </button>
+        {backButton}
       </div>
 
       {scheduleError && <p className="error-state">{scheduleError}</p>}
