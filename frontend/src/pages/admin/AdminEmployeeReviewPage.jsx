@@ -43,7 +43,7 @@ const GRID_COLS = "1fr 200px 110px 110px 200px";
 // ── Inline facility editor ────────────────────────────────────────────────────
 
 function FacilityEditor({ employeeId, allFacilities, onClose }) {
-  const [checkedIds, setCheckedIds] = useState(new Set());
+  const [selectedId, setSelectedId] = useState("");   // "" = 不限廠區
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
@@ -54,27 +54,18 @@ function FacilityEditor({ employeeId, allFacilities, onClose }) {
     setError(null);
     setSuccess(false);
     getEmployeeFacilities(employeeId)
-      .then((data) => { if (active) setCheckedIds(new Set(data.map((f) => f.id))); })
+      .then((data) => { if (active) setSelectedId(data[0]?.id ?? ""); })
       .catch(() => { if (active) setError("無法載入廠區指派"); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [employeeId]);
-
-  function toggle(id) {
-    setCheckedIds((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-    setSuccess(false);
-  }
 
   async function handleSave() {
     setLoading(true);
     setError(null);
     setSuccess(false);
     try {
-      await setEmployeeFacilities(employeeId, Array.from(checkedIds));
+      await setEmployeeFacilities(employeeId, selectedId ? [Number(selectedId)] : []);
       setSuccess(true);
     } catch {
       setError("儲存失敗，請稍後再試");
@@ -92,56 +83,45 @@ function FacilityEditor({ employeeId, allFacilities, onClose }) {
         background: "rgba(47,100,200,0.03)",
       }}
     >
-      <p style={{ margin: "0 0 10px", fontSize: 13, fontWeight: 600, color: "#2b5cc8" }}>
-        指派廠區
-        <span style={{ marginLeft: 8, fontSize: 12, fontWeight: 400, color: "var(--muted)" }}>
-          （空選表示不限廠區）
-        </span>
-      </p>
+      <p style={{ margin: "0 0 10px", fontSize: 13, fontWeight: 600, color: "#2b5cc8" }}>指派廠區</p>
 
       {loading && <p style={{ margin: 0, fontSize: 13, color: "var(--muted)" }}>載入中…</p>}
 
-      {!loading && allFacilities.length === 0 && (
-        <p style={{ margin: 0, fontSize: 13, color: "var(--muted)" }}>尚未建立任何廠區。</p>
-      )}
-
-      {!loading && allFacilities.length > 0 && (
-        <>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 20px", marginBottom: 12 }}>
+      {!loading && (
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <select
+            value={selectedId}
+            onChange={(e) => { setSelectedId(e.target.value); setSuccess(false); }}
+            style={{
+              padding: "6px 12px",
+              borderRadius: "var(--radius-md)",
+              border: "1px solid var(--line)",
+              background: "var(--surface-strong)",
+              fontSize: 13,
+              cursor: "pointer",
+              minWidth: 200,
+            }}
+          >
+            <option value="">— 不限廠區 —</option>
             {allFacilities.map((f) => (
-              <label
-                key={f.id}
-                style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 13 }}
-              >
-                <input
-                  type="checkbox"
-                  checked={checkedIds.has(f.id)}
-                  onChange={() => toggle(f.id)}
-                />
-                <span>{f.code}　{f.name}</span>
-              </label>
+              <option key={f.id} value={f.id}>
+                {f.code}　{f.name}
+              </option>
             ))}
-          </div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={loading}
-              style={btnStyle("approve")}
-            >
-              儲存
-            </button>
-            <button type="button" onClick={onClose} style={btnStyle()}>
-              關閉
-            </button>
-            {success && (
-              <span style={{ fontSize: 13, color: "var(--success)", fontWeight: 600 }}>✓ 已儲存</span>
-            )}
-            {error && (
-              <span style={{ fontSize: 13, color: "var(--brand)" }}>{error}</span>
-            )}
-          </div>
-        </>
+          </select>
+          <button type="button" onClick={handleSave} disabled={loading} style={btnStyle("approve")}>
+            儲存
+          </button>
+          <button type="button" onClick={onClose} style={btnStyle()}>
+            關閉
+          </button>
+          {success && (
+            <span style={{ fontSize: 13, color: "var(--success)", fontWeight: 600 }}>✓ 已儲存</span>
+          )}
+          {error && (
+            <span style={{ fontSize: 13, color: "var(--brand)" }}>{error}</span>
+          )}
+        </div>
       )}
     </div>
   );
