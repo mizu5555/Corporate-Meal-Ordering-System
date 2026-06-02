@@ -8,6 +8,26 @@
 	}
 }
 
+# Backend upstream. Resolves the `api` service via Docker's embedded DNS on
+# every refresh, so when backend runs as multiple replicas (sharing the `api`
+# network alias) Caddy sees every instance and round-robins across them. A
+# static `reverse_proxy api:8000` would resolve once and pin a single IP, so
+# extra replicas would get no traffic — hence the dynamic source. Passive
+# health checking (lb_try_duration + fail_duration) makes a killed replica
+# fail over without downtime. With a single instance this behaves like before.
+(api_upstream) {
+	reverse_proxy {
+		dynamic a {
+			name api
+			port 8000
+			refresh 2s
+		}
+		lb_policy round_robin
+		lb_try_duration 5s
+		fail_duration 10s
+	}
+}
+
 # Shared routing table. Imported by both the internal :80 entry point (used
 # by the preview-router, which forwards with Host: mealorder-<env>-gateway)
 # and the local-dev https://localhost entry point.
@@ -34,35 +54,35 @@
 	}
 
 	handle /auth/* {
-		reverse_proxy api:8000
+		import api_upstream
 	}
 
 	handle /health {
-		reverse_proxy api:8000
+		import api_upstream
 	}
 
 	handle /docs* {
-		reverse_proxy api:8000
+		import api_upstream
 	}
 
 	handle /openapi.json {
-		reverse_proxy api:8000
+		import api_upstream
 	}
 
 	handle /admin/* {
-		reverse_proxy api:8000
+		import api_upstream
 	}
 
 	handle /vendor/* {
-		reverse_proxy api:8000
+		import api_upstream
 	}
 
 	handle /employee/* {
-		reverse_proxy api:8000
+		import api_upstream
 	}
 
 	handle /committee/* {
-		reverse_proxy api:8000
+		import api_upstream
 	}
 
 	handle_path /uploads/* {
