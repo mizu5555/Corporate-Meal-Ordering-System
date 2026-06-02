@@ -16,7 +16,10 @@ pipeline {
     ROOT_PATH              = '/meal'
     BASE_PATH              = '/meal/'
     GATEWAY_CONTAINER_NAME = 'mealorder-prod-gateway'
-    PUBLIC_HEALTH_URL      = "${env.PUBLIC_HEALTH_URL ?: 'https://nol.cs.nycu.edu.tw/meal/health'}"
+    // Public base URL is provided by a Jenkins global env var (configured on the
+    // controller), never hardcoded here — this repo is public.
+    PUBLIC_BASE_URL        = "${env.PUBLIC_BASE_URL ?: ''}"
+    PUBLIC_HEALTH_URL      = "${env.PUBLIC_HEALTH_URL ?: (env.PUBLIC_BASE_URL ? env.PUBLIC_BASE_URL + '/meal/health' : '')}"
   }
 
   stages {

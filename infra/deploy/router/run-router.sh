@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Idempotent ensure for the shared deploy router container on the NOL host.
+# Idempotent ensure for the shared deploy router container on the deploy host.
 #
 # Builds a self-contained image (Caddyfile baked in — no bind mount) and brings
 # the container up. Re-running is cheap and safe:

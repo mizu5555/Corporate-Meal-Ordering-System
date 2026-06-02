@@ -19,5 +19,5 @@ docs/superpowers/
 .local-notes/
 .understand-anything/
 
-# Internal ops runbook (NOL host + Jenkins setup) — kept local, not published.
+# Internal ops runbook (deploy host + Jenkins setup) — kept local, not published.
 infra/deploy/SETUP.md
