@@ -181,20 +181,24 @@ class VendorMenuService:
             vendor = self.vendor_repository.get(vendor_id)
             if vendor is not None:
                 limit = vendor.daily_recommendation_limit
-        recommended_count = sum(
-            1
+        current_recommendations = [
+            item
             for item in self.menu_item_repository.list_effective(
                 vendor_id=vendor_id,
                 meal_date=meal_date,
                 available=None,
             )
             if item.id != item_id and item.is_recommended
-        )
-        if recommended_count >= limit:
+        ]
+        if len(current_recommendations) >= limit:
+            names = ", ".join(item.name for item in current_recommendations)
+            detail = f"daily recommendation limit is {limit}"
+            if names:
+                detail = f"{detail}; current recommendations: {names}"
             raise CodedHTTPException(
                 status_code=409,
                 code="daily_recommendation_limit_exceeded",
-                detail=f"daily recommendation limit is {limit}",
+                detail=detail,
             )
 
     def _assert_category_belongs_to(self, vendor_id: int, category_id: int) -> None:

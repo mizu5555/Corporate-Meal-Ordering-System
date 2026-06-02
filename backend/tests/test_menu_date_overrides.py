@@ -350,6 +350,7 @@ def test_put_schedule_rejects_recommendations_over_vendor_limit() -> None:
     assert ok.status_code == 200
     assert over.status_code == 409
     assert over.json()["code"] == "daily_recommendation_limit_exceeded"
+    assert over.json()["detail"] == "daily recommendation limit is 1; current recommendations: Rice Box"
 
 
 def test_put_schedule_is_idempotent() -> None:
