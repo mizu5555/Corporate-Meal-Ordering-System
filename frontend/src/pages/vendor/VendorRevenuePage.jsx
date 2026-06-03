@@ -126,23 +126,27 @@ export default function VendorRevenuePage() {
         aria-label="Custom date range"
         style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap", marginBottom: 20 }}
       >
-        <label style={{ display: "flex", flexDirection: "column", fontSize: 12 }}>
-          <span>開始日期</span>
+        <label style={{ display: "grid", gap: 6 }}>
+          <span style={{ fontWeight: 600, fontSize: 14 }}>開始日期</span>
           <input
+            className="date-input"
             type="date"
             value={startDate}
             max={endDate}
             onChange={(event) => setStartDate(event.target.value)}
+            style={{ width: "auto" }}
           />
         </label>
-        <label style={{ display: "flex", flexDirection: "column", fontSize: 12 }}>
-          <span>結束日期</span>
+        <label style={{ display: "grid", gap: 6 }}>
+          <span style={{ fontWeight: 600, fontSize: 14 }}>結束日期</span>
           <input
+            className="date-input"
             type="date"
             value={endDate}
             min={startDate}
             max={todayIso()}
             onChange={(event) => setEndDate(event.target.value)}
+            style={{ width: "auto" }}
           />
         </label>
       </div>
