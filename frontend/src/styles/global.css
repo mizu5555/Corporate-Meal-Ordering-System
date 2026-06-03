@@ -1608,10 +1608,97 @@ p {
    Admin stats dashboard  (feat/analytics/order-aggregation-monitoring)
    ============================================================ */
 
+.admin-stats-page {
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  align-items: start;
+}
+
+.admin-stats-hero,
+.admin-stats-feedback,
+.admin-stats-metrics {
+  grid-column: 1 / -1;
+}
+
+.admin-stats-table-panel {
+  grid-column: span 6;
+  display: grid;
+  gap: 18px;
+}
+
+.admin-stats-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(320px, 0.95fr);
+  gap: 24px;
+  padding: 34px;
+  background:
+    radial-gradient(circle at top right, rgba(240, 180, 90, 0.28), transparent 34%),
+    linear-gradient(145deg, rgba(255, 252, 246, 0.92), rgba(249, 242, 232, 0.9));
+}
+
+.admin-stats-hero-copy {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
+.admin-stats-range-text {
+  max-width: 52ch;
+}
+
+.admin-stats-hero-side {
+  display: grid;
+  gap: 18px;
+  align-content: start;
+  justify-items: end;
+}
+
+.admin-stats-range-pills {
+  margin-top: 0;
+  justify-content: flex-end;
+}
+
+.admin-stats-highlights {
+  display: grid;
+  gap: 12px;
+  width: min(100%, 360px);
+}
+
+.admin-stats-highlight {
+  display: grid;
+  gap: 6px;
+  padding: 18px 20px;
+  border: 1px solid rgba(200, 92, 44, 0.14);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.admin-stats-highlight span,
+.admin-stat-card small,
+.admin-stats-entity-copy small {
+  color: var(--muted);
+}
+
+.admin-stats-highlight span {
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.admin-stats-highlight strong {
+  font-size: 1.08rem;
+  line-height: 1.35;
+}
+
 .stat-cards {
   display: flex;
   flex-wrap: wrap;
   gap: 14px;
+}
+
+.admin-stats-metrics {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.24), transparent),
+    rgba(255, 250, 241, 0.72);
 }
 
 .stat-card {
@@ -1637,6 +1724,18 @@ p {
   font-weight: 800;
   color: var(--text);
   line-height: 1.1;
+}
+
+.admin-stat-card {
+  gap: 8px;
+  padding: 18px 20px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(255, 247, 238, 0.68));
+}
+
+.admin-stat-card small {
+  font-size: 0.83rem;
+  line-height: 1.5;
 }
 
 /* Date-range presets on the stats dashboard */
@@ -1678,6 +1777,90 @@ p {
 .pw-toggle:focus-visible {
   outline: 2px solid var(--brand);
   outline-offset: 2px;
+}
+
+.admin-stats-section-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: end;
+  flex-wrap: wrap;
+}
+
+.admin-stats-section-head h3 {
+  margin-top: 8px;
+  margin-bottom: 0;
+}
+
+.admin-stats-table-wrap {
+  overflow-x: auto;
+}
+
+.admin-stats-table {
+  min-width: 620px;
+}
+
+.admin-stats-table td {
+  vertical-align: middle;
+}
+
+.admin-stats-entity {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 220px;
+}
+
+.admin-stats-rank {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  border-radius: 12px;
+  background: rgba(240, 180, 90, 0.18);
+  color: var(--brand-deep);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.admin-stats-entity-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.admin-stats-entity-copy strong {
+  font-size: 0.96rem;
+  line-height: 1.35;
+}
+
+.admin-stats-entity-copy small {
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.admin-stats-share-cell {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-stats-share-cell span {
+  font-weight: 700;
+}
+
+.admin-stats-share-track {
+  width: 100%;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(23, 33, 43, 0.08);
+}
+
+.admin-stats-share-fill {
+  height: 100%;
+  min-width: 6px;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), var(--brand));
 }
 
 /* Daily-orders column chart (inline SVG) */
@@ -1775,6 +1958,26 @@ p {
     gap: 18px;
   }
 
+  .admin-stats-page {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-stats-table-panel {
+    grid-column: 1 / -1;
+  }
+
+  .admin-stats-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-stats-hero-side {
+    justify-items: start;
+  }
+
+  .admin-stats-range-pills {
+    justify-content: flex-start;
+  }
+
   .nav-list {
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   }
@@ -1813,6 +2016,10 @@ p {
 
   .billing-filter-grid {
     grid-template-columns: 1fr;
+  }
+
+  .admin-stats-table {
+    min-width: 560px;
   }
 
   .login-hero-panel {
